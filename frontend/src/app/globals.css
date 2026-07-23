@@ -10,3 +10,104 @@ body {
   margin: 0;
   min-height: 100%;
 }
+
+.queue-tv-screen::before {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.018) 3px,
+    rgba(0, 0, 0, 0.018) 4px
+  );
+  content: '';
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 999;
+}
+
+.queue-blink-dot {
+  animation: queueBlinkDot 1.5s ease infinite;
+}
+
+.queue-flash-dot {
+  animation: queueFlashDot 1s ease infinite;
+}
+
+.queue-emergency-ring::before {
+  animation: queueEmergencyRing 2s ease-out infinite;
+  border: 2px solid #e53935;
+  border-radius: 12px;
+  content: '';
+  inset: -2px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.queue-ticker-track {
+  animation: queueTicker 34s linear infinite;
+}
+
+.queue-ticker-track-slow {
+  animation: queueTicker 44s linear infinite;
+}
+
+@keyframes queueTicker {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes queueBlinkDot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes queueFlashDot {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(2, 136, 209, 0.6);
+    opacity: 1;
+  }
+
+  50% {
+    box-shadow: 0 0 0 6px rgba(2, 136, 209, 0);
+    opacity: 0.6;
+  }
+}
+
+@keyframes queueEmergencyRing {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes kiosk-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
+}
