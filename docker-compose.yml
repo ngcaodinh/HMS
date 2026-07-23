@@ -1,0 +1,27 @@
+services:
+  mysql:
+    image: mysql:8.0.36
+    container_name: hms-mysql
+    restart: unless-stopped
+    ports:
+      - '${MYSQL_PORT:-3306}:3306'
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-hms}
+      MYSQL_USER: ${MYSQL_USER:-hms_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-hms_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hms_root_password}
+      TZ: Asia/Ho_Chi_Minh
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+07:00
+    volumes:
+      - hms_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hms_mysql_data:
