@@ -24,3 +24,5 @@ backend/uploads/*
 AGENTS.md
 
 doc
+
+*.tsbuildinfo

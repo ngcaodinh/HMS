@@ -213,7 +213,7 @@ export function DarkQueueDisplayPage() {
           <div className={styles.tickerTrack}>
             {[...tickerItems, ...tickerItems].map((item, index) => (
               <span
-                className="inline-flex h-[26px] translate-y-0.5 items-center gap-3 whitespace-nowrap px-9 text-[17px] font-semibold leading-[26px] text-white"
+                className="inline-flex h-[26px] translate-y-1 items-center gap-3 whitespace-nowrap px-9 text-[17px] font-semibold leading-[26px] text-white"
                 key={`${item.text}-${index}`}
               >
                 <span className="relative top-[1px] shrink-0 text-[9px] leading-none text-white/60">◆</span>
