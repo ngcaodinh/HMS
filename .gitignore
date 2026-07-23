@@ -22,3 +22,5 @@ backend/uploads/*
 
 .agents/
 AGENTS.md
+
+doc
