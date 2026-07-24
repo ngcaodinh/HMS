@@ -7,21 +7,31 @@ import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-works
 
 const assetPath = '/doctor-assets';
 
-function statusMeta(status: WorklistItem['status'], isSelected: boolean) {
+type QueueBadge = { label: string; numberClass: string; pillClass: string; blink?: boolean };
+
+/** Mirrors GROUP_META badge styling in Tailieu/doctor.html (badge-active/lab/result/done). */
+function badgeFor(item: WorklistItem, isSelected: boolean): QueueBadge {
   if (isSelected) {
     return { label: 'Đang khám', numberClass: 'bg-[rgba(96,165,250,0.2)] text-[#93c5fd]', pillClass: 'border-[rgba(96,165,250,0.4)] bg-[rgba(96,165,250,0.2)] text-[#96ccff]' };
   }
-  if (status === 'waiting_results') {
-    return { label: 'Chờ KQ', numberClass: 'bg-[rgba(34,211,238,0.1)] text-[#67e8f9]', pillClass: 'border-[rgba(34,211,238,0.3)] bg-[rgba(34,211,238,0.1)] text-[#55d7ed]' };
+  if (item.status === 'closed') {
+    return { label: 'Xong', numberClass: 'bg-[rgba(110,231,183,0.15)] text-[#6ee7b7]', pillClass: 'border-[rgba(110,231,183,0.25)] bg-[rgba(110,231,183,0.15)] text-[#6ee7b7]' };
   }
-  if (status === 'diagnosed') {
-    return { label: 'Đã chẩn đoán', numberClass: 'bg-[rgba(251,191,36,0.12)] text-[#fcd34d]', pillClass: 'border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.2)] text-[#fbbf24]' };
+  if (item.status === 'diagnosed') {
+    return { label: 'Chờ kê đơn', numberClass: 'bg-[rgba(85,215,237,0.15)] text-[#55d7ed]', pillClass: 'border-[rgba(251,191,36,0.35)] bg-[rgba(251,191,36,0.22)] text-[#fbbf24]' };
+  }
+  if (item.status === 'waiting_results' && item.hasReadyResults) {
+    return { label: 'Kết quả mới', numberClass: 'bg-[rgba(85,215,237,0.15)] text-[#55d7ed]', pillClass: 'border-[rgba(251,191,36,0.35)] bg-[rgba(251,191,36,0.22)] text-[#fbbf24]', blink: true };
+  }
+  if (item.status === 'waiting_results') {
+    return { label: 'Chờ KQ', numberClass: 'bg-[rgba(85,215,237,0.15)] text-[#55d7ed]', pillClass: 'border-[rgba(85,215,237,0.3)] bg-[rgba(85,215,237,0.15)] text-[#55d7ed]' };
   }
   return { label: 'Chờ khám', numberClass: 'bg-[rgba(251,191,36,0.2)] text-[#fcd34d]', pillClass: 'border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.2)] text-[#fbbf24]' };
 }
 
 export function Sidebar({
   doctorName,
+  onLogout,
   onSelectPatient,
   searchTerm,
   onSearchTermChange,
@@ -29,6 +39,7 @@ export function Sidebar({
   worklist,
 }: {
   doctorName: string;
+  onLogout: () => void;
   onSelectPatient: (recordId: string) => void;
   onSearchTermChange: (value: string) => void;
   searchTerm: string;
@@ -38,14 +49,18 @@ export function Sidebar({
   const filtered = worklist.filter((item) =>
     item.patient.fullName.toLowerCase().includes(searchTerm.trim().toLowerCase()),
   );
-  const active = filtered.filter((item) => item.recordId === selectedRecordId);
-  const waiting = filtered.filter((item) => item.status === 'open' && item.recordId !== selectedRecordId);
-  const waitingResults = filtered.filter(
-    (item) => item.status === 'waiting_results' && item.recordId !== selectedRecordId,
-  );
-  const diagnosed = filtered.filter(
-    (item) => item.status === 'diagnosed' && item.recordId !== selectedRecordId,
-  );
+  const notSelected = filtered.filter((item) => item.recordId !== selectedRecordId);
+
+  const groups: Array<{ title: string; items: WorklistItem[] }> = [
+    { title: 'Đang khám', items: filtered.filter((item) => item.recordId === selectedRecordId) },
+    { title: 'Chờ khám', items: notSelected.filter((item) => item.status === 'open') },
+    { title: 'Chờ xét nghiệm', items: notSelected.filter((item) => item.status === 'waiting_results' && !item.hasReadyResults) },
+    {
+      title: 'Có kết quả',
+      items: notSelected.filter((item) => item.status === 'diagnosed' || (item.status === 'waiting_results' && item.hasReadyResults)),
+    },
+    { title: 'Đã khám xong', items: notSelected.filter((item) => item.status === 'closed') },
+  ];
 
   const doneCount = worklist.filter((item) => item.status === 'closed').length;
   const waitingCount = worklist.filter((item) => item.status === 'open' || item.status === 'waiting_results').length;
@@ -90,34 +105,23 @@ export function Sidebar({
           />
         </label>
 
-        {active.length > 0 && (
-          <QueueSection title="Đang khám">
-            {active.map((item) => (
-              <QueueItem isSelected item={item} key={item.recordId} onClick={() => onSelectPatient(item.recordId)} />
-            ))}
-          </QueueSection>
+        {groups.map(
+          (group) =>
+            group.items.length > 0 && (
+              <QueueSection key={group.title} title={group.title}>
+                {group.items.map((item) => (
+                  <QueueItem
+                    isSelected={item.recordId === selectedRecordId}
+                    item={item}
+                    key={item.recordId}
+                    onClick={() => onSelectPatient(item.recordId)}
+                  />
+                ))}
+              </QueueSection>
+            ),
         )}
 
-        <QueueSection title="Chờ khám">
-          {waiting.length === 0 && <EmptyQueueHint />}
-          {waiting.map((item) => (
-            <QueueItem item={item} key={item.recordId} onClick={() => onSelectPatient(item.recordId)} />
-          ))}
-        </QueueSection>
-
-        <QueueSection title="Chờ xét nghiệm">
-          {waitingResults.length === 0 && <EmptyQueueHint />}
-          {waitingResults.map((item) => (
-            <QueueItem item={item} key={item.recordId} onClick={() => onSelectPatient(item.recordId)} />
-          ))}
-        </QueueSection>
-
-        <QueueSection title="Đã chẩn đoán">
-          {diagnosed.length === 0 && <EmptyQueueHint />}
-          {diagnosed.map((item) => (
-            <QueueItem item={item} key={item.recordId} onClick={() => onSelectPatient(item.recordId)} />
-          ))}
-        </QueueSection>
+        {worklist.length === 0 && <p className="px-4 py-3 text-[11px] text-white/35">Không có bệnh nhân trong danh sách.</p>}
       </div>
 
       <div className={styles.sidebarUser}>
@@ -126,16 +130,12 @@ export function Sidebar({
           <p className={styles.userName}>{doctorName}</p>
           <p className={styles.userRole}>Bác sĩ</p>
         </div>
-        <button aria-label="Đăng xuất" className={styles.iconButton} type="button">
+        <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
           <AssetIcon className="h-4 w-4 invert" name="icon-logout.svg" />
         </button>
       </div>
     </aside>
   );
-}
-
-function EmptyQueueHint() {
-  return <p className="px-4 py-2 text-[11px] text-white/35">Không có bệnh nhân</p>;
 }
 
 function QueueSection({ children, title }: { children: ReactNode; title: string }) {
@@ -156,21 +156,18 @@ function QueueItem({
   item: WorklistItem;
   onClick: () => void;
 }) {
-  const meta = statusMeta(item.status, isSelected);
+  const badge = badgeFor(item, isSelected);
   return (
-    <button
-      className={cn(styles.queueItem, isSelected && styles.queueItemActive)}
-      onClick={onClick}
-      type="button"
-    >
-      <span className={cn(styles.queueNumber, meta.numberClass)}>{item.recordCode.slice(-2)}</span>
+    <button className={cn(styles.queueItem, isSelected && styles.queueItemActive)} onClick={onClick} type="button">
+      <span className={cn(styles.queueNumber, badge.numberClass)}>{item.recordCode.slice(-2)}</span>
       <span className="min-w-0 flex-1">
         <span className={styles.queueName}>{item.patient.fullName}</span>
         <span className={styles.queueMeta}>
           {calculateAge(item.patient.dateOfBirth)} tuổi · {genderLabel(item.patient.gender)}
         </span>
       </span>
-      <span className={cn(styles.queuePill, meta.pillClass)}>{meta.label}</span>
+      {badge.blink && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[#fbbf24]" />}
+      <span className={cn(styles.queuePill, badge.pillClass)}>{badge.label}</span>
     </button>
   );
 }

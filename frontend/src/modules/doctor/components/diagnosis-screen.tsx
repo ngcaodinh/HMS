@@ -13,7 +13,13 @@ const PLAN_LABEL: Record<TreatmentType, string> = {
   inpatient: 'Nội trú → Tab 5B Y lệnh',
 };
 
-export function DiagnosisScreen({ record }: { record: MedicalRecordDetail }) {
+export function DiagnosisScreen({
+  onDiagnosed,
+  record,
+}: {
+  onDiagnosed?: (treatmentType: TreatmentType) => void;
+  record: MedicalRecordDetail;
+}) {
   const alreadyDiagnosed = record.diagnosis !== null;
   const [isEditing, setIsEditing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -66,6 +72,7 @@ export function DiagnosisScreen({ record }: { record: MedicalRecordDetail }) {
         treatmentType,
       });
       setIsEditing(false);
+      onDiagnosed?.(treatmentType);
     } catch (error) {
       setErrorMessage(error instanceof ApiError ? error.message : 'Không thể lưu chẩn đoán.');
     }

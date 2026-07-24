@@ -8,6 +8,7 @@ export interface WorklistItem {
   patient: { patientId: string; fullName: string; dateOfBirth: string; gender: 'male' | 'female' };
   chiefComplaint: string | null;
   status: RecordStatus;
+  hasReadyResults: boolean;
 }
 
 export interface RecordPatient {
@@ -18,6 +19,10 @@ export interface RecordPatient {
   gender: 'male' | 'female';
   allergies: string | null;
   healthInsuranceCode: string | null;
+  healthInsuranceExpiryDate: string | null;
+  address: string | null;
+  emergencyContact: string | null;
+  emergencyPhoneNumber: string | null;
 }
 
 export interface ClinicalAssessment {
@@ -69,6 +74,7 @@ export interface MedicalRecordDetail {
   doctorId: string;
   isEmergency: boolean;
   chiefComplaint: string | null;
+  createdAt: string;
   patient: RecordPatient;
   clinicalAssessment: ClinicalAssessment;
   latestVitalSigns: LatestVitalSigns | null;

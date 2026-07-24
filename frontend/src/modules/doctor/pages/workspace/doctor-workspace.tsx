@@ -2,10 +2,20 @@
 
 import { useMemo, useState } from 'react';
 
+import { useLogout } from '@/shared/hooks/use-logout';
 import { useRequireAuth } from '@/shared/hooks/use-require-auth';
 import { DiagnosisScreen } from '../../components/diagnosis-screen';
-import { EmptyState, PatientSummary, StepTabs, Topbar, type DoctorScreen, type StepId } from '../../components/patient-header';
+import {
+  EmptyState,
+  PatientSummary,
+  StepTabs,
+  Topbar,
+  visibleSteps,
+  type DoctorScreen,
+  type StepId,
+} from '../../components/patient-header';
 import { OrdersScreen } from '../../components/orders-screen';
+import { PrescriptionScreen } from '../../components/prescription-screen';
 import { ResultsScreen } from '../../components/results-screen';
 import { Sidebar } from '../../components/sidebar';
 import { cn } from '../../components/shared';
@@ -22,6 +32,7 @@ const WORKLIST_LABEL: Record<string, string> = {
 
 export function DoctorWorkspacePage() {
   const { data: principal, isLoading: isAuthLoading, isError: isAuthError } = useRequireAuth();
+  const logout = useLogout();
   const isAuthed = Boolean(principal) && !isAuthError;
   const { data: worklist, isLoading: isWorklistLoading, isError: isWorklistError } = useDoctorWorklist(isAuthed);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -32,10 +43,18 @@ export function DoctorWorkspacePage() {
   const record = detailResponse?.record ?? null;
 
   const activeStep = useMemo<StepId>(() => (currentScreen === 'empty' ? 'vitals' : currentScreen), [currentScreen]);
+  const steps = useMemo(() => visibleSteps(record?.diagnosis ?? null), [record?.diagnosis]);
 
   function handleSelectPatient(recordId: string) {
     setSelectedRecordId(recordId);
     setCurrentScreen('vitals');
+  }
+
+  /** Mirrors deselectPatient() in doctor.html — "Đóng hồ sơ" just clears the active chart, it
+   * does not close/settle the record (that requires billing, not built in this scope). */
+  function handleCloseRecord() {
+    setSelectedRecordId(null);
+    setCurrentScreen('empty');
   }
 
   if (isAuthLoading || isAuthError) {
@@ -62,6 +81,7 @@ export function DoctorWorkspacePage() {
     <main className={styles.page}>
       <Sidebar
         doctorName={principal?.fullName ?? 'Bác sĩ'}
+        onLogout={logout}
         onSearchTermChange={setSearchTerm}
         onSelectPatient={handleSelectPatient}
         searchTerm={searchTerm}
@@ -69,7 +89,7 @@ export function DoctorWorkspacePage() {
         worklist={isWorklistLoading ? [] : worklist?.data ?? []}
       />
       <section className={styles.workspace}>
-        <Topbar hasPatient={currentScreen !== 'empty'} />
+        <Topbar doctorName={principal?.fullName ?? 'Bác sĩ'} hasPatient={currentScreen !== 'empty'} />
         <div className={cn(styles.body, currentScreen === 'empty' && styles.bodyEmpty)}>
           {currentScreen === 'empty' && (
             <EmptyState
@@ -86,12 +106,25 @@ export function DoctorWorkspacePage() {
 
           {currentScreen !== 'empty' && !isDetailLoading && record && (
             <>
-              <PatientSummary record={record} worklistLabel={WORKLIST_LABEL[record.status] ?? record.status} />
-              <StepTabs currentScreen={activeStep} hasNewResult={record.labTests.some((test) => test.status === 'resulted')} onChangeScreen={setCurrentScreen} />
+              <PatientSummary onCloseRecord={handleCloseRecord} record={record} worklistLabel={WORKLIST_LABEL[record.status] ?? record.status} />
+              <StepTabs
+                currentScreen={activeStep}
+                hasNewResult={record.labTests.some((test) => test.status === 'resulted')}
+                onChangeScreen={setCurrentScreen}
+                steps={steps}
+              />
               {activeStep === 'vitals' && <VitalsScreen doctorName={principal?.fullName ?? 'Bác sĩ'} record={record} />}
               {activeStep === 'orders' && <OrdersScreen record={record} />}
               {activeStep === 'results' && <ResultsScreen record={record} />}
-              {activeStep === 'diagnosis' && <DiagnosisScreen record={record} />}
+              {activeStep === 'diagnosis' && (
+                <DiagnosisScreen
+                  onDiagnosed={(treatmentType) => {
+                    if (treatmentType === 'outpatient') setCurrentScreen('prescription');
+                  }}
+                  record={record}
+                />
+              )}
+              {activeStep === 'prescription' && <PrescriptionScreen record={record} />}
             </>
           )}
         </div>

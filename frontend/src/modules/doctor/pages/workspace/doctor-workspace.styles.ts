@@ -38,6 +38,10 @@ export const doctorWorkspaceStyles = {
     'flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#c0c7d1] bg-white px-5 py-3 lg:min-h-[64px] lg:px-6',
   topbarTitle: 'text-base font-bold leading-6 text-[#004871]',
   topbarRight: 'flex items-center gap-4 text-right',
+  netBadge:
+    'inline-flex items-center gap-1.5 rounded-full bg-[#d4f0e0] px-2.5 py-1 text-[11px] font-semibold text-[#1b6e3f]',
+  topbarDoctorName: 'text-[13px] font-bold leading-[19.5px] text-[#171c1f]',
+  topbarDoctorRole: 'mt-0.5 text-[11px] leading-[16.5px] text-[#707882]',
   dutyPill:
     'inline-flex items-center gap-1.5 rounded-full border border-[rgba(27,110,63,0.2)] bg-[#d4f0e0] px-2.5 py-1 text-[10px] font-semibold text-[#1b6e3f]',
   topbarTimeStrong: 'whitespace-nowrap text-xs font-medium leading-[18px] text-[#3f4851]',
