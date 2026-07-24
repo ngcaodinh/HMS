@@ -8,6 +8,8 @@ import pinoHttp from 'pino-http';
 
 import { config } from './config/unifiedConfig';
 import { logger } from './core/logger/logger';
+import { errorHandler, notFoundHandler } from './middlewares/error-handler';
+import { apiV1Router } from './routes';
 
 export const createApp = () => {
   const app = express();
@@ -26,6 +28,10 @@ export const createApp = () => {
       timezone: config.app.timezone,
     });
   });
+
+  app.use('/api/v1', apiV1Router);
+  app.use('/api/v1', notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 };

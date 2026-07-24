@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import './globals.css';
+import { QueryProvider } from '@/shared/providers/query-provider';
 
 export const metadata = {
   title: 'HMS',
@@ -14,7 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }

@@ -1,4 +1,12 @@
+'use client';
+
+import { useState, type FormEvent } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+
+import { ApiError } from '@/shared/api-client';
+import { resolveRoleHomePath, type Principal } from '@/shared/types/principal';
 
 type IconProps = {
   className?: string;
@@ -125,6 +133,45 @@ function HeadsetIcon({ className }: IconProps) {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new ApiError(
+          payload.error?.code ?? 'UNKNOWN_ERROR',
+          payload.error?.message ?? 'Đăng nhập thất bại. Vui lòng thử lại.',
+          response.status,
+        );
+      }
+
+      const principal = payload.data.principal as Principal;
+      queryClient.setQueryData(['auth', 'me'], principal);
+      router.push(resolveRoleHomePath(principal.roleCodes));
+    } catch (error) {
+      setErrorMessage(error instanceof ApiError ? error.message : 'Không thể kết nối máy chủ.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f6fafe] font-sans text-[#171c1f] lg:flex">
       <section className="relative flex min-h-[360px] flex-1 overflow-hidden px-6 py-7 text-white sm:px-10 sm:py-10 lg:min-h-screen lg:px-12 lg:py-12">
@@ -227,7 +274,16 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form className="mt-8 space-y-5">
+          <form className="mt-8 space-y-5" noValidate onSubmit={handleSubmit}>
+            {errorMessage && (
+              <p
+                className="rounded-lg border border-[#ffdad6] bg-[#fff5f4] px-3 py-2 text-[13px] font-medium text-[#ba1a1a]"
+                role="alert"
+              >
+                {errorMessage}
+              </p>
+            )}
+
             <div>
               <label
                 className="mb-2 block pl-1 text-[11px] font-bold uppercase leading-4 text-[#3f4851]"
@@ -242,8 +298,11 @@ export default function LoginPage() {
                   className="h-12 w-full rounded-xl border border-[#bfc7d2] bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
                   id="username"
                   name="username"
+                  onChange={(event) => setUsername(event.target.value)}
                   placeholder="Mã nhân viên hoặc tên đăng nhập"
+                  required
                   type="text"
+                  value={username}
                 />
               </div>
             </div>
@@ -262,12 +321,16 @@ export default function LoginPage() {
                   className="h-12 w-full rounded-xl border border-[#bfc7d2] bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
                   id="password"
                   name="password"
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="Nhập mật khẩu"
-                  type="password"
+                  required
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
                 />
                 <button
-                  aria-label="Hiện mật khẩu"
+                  aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                   className="absolute right-3 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-md text-[#707882] transition hover:bg-[#f0f5fa] hover:text-[#006096] focus:outline-none focus:ring-4 focus:ring-[#006096]/10"
+                  onClick={() => setShowPassword((current) => !current)}
                   type="button"
                 >
                   <EyeIcon className="h-5 w-5" />
@@ -293,10 +356,11 @@ export default function LoginPage() {
             </div>
 
             <button
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc] text-base font-bold text-white shadow-hms-button transition hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-[#006096]/20"
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc] text-base font-bold text-white shadow-hms-button transition hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-[#006096]/20 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isSubmitting}
               type="submit"
             >
-              Đăng nhập
+              {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
               <ArrowRightIcon className="h-4 w-4" />
             </button>
           </form>
