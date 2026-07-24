@@ -89,6 +89,12 @@ export const doctorWorkspaceStyles = {
   td: 'px-4 py-3.5 text-[#171c1f]',
   statusNormal: 'rounded-full bg-[#d4f0e0] px-2 py-1 text-[11px] font-bold text-[#1b6e3f]',
   statusHigh: 'rounded-full bg-[#fee2e2] px-2 py-1 text-[10px] font-bold uppercase text-[#b91c1c]',
+  statusPending: 'rounded-full bg-[#ffecd4] px-2 py-1 text-[11px] font-bold text-[#a05c00]',
+  alertInfo: 'rounded-md border border-[#bae6fd] bg-[#f0f9ff] px-3 py-2 text-[13px] font-medium text-[#0369a1]',
+  alertSuccess: 'rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-3 py-2 text-[13px] font-medium text-[#15803d]',
+  alertDanger: 'rounded-md border border-[#ffdad6] bg-[#fff5f4] px-3 py-2 text-[13px] font-medium text-[#ba1a1a]',
+  secondaryButton:
+    'inline-flex h-12 items-center justify-center gap-2 rounded-md border border-[#006096] bg-white px-6 text-[13px] font-semibold text-[#006096] transition hover:bg-[#eef8ff] focus:outline-none focus:ring-4 focus:ring-[#006096]/10',
   footer:
     'flex h-8 shrink-0 items-center justify-end border-t border-[#c0c7d1] bg-[#f2f3f8] px-4 text-[10px] text-[rgba(65,71,79,0.4)]',
 } as const;
