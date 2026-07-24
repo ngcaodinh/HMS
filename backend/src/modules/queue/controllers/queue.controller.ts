@@ -108,6 +108,21 @@ export class QueueController {
     }
   }
 
+  /**
+   * @route POST /api/v1/queue-tickets/:ticketId/reannounce
+   * @desc  Gọi lại số đang called (re-announce)
+   * @access Private (queue.call)
+   */
+  async reannounceTicket(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { ticketId } = ticketIdParamSchema.parse(req.params);
+      const data = await queueService.reannounceTicket(ticketId, req.principal?.userId);
+      sendSuccess(res, data, 200, req.requestId);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async issueDeskTicket(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const rawKey = req.header('idempotency-key');

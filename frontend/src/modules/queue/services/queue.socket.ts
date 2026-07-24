@@ -34,43 +34,48 @@ export function issueTicketViaSocket(idempotencyKey: string): Promise<IssuedTick
   const socket = getQueueSocket();
 
   return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       cleanup();
-      reject(new Error('Hết thời gian chờ lấy số. Vui lòng thử lại.'));
-    }, 15000);
+      fn();
+    };
 
     const onResult = (payload: { data: IssuedTicketDto }) => {
-      cleanup();
-      resolve(payload.data);
+      finish(() => resolve(payload.data));
     };
 
     const onError = (payload: { error?: { message?: string; code?: string } }) => {
-      cleanup();
-      reject(new Error(payload.error?.message ?? 'Không lấy được số thứ tự'));
+      finish(() => reject(new Error(payload.error?.message ?? 'Không lấy được số thứ tự')));
     };
+
+    const onConnect = () => {
+      socket.emit(SOCKET_QUEUE_ISSUE, { idempotencyKey });
+    };
+
+    const timeout = window.setTimeout(() => {
+      finish(() => reject(new Error('Hết thời gian chờ lấy số. Vui lòng thử lại.')));
+    }, 15000);
 
     const cleanup = () => {
       window.clearTimeout(timeout);
       socket.off(SOCKET_QUEUE_ISSUE_RESULT, onResult);
       socket.off(SOCKET_QUEUE_ISSUE_ERROR, onError);
-    };
-
-    const emitIssue = () => {
-      socket.emit(SOCKET_QUEUE_ISSUE, { idempotencyKey });
+      socket.off('connect', onConnect);
     };
 
     socket.on(SOCKET_QUEUE_ISSUE_RESULT, onResult);
     socket.on(SOCKET_QUEUE_ISSUE_ERROR, onError);
 
     if (socket.connected) {
-      emitIssue();
+      socket.emit(SOCKET_QUEUE_ISSUE, { idempotencyKey });
       return;
     }
 
-    const onConnect = () => {
-      socket.off('connect', onConnect);
-      emitIssue();
-    };
     socket.on('connect', onConnect);
     socket.connect();
   });
@@ -87,12 +92,10 @@ export function joinQueueRoom(date?: string): void {
 /**
  * Subscribe realtime ticket events (no PII).
  */
-export function subscribeQueueEvents(
-  handlers: {
-    onCalled?: (payload: QueueRealtimePayload) => void;
-    onUpdated?: (payload: QueueRealtimePayload) => void;
-  },
-): () => void {
+export function subscribeQueueEvents(handlers: {
+  onCalled?: (payload: QueueRealtimePayload) => void;
+  onUpdated?: (payload: QueueRealtimePayload) => void;
+}): () => void {
   const socket = getQueueSocket();
 
   if (handlers.onCalled) {

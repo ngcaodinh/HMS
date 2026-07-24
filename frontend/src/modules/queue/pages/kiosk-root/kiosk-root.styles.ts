@@ -16,9 +16,9 @@ export const kioskRootStyles = {
   brand:
     'flex min-w-0 items-center gap-4',
   logoWrap:
-    'relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-4px_rgba(0,0,0,0.1)]',
+    'relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-4px_rgba(0,0,0,0.1)]',
   logo:
-    'rounded-full object-cover',
+    'h-full w-full rounded-2xl object-contain p-1',
   brandName:
     'text-2xl font-bold leading-[30px] tracking-normal text-[#006096]',
   brandSubtitle:
@@ -40,7 +40,7 @@ export const kioskRootStyles = {
   networkDot:
     'h-[9px] w-[9px] rounded-full',
   networkDotOnline:
-    'animate-[kiosk-dot-pulse_2s_ease-in-out_infinite] bg-[#22a84b]',
+    'bg-[#22a84b]',
   networkDotOffline:
     'bg-[#ba1a1a]',
   main:

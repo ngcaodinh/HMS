@@ -14,7 +14,25 @@ enum QueueTicketStatus {
   skipped
 }
 
-/// Bảng queue_tickets có sẵn trong hms_vn (cột camelCase).
+enum Gender {
+  male
+  female
+}
+
+enum MedicalRecordStatus {
+  open
+  waiting_results
+  diagnosed
+  closed
+}
+
+enum ServiceOrderStatus {
+  waiting
+  completed
+  cancelled
+}
+
+/// Bảng queue_tickets — G2: recordId sau tiếp nhận.
 model QueueTicket {
   id        String            @id @db.VarChar(36)
   number    Int
@@ -22,17 +40,138 @@ model QueueTicket {
   status    QueueTicketStatus @default(waiting)
   calledAt  DateTime?
   servedAt  DateTime?
+  recordId  String?           @unique @db.VarChar(36)
   createdAt DateTime          @default(now())
+
+  medicalRecord MedicalRecord? @relation(fields: [recordId], references: [id])
 
   @@unique([date, number], map: "unique_key_queue_ticket_date_number")
   @@map("queue_tickets")
 }
 
-/// Sequence atomic theo ngày (bảng mới, G9-friendly).
 model QueueDailySequence {
   date       DateTime @id @db.Date
   lastNumber Int      @default(0) @map("last_number")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("queue_daily_sequences")
+}
+
+/// Bệnh nhân — PII hành chính tối thiểu cho tiếp nhận.
+model Patient {
+  id                      String   @id @db.VarChar(36)
+  patientCode             String   @unique @db.VarChar(20)
+  fullName                String   @db.VarChar(255)
+  dateOfBirth             DateTime @db.Date
+  gender                  Gender
+  phoneNumber             String?  @db.VarChar(15)
+  phoneNumberUnavailableReason String? @db.VarChar(255)
+  identityCardNumber      String?  @unique @db.VarChar(12)
+  address                 String?  @db.VarChar(500)
+  healthInsuranceCode     String?  @db.VarChar(20)
+  healthInsuranceExpiryDate DateTime? @db.Date
+  isEmergencyBypass       Boolean  @default(false)
+  privacyNoticeAcceptedAt DateTime?
+  version                 Int      @default(1)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  medicalRecords MedicalRecord[]
+
+  @@index([fullName], map: "index_patient_full_name")
+  @@index([phoneNumber], map: "index_patient_phone")
+  @@map("patients")
+}
+
+/// Bác sĩ (seed dev) — thay users.doctor khi Auth lane chưa có.
+model Doctor {
+  id           String   @id @db.VarChar(36)
+  fullName     String   @db.VarChar(255)
+  employeeCode String   @unique @db.VarChar(50)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  medicalRecords MedicalRecord[]
+
+  @@map("doctors")
+}
+
+/// Khoa/phòng tối thiểu.
+model Department {
+  id        String   @id @db.VarChar(36)
+  code      String   @unique @db.VarChar(20)
+  name      String   @db.VarChar(255)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  medicalRecords MedicalRecord[]
+  serviceCatalog ServiceCatalog[]
+
+  @@map("departments")
+}
+
+/// Dịch vụ khám (giá snapshot khi tiếp nhận).
+model ServiceCatalog {
+  id        String   @id @db.VarChar(36)
+  code      String   @unique @db.VarChar(30)
+  name      String   @db.VarChar(255)
+  price     Decimal  @db.Decimal(15, 2)
+  isActive  Boolean  @default(true)
+  departmentId String? @db.VarChar(36)
+  createdAt DateTime @default(now())
+
+  department    Department?     @relation(fields: [departmentId], references: [id])
+  serviceOrders ServiceOrder[]
+
+  @@map("service_catalog")
+}
+
+/// Bệnh án ngoại trú.
+model MedicalRecord {
+  id          String              @id @db.VarChar(36)
+  recordCode  String              @unique @db.VarChar(20)
+  patientId   String              @db.VarChar(36)
+  doctorId    String              @db.VarChar(36)
+  departmentId String?            @db.VarChar(36)
+  status      MedicalRecordStatus @default(open)
+  isEmergency Boolean             @default(false)
+  emergencyReason String?         @db.VarChar(500)
+  chiefComplaint String?          @db.VarChar(500)
+  version     Int                 @default(1)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  patient       Patient        @relation(fields: [patientId], references: [id])
+  doctor        Doctor         @relation(fields: [doctorId], references: [id])
+  department    Department?    @relation(fields: [departmentId], references: [id])
+  serviceOrders ServiceOrder[]
+  queueTicket   QueueTicket?
+
+  @@index([patientId], map: "index_medical_record_patient")
+  @@index([doctorId], map: "index_medical_record_doctor")
+  @@index([status], map: "index_medical_record_status")
+  @@map("medical_records")
+}
+
+model ServiceOrder {
+  id               String             @id @db.VarChar(36)
+  recordId         String             @db.VarChar(36)
+  serviceCatalogId String             @db.VarChar(36)
+  fee              Decimal            @db.Decimal(15, 2)
+  status           ServiceOrderStatus @default(waiting)
+  createdAt        DateTime           @default(now())
+
+  record         MedicalRecord  @relation(fields: [recordId], references: [id])
+  serviceCatalog ServiceCatalog @relation(fields: [serviceCatalogId], references: [id])
+
+  @@index([recordId], map: "index_service_order_record")
+  @@map("service_orders")
+}
+
+/// Sequence mã BN / HS.
+model CodeSequence {
+  key        String @id @db.VarChar(30)
+  lastNumber Int    @default(0) @map("last_number")
+
+  @@map("code_sequences")
 }

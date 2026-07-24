@@ -13,7 +13,8 @@ Owns queue tickets, kiosk ticket creation (WebSocket + REST), call/skip/recall, 
 | POST | `/queue-tickets/call-next` | `queue.call` |
 | POST | `/queue-tickets/desk` | `queue.manage` (bốc số quầy) |
 | POST | `/queue-tickets/:ticketId/skip` | `queue.manage` |
-| POST | `/queue-tickets/:ticketId/recall` | `queue.manage` |
+| POST | `/queue-tickets/:ticketId/reannounce` | `queue.call` (gọi lại số đang `called`) |
+| POST | `/queue-tickets/:ticketId/recall` | `queue.manage` (`skipped → called`) |
 
 ## WebSocket (lấy số kiosk)
 

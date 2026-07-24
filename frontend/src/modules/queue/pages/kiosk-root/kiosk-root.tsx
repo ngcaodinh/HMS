@@ -1,14 +1,8 @@
 'use client';
 
-import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { reprintQueueTicket } from '../../services/queue.api';
-import {
-  getQueueSocket,
-  isQueueSocketConnected,
-  issueTicketViaSocket,
-} from '../../services/queue.socket';
+import { issueTicketRest, reprintQueueTicket } from '../../services/queue.api';
 import { kioskRootStyles as styles } from './kiosk-root.styles';
 
 const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -190,108 +184,146 @@ function createIdempotencyKey(): string {
   return `kiosk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-export function KioskRootPage() {
-  const [now, setNow] = useState<Date>(() => new Date());
+/**
+ * Đồng hồ — chỉ component này tick mỗi giây (không re-render cả trang).
+ */
+function KioskClock() {
+  const [now, setNow] = useState(() => new Date());
   const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <time className={styles.clock} dateTime={isMounted ? now.toISOString() : undefined}>
+      <span className={styles.clockTime}>{isMounted ? formatTime(now) : '--:--:--'}</span>
+      <span className={styles.clockDate}>{isMounted ? formatDate(now) : ''}</span>
+    </time>
+  );
+}
+
+/**
+ * Trạng thái mạng trình duyệt — không mở Socket.IO (tránh long-poll kẹt tab loading).
+ */
+function KioskNetworkBadge() {
   const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    const sync = () => {
+      const next = window.navigator.onLine;
+      setIsOnline((prev) => (prev === next ? prev : next));
+    };
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
+
+  return (
+    <div
+      aria-live="polite"
+      className={`${styles.network} ${isOnline ? styles.networkOnline : styles.networkOffline}`}
+      role="status"
+    >
+      <span
+        className={`${styles.networkDot} ${
+          isOnline ? styles.networkDotOnline : styles.networkDotOffline
+        }`}
+      />
+      {isOnline ? 'Đã kết nối' : 'Mất kết nối'}
+    </div>
+  );
+}
+
+/**
+ * Logo kiosk — dùng <img> tĩnh, không qua next/image optimizer (tránh kẹt load).
+ */
+function KioskLogo() {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt="HMS-VN"
+      className={styles.logo}
+      decoding="async"
+      height={56}
+      src="/hms-login-logo.png"
+      width={56}
+    />
+  );
+}
+
+export function KioskRootPage() {
   const [isIssuing, setIsIssuing] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
   const [ticketNumber, setTicketNumber] = useState<number | null>(null);
   const [ticketTimestamp, setTicketTimestamp] = useState('');
+  const issuingRef = useRef(false);
 
   const formattedTicketNumber = useMemo(
     () => (ticketNumber === null ? '0001' : formatTicketNumber(ticketNumber)),
     [ticketNumber],
   );
 
-  const refreshConnectionState = useCallback(() => {
-    const browserOnline = window.navigator.onLine;
-    const socketOnline = isQueueSocketConnected();
-    setIsOnline(browserOnline && socketOnline);
-  }, []);
-
-  useEffect(() => {
-    setIsMounted(true);
-    const socket = getQueueSocket();
-    refreshConnectionState();
-
-    const timer = window.setInterval(() => {
-      setNow(new Date());
-      refreshConnectionState();
-    }, 1000);
-
-    const handleOnline = () => refreshConnectionState();
-    const handleOffline = () => setIsOnline(false);
-    const handleConnect = () => refreshConnectionState();
-    const handleDisconnect = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    socket.on('connect', handleConnect);
-    socket.on('disconnect', handleDisconnect);
-
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      socket.off('connect', handleConnect);
-      socket.off('disconnect', handleDisconnect);
-    };
-  }, [refreshConnectionState]);
-
-  const handleGetNumber = async () => {
+  /**
+   * Lấy số qua REST public (POST /queue-tickets).
+   * Không mở WebSocket trên màn kiosk — tránh request treo làm tab Chrome load mãi.
+   * Cùng dãy số với bốc số quầy / socket (queue_daily_sequences).
+   */
+  const handleGetNumber = useCallback(async () => {
     if (!window.navigator.onLine) {
-      setIsOnline(false);
       setIssueError('Mất kết nối mạng. Vui lòng liên hệ Lễ tân.');
       return;
     }
 
-    if (isIssuing) {
+    if (issuingRef.current) {
       return;
     }
 
+    issuingRef.current = true;
     setIsIssuing(true);
     setIssueError(null);
 
     try {
-      const issued = await issueTicketViaSocket(createIdempotencyKey());
+      const issued = await issueTicketRest(createIdempotencyKey());
       setTicketId(issued.ticketId);
       setTicketNumber(issued.number);
       setTicketTimestamp(
         formatTicketTimestamp(new Date(issued.receipt.issuedAt || Date.now())),
       );
-      setIsOnline(true);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Không lấy được số. Vui lòng thử lại.';
       setIssueError(message);
-      refreshConnectionState();
     } finally {
+      issuingRef.current = false;
       setIsIssuing(false);
     }
-  };
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setTicketNumber(null);
     setTicketId(null);
     setTicketTimestamp('');
-  };
+    setIssueError(null);
+  }, []);
 
-  const handlePrint = async () => {
+  const handlePrint = useCallback(async () => {
     if (ticketId) {
       try {
         await reprintQueueTicket(ticketId);
       } catch {
-        // In vật lý vẫn chạy; API chỉ xác nhận in lại không tạo số mới.
+        // In vật lý vẫn chạy dù API reprint lỗi.
       }
     }
     window.print();
-  };
+  }, [ticketId]);
 
   return (
     <>
@@ -306,14 +338,7 @@ export function KioskRootPage() {
           <header className={styles.header}>
             <div className={styles.brand}>
               <div className={styles.logoWrap}>
-                <Image
-                  alt="Bệnh viện Da Liễu Trung ương"
-                  className={styles.logo}
-                  height={56}
-                  priority
-                  src="/hms-login-logo.png"
-                  width={56}
-                />
+                <KioskLogo />
               </div>
               <div className="min-w-0">
                 <p className={styles.brandName}>HMS-VN</p>
@@ -324,24 +349,8 @@ export function KioskRootPage() {
             </div>
 
             <div className={styles.headerRight}>
-              <time className={styles.clock} dateTime={isMounted ? now.toISOString() : undefined}>
-                <span className={styles.clockTime}>{isMounted ? formatTime(now) : '--:--:--'}</span>
-                <span className={styles.clockDate}>{isMounted ? formatDate(now) : ''}</span>
-              </time>
-              <div
-                aria-live="polite"
-                className={`${styles.network} ${
-                  isOnline ? styles.networkOnline : styles.networkOffline
-                }`}
-                role="status"
-              >
-                <span
-                  className={`${styles.networkDot} ${
-                    isOnline ? styles.networkDotOnline : styles.networkDotOffline
-                  }`}
-                />
-                {isOnline ? 'Đã kết nối' : 'Mất kết nối'}
-              </div>
+              <KioskClock />
+              <KioskNetworkBadge />
             </div>
           </header>
 
@@ -363,7 +372,7 @@ export function KioskRootPage() {
               <button
                 aria-label="Lấy số khám bệnh"
                 className={styles.ctaButton}
-                disabled={!isOnline || isIssuing}
+                disabled={isIssuing}
                 onClick={() => {
                   void handleGetNumber();
                 }}
@@ -379,22 +388,15 @@ export function KioskRootPage() {
                 </span>
               </button>
 
-              <div
-                className={`${styles.offlineMessage} ${
-                  isOnline && !issueError ? '' : styles.offlineMessageVisible
-                }`}
-                role="alert"
-              >
-                <WarningIcon className="mt-0.5 h-6 w-6 shrink-0 text-[#ba1a1a]" />
-                <p>
-                  {issueError ?? (
-                    <>
-                      Hệ thống mất kết nối tạm thời. Vui lòng liên hệ{' '}
-                      <strong>Lễ tân tại quầy</strong> để được hỗ trợ.
-                    </>
-                  )}
-                </p>
-              </div>
+              {issueError ? (
+                <div
+                  className={`${styles.offlineMessage} ${styles.offlineMessageVisible}`}
+                  role="alert"
+                >
+                  <WarningIcon className="mt-0.5 h-6 w-6 shrink-0 text-[#ba1a1a]" />
+                  <p>{issueError}</p>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -410,7 +412,7 @@ export function KioskRootPage() {
           </footer>
         </div>
 
-        {ticketNumber !== null && (
+        {ticketNumber !== null ? (
           <div
             aria-labelledby="ticket-modal-title"
             aria-modal="true"
@@ -453,13 +455,14 @@ export function KioskRootPage() {
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </main>
 
       <section aria-hidden="true" className={styles.printTicket}>
         <div className={styles.printTicketInner}>
           <div className="mb-[4mm] flex items-center justify-center gap-2">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               alt=""
               className="rounded-full"
               height={26}
@@ -479,7 +482,7 @@ export function KioskRootPage() {
             {formattedTicketNumber}
           </p>
           <p className="mb-[4mm] text-center text-[13px] font-semibold">
-            {ticketTimestamp || formatTicketTimestamp(now)}
+            {ticketTimestamp || formatTicketTimestamp(new Date())}
           </p>
           <hr className="my-[3mm] border-t border-dashed border-[#c0c0c0]" />
           <p className="border-t border-[#e0e0e0] pt-[3mm] text-center text-[11px] leading-5 text-[#555]">

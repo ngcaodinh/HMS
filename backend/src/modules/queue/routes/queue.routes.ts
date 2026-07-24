@@ -50,6 +50,12 @@ queueRouter.post(
 );
 
 queueRouter.post(
+  '/queue-tickets/:ticketId/reannounce',
+  requirePermission('queue.call'),
+  (req, res, next) => queueController.reannounceTicket(req, res, next),
+);
+
+queueRouter.post(
   '/queue-tickets/:ticketId/recall',
   requirePermission('queue.manage'),
   (req, res, next) => queueController.recallTicket(req, res, next),

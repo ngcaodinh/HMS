@@ -93,7 +93,15 @@ export class QueueRepository {
     });
   }
 
-  async callNextWaiting(date: Date, calledAt: Date): Promise<QueueTicket | null> {
+  /**
+   * Gọi số waiting nhỏ nhất (FIFO theo number).
+   * Conditional update status=waiting → called để tránh race 2 quầy cùng số.
+   * @returns ticket đã called, null nếu hết waiting, 'race' nếu bị lấy trước
+   */
+  async callNextWaiting(
+    date: Date,
+    calledAt: Date,
+  ): Promise<QueueTicket | null | 'race'> {
     return prisma.$transaction(async (tx) => {
       const waiting = await tx.queueTicket.findFirst({
         where: { date, status: 'waiting' },
@@ -104,10 +112,57 @@ export class QueueRepository {
         return null;
       }
 
-      return tx.queueTicket.update({
-        where: { id: waiting.id },
+      const updated = await tx.queueTicket.updateMany({
+        where: { id: waiting.id, status: 'waiting' },
         data: { status: 'called', calledAt },
       });
+
+      if (updated.count === 0) {
+        return 'race';
+      }
+
+      return tx.queueTicket.findUniqueOrThrow({
+        where: { id: waiting.id },
+      });
+    });
+  }
+
+  /**
+   * Mark served khi tiếp nhận xong (chỉ từ called).
+   * G2: recordId optional khi đã có medical_record.
+   */
+  async markServed(params: {
+    ticketId: string;
+    servedAt: Date;
+    recordId?: string;
+  }): Promise<QueueTicket | null | 'invalid'> {
+    const existing = await prisma.queueTicket.findUnique({
+      where: { id: params.ticketId },
+    });
+
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.status !== 'called') {
+      return 'invalid';
+    }
+
+    const updated = await prisma.queueTicket.updateMany({
+      where: { id: params.ticketId, status: 'called' },
+      data: {
+        status: 'served',
+        servedAt: params.servedAt,
+        ...(params.recordId ? { recordId: params.recordId } : {}),
+      },
+    });
+
+    if (updated.count === 0) {
+      return 'invalid';
+    }
+
+    return prisma.queueTicket.findUniqueOrThrow({
+      where: { id: params.ticketId },
     });
   }
 
