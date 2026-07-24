@@ -21,8 +21,24 @@ backend/uploads/*
 !backend/uploads/lab-results/.gitkeep
 
 .agents/
+.gemini/
+.claude/
 AGENTS.md
+GEMINI.md
+CLAUDE.md
 
 doc
 
 *.tsbuildinfo
+
+# Markdown files
+*.md
+
+# Database files
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal

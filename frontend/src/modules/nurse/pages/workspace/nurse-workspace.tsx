@@ -1,25 +1,35 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 
 import {
-  beds,
-  careOrders,
   navItems,
   queuePatients,
   sampleOrders,
   screenMeta,
   vitalFields,
   vitalStats,
-  type Bed,
-  type CareOrder,
   type IconName,
   type NurseScreen,
   type StatCard,
   type VitalField,
 } from './nurse-workspace.data';
+import {
+  useBeds,
+  useOrders,
+  useAdmissionBoard,
+  useAssignBed,
+  useChangeBedAssignment,
+  useSignDischargeSummary,
+  useProcessDischarge,
+  useUpdateOrderStatus,
+  useCancelOrder,
+  type BedDto,
+  type OrderDto,
+  type AdmissionBoardDto,
+} from '../../hooks/useLane6';
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(' ');
@@ -522,108 +532,315 @@ function SamplesScreen() {
   );
 }
 
-function BedCard({ bed }: { bed: Bed }) {
-  if (bed.status === 'empty') {
+function BedCard({
+  bed,
+  selectedRecordId,
+  isEmergency,
+  allBeds,
+  waitingPatients,
+  transferSourceBedId,
+  onStartTransfer,
+  onSelectTransferTarget,
+  isChanging,
+}: {
+  bed: BedDto;
+  selectedRecordId: string;
+  isEmergency: boolean;
+  allBeds: BedDto[];
+  waitingPatients: AdmissionBoardDto[];
+  transferSourceBedId: string | null;
+  onStartTransfer: (bedId: string) => void;
+  onSelectTransferTarget: (bed: BedDto) => void;
+  isChanging: boolean;
+}) {
+  const { mutate: processDischarge, isPending: isDischarging } = useProcessDischarge();
+  const { mutate: assignBed, isPending: isAssigning } = useAssignBed();
+  const [showRecordModal, setShowRecordModal] = useState(false);
+
+  if (bed.status === 'available' || bed.status === 'empty') {
     return (
       <article className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-[#cbd5e1] bg-white p-6 text-center shadow-sm">
         <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border-2 border-[#e5e7eb] text-[#cbd5e1]">
           <Icon name="bed" />
         </div>
-        <p className="mb-4 text-xs font-medium text-[#94a3b8]">Giường trống</p>
-        <button className={styles.primaryButton} type="button">
-          Tiếp nhận bệnh nhân
+        <p className="mb-4 text-xs font-medium text-[#94a3b8]">Giường {bed.bed} - Trống</p>
+        <button
+          className={styles.primaryButton}
+          type="button"
+          disabled={isAssigning}
+          onClick={() => {
+            if (transferSourceBedId) {
+              onSelectTransferTarget(bed);
+              return;
+            }
+            if (!selectedRecordId) {
+              alert('Vui lòng chọn hồ sơ bệnh nhân chờ giường ở thanh công cụ phía trên trước!');
+              return;
+            }
+            const patient = waitingPatients.find((p) => p.recordId === selectedRecordId);
+            if (patient?.version === undefined || patient?.version === null) {
+              alert('Không tìm thấy phiên bản hồ sơ bệnh án hợp lệ!');
+              return;
+            }
+            assignBed({ recordId: selectedRecordId, bedId: bed.id, expectedRecordVersion: patient.version });
+          }}
+        >
+          {transferSourceBedId
+            ? `Chuyển vào giường ${bed.bed}`
+            : isAssigning
+              ? 'Đang xếp...'
+              : 'Tiếp nhận bệnh nhân'}
         </button>
       </article>
     );
   }
 
+  const effectiveStatus = isEmergency ? 'emergency' : bed.status;
+
   const tone =
-    bed.status === 'emergency'
-      ? 'border-[#b91c1c] shadow-md'
-      : bed.status === 'discharge'
+    effectiveStatus === 'emergency'
+      ? 'border-[#b91c1c] shadow-md ring-2 ring-red-500/20'
+      : effectiveStatus === 'discharge'
         ? 'border-[#22c55e]'
         : 'border-[#006096]';
   const dotClass =
-    bed.status === 'emergency'
+    effectiveStatus === 'emergency'
       ? 'bg-[#b91c1c]'
-      : bed.status === 'discharge'
+      : effectiveStatus === 'discharge'
         ? 'bg-[#22c55e]'
         : 'bg-[#006096]';
 
   return (
-    <article className={cn('overflow-hidden rounded-xl border bg-white shadow-sm', tone)}>
-      <div className="flex items-center justify-between gap-2 border-b border-[#f1f5f9] p-3">
-        <p className="text-xs font-bold leading-5 text-[#18181b]">Giường {bed.bed}</p>
-        <div className="flex items-center gap-2">
+    <>
+      <article className={cn('overflow-hidden rounded-xl border bg-white shadow-sm transition-all', tone)}>
+        <div className="flex items-center justify-between gap-2 border-b border-[#f1f5f9] p-3">
+          <p className="text-xs font-bold leading-5 text-[#18181b]">Giường {bed.bed}</p>
+          <div className="flex items-center gap-2">
+            {bed.allergy && (
+              <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#b91c1c]">
+                Dị ứng
+              </span>
+            )}
+            {effectiveStatus === 'emergency' && (
+              <span className="rounded-sm bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white animate-pulse">
+                CẤP CỨU
+              </span>
+            )}
+            {effectiveStatus === 'discharge' && (
+              <span className="rounded-sm bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#15803d]">
+                CHỜ XUẤT VIỆN
+              </span>
+            )}
+            <span className={cn('h-2 w-2 rounded-full', dotClass)} />
+          </div>
+        </div>
+        <div className="space-y-2 p-4">
+          <h3 className="text-sm font-bold uppercase leading-5 text-[#18181b]">{bed.patient}</h3>
+          <p className="text-xs leading-4 text-[#64748b]">{bed.meta}</p>
+          <p className="min-h-8 text-xs leading-4 text-[#374151]">{bed.diagnosis}</p>
+          <p className="flex items-center gap-1 text-xs font-semibold leading-4 text-[#006096]">
+            <Icon className="h-3.5 w-3.5" name="user" />
+            BS. Điều trị phụ trách
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1 border-t border-[#f1f5f9] bg-[#f8fafc] p-2">
+          <button
+            className={cn(
+              styles.secondaryButton,
+              'h-8 px-2 text-[10px]',
+              transferSourceBedId === bed.id && 'border-[#006096] bg-sky-50 text-[#006096] font-bold'
+            )}
+            type="button"
+            disabled={
+              isChanging ||
+              !bed.recordId ||
+              (transferSourceBedId !== null && transferSourceBedId !== bed.id)
+            }
+            onClick={() => onStartTransfer(bed.id)}
+          >
+            {isChanging
+              ? 'Đang chuyển...'
+              : transferSourceBedId === bed.id
+                ? 'Đang chọn giường đích...'
+                : 'Chuyển'}
+          </button>
+          <button
+            className={cn(styles.secondaryButton, 'h-8 px-2 text-[10px]')}
+            type="button"
+            onClick={() => setShowRecordModal(true)}
+          >
+            Bệnh án
+          </button>
+          <button
+            className={cn(
+              effectiveStatus === 'discharge'
+                ? 'bg-green-600 text-white hover:bg-green-700 font-bold'
+                : 'opacity-50',
+              styles.secondaryButton,
+              'h-8 px-2 text-[10px]'
+            )}
+            type="button"
+            disabled={effectiveStatus !== 'discharge' || isDischarging || !bed.recordId}
+            onClick={() => {
+              if (bed.recordId && bed.recordVersion !== null && bed.recordVersion !== undefined) {
+                processDischarge({ recordId: bed.recordId, expectedRecordVersion: bed.recordVersion });
+              } else {
+                alert('Thông tin phiên bản hồ sơ không hợp lệ!');
+              }
+            }}
+          >
+            {isDischarging ? 'Đang...' : effectiveStatus === 'discharge' ? 'Hoàn tất' : 'Xuất'}
+          </button>
+        </div>
+      </article>
+      {showRecordModal && <MedicalRecordModal bed={bed} onClose={() => setShowRecordModal(false)} />}
+    </>
+  );
+}
+
+function TransferReasonModal({
+  sourceBed,
+  targetBed,
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  sourceBed: BedDto;
+  targetBed: BedDto;
+  isPending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const trimmedLen = reason.trim().length;
+  const isValid = trimmedLen >= 10;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+      <div
+        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-1 text-sm font-bold text-[#18181b]">Xác nhận chuyển giường</h3>
+        <p className="mb-4 text-xs text-[#64748b]">
+          Từ giường <strong>{sourceBed.bed}</strong> ({sourceBed.patient}) sang giường{' '}
+          <strong>{targetBed.bed}</strong>
+        </p>
+        <label className="mb-1 block text-xs font-semibold text-[#334155]">
+          Lý do chuyển giường (tối thiểu 10 ký tự)
+        </label>
+        <textarea
+          className={cn(styles.input, 'h-24 w-full text-xs')}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Nhập lý do chuyển giường..."
+          autoFocus
+        />
+        {!isValid && reason.length > 0 && (
+          <p className="mt-1 text-[10px] text-red-600">Lý do cần tối thiểu 10 ký tự (hiện {trimmedLen}).</p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={styles.secondaryButton} type="button" onClick={onCancel} disabled={isPending}>
+            Hủy
+          </button>
+          <button
+            className={styles.primaryButton}
+            type="button"
+            disabled={!isValid || isPending}
+            onClick={() => onConfirm(reason.trim())}
+          >
+            {isPending ? 'Đang chuyển...' : 'Xác nhận chuyển'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MedicalRecordModal({ bed, onClose }: { bed: BedDto; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-[#18181b]">Thông tin bệnh án</h3>
           {bed.allergy && (
             <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#b91c1c]">
               Dị ứng
             </span>
           )}
-          {bed.status === 'emergency' && (
-            <span className="rounded-sm bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
-              Cấp cứu
-            </span>
-          )}
-          {bed.status === 'discharge' && (
-            <span className="rounded-sm bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#15803d]">
-              Chờ xuất viện
-            </span>
-          )}
-          <span className={cn('h-2 w-2 rounded-full', dotClass)} />
+        </div>
+        <dl className="space-y-3 text-xs">
+          <div>
+            <dt className="font-semibold text-[#64748b]">Bệnh nhân</dt>
+            <dd className="text-[#18181b]">{bed.patient || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-[#64748b]">Giường</dt>
+            <dd className="text-[#18181b]">{bed.roomName} — Giường {bed.bed}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-[#64748b]">Thông tin hồ sơ</dt>
+            <dd className="text-[#18181b]">{bed.meta || '—'}</dd>
+          </div>
+          <div>
+            <dt className="font-semibold text-[#64748b]">Chẩn đoán</dt>
+            <dd className="text-[#18181b]">{bed.diagnosis || '—'}</dd>
+          </div>
+        </dl>
+        <div className="mt-5 flex justify-end">
+          <button className={styles.secondaryButton} type="button" onClick={onClose}>
+            Đóng
+          </button>
         </div>
       </div>
-      <div className="space-y-2 p-4">
-        <h3 className="text-sm font-bold uppercase leading-5 text-[#18181b]">{bed.patient}</h3>
-        <p className="text-xs leading-4 text-[#64748b]">{bed.meta}</p>
-        <p className="min-h-8 text-xs leading-4 text-[#374151]">{bed.diagnosis}</p>
-        <p className="flex items-center gap-1 text-xs font-semibold leading-4 text-[#006096]">
-          <Icon className="h-3.5 w-3.5" name="user" />
-          BS. Điều trị phụ trách
-        </p>
-      </div>
-      <div className="flex flex-wrap gap-1 border-t border-[#f1f5f9] bg-[#f8fafc] p-2">
-        <button className={cn(styles.secondaryButton, 'h-8 px-2 text-[10px]')} type="button">
-          Chuyển
-        </button>
-        <button className={cn(styles.secondaryButton, 'h-8 px-2 text-[10px]')} type="button">
-          Bệnh án
-        </button>
-        <button
-          className={cn(
-            bed.status === 'discharge'
-              ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'opacity-50',
-            styles.secondaryButton,
-            'h-8 px-2 text-[10px]',
-          )}
-          type="button"
-        >
-          {bed.status === 'discharge' ? 'Hoàn tất' : 'Xuất'}
-        </button>
-      </div>
-    </article>
+    </div>
   );
 }
 
 function BedsScreen() {
+  const { data: apiBeds, isLoading } = useBeds();
+  const { data: admissionBoard } = useAdmissionBoard();
+  const { mutate: signDischargeSummary, isPending: isSigning } = useSignDischargeSummary();
+  const { mutate: changeBed, isPending: isChanging } = useChangeBedAssignment();
+
+  const [selectedRecordId, setSelectedRecordId] = useState<string>('');
+  const [selectedDischargeRecordId, setSelectedDischargeRecordId] = useState<string>('');
+  const [selectedEmergencyBedId, setSelectedEmergencyBedId] = useState<string>('');
+  const [emergencyBedIds, setEmergencyBedIds] = useState<string[]>([]);
+  const [transferSourceBedId, setTransferSourceBedId] = useState<string | null>(null);
+  const [transferTargetBed, setTransferTargetBed] = useState<BedDto | null>(null);
+
+  const bedsList: BedDto[] = apiBeds || [];
+  const waitingPatients = admissionBoard || [];
+  const sourceBedForModal = bedsList.find((b) => b.id === transferSourceBedId) ?? null;
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-[#64748b]">Đang tải dữ liệu buồng giường...</div>;
+  }
+
+  const totalBeds = bedsList.length;
+  const occupiedCount = bedsList.filter((b) => b.status === 'occupied').length;
+  const availableCount = bedsList.filter((b) => b.status === 'available').length;
+  const dischargeCount = bedsList.filter((b) => b.status === 'discharge').length;
+  const occupiedPercent = totalBeds > 0 ? Math.round((occupiedCount / totalBeds) * 100) : 0;
+
   const stats: StatCard[] = [
-    { value: '24', label: 'Tổng số giường', icon: 'bed', iconClass: 'bg-indigo-50 text-[#006096]' },
+    { value: totalBeds.toString(), label: 'Tổng số giường', icon: 'bed', iconClass: 'bg-indigo-50 text-[#006096]' },
     {
-      value: '18',
-      label: 'Đang sử dụng (75%)',
+      value: occupiedCount.toString(),
+      label: `Đang sử dụng (${occupiedPercent}%)`,
       icon: 'activity',
       iconClass: 'bg-yellow-50 text-[#ea580c]',
     },
     {
-      value: '6',
+      value: availableCount.toString(),
       label: 'Giường trống',
       icon: 'check',
       iconClass: 'bg-sky-100 text-[#15803d]',
       valueClass: 'text-[#15803d]',
     },
     {
-      value: '3',
+      value: dischargeCount.toString(),
       label: 'Chờ xuất viện',
       icon: 'file',
       iconClass: 'bg-slate-100 text-[#475569]',
@@ -631,70 +848,223 @@ function BedsScreen() {
     },
   ];
 
+  const rooms = bedsList.reduce((acc: Record<string, BedDto[]>, bed: BedDto) => {
+    if (!acc[bed.roomName]) acc[bed.roomName] = [];
+    acc[bed.roomName].push(bed);
+    return acc;
+  }, {});
+
+  const occupiedBeds = bedsList.filter((b) => b.status === 'occupied' && b.recordId);
+
   return (
     <div className="space-y-6">
       <StatGrid stats={stats} />
-      <div className="flex flex-wrap justify-between gap-4">
-        <div className="flex flex-wrap gap-3">
-          <select className={cn(styles.input, 'w-36')}>
-            <option>Tất cả buồng</option>
-          </select>
-          <select className={cn(styles.input, 'w-40')}>
-            <option>Tất cả trạng thái</option>
-          </select>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          {[
-            ['bg-[#cbd5e1]', 'Trống'],
-            ['bg-[#006096]', 'Đang dùng'],
-            ['bg-[#b91c1c]', 'Cấp cứu'],
-            ['bg-[#22c55e]', 'Chờ xuất viện'],
-          ].map(([color, label]) => (
-            <span
-              className="inline-flex items-center gap-2 text-xs font-medium text-[#64748b]"
-              key={label}
+
+      {/* Action bar - Part B controls */}
+      <div className="rounded-xl border border-[#cbd5e1] bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap gap-4 items-center justify-between border-b border-[#f1f5f9] pb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#1e293b]">Tiếp nhận bệnh nhân chờ giường:</span>
+            <select
+              className={cn(styles.input, 'w-80 text-xs')}
+              value={selectedRecordId}
+              onChange={(e) => setSelectedRecordId(e.target.value)}
             >
-              <span className={cn('h-2.5 w-2.5 rounded-full', color)} />
-              {label}
-            </span>
-          ))}
+              <option value="">-- Chọn bệnh nhân chờ xếp giường ({waitingPatients.length}) --</option>
+              {waitingPatients.map((p) => (
+                <option key={p.recordId} value={p.recordId}>
+                  {p.patientName} ({p.gender}, {p.age}t) - BA: {p.recordCode} - {p.diagnosis}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#1e293b]">Ký tổng kết ra viện:</span>
+            <select
+              className={cn(styles.input, 'w-64 text-xs')}
+              value={selectedDischargeRecordId}
+              onChange={(e) => setSelectedDischargeRecordId(e.target.value)}
+            >
+              <option value="">-- Chọn giường/bệnh nhân --</option>
+              {occupiedBeds.map((b) => (
+                <option key={b.id} value={b.recordId!}>
+                  Giường {b.bed} - {b.patient}
+                </option>
+              ))}
+            </select>
+            <button
+              className={cn(styles.primaryButton, 'bg-green-600 hover:bg-green-700 text-xs h-9 px-3')}
+              type="button"
+              disabled={!selectedDischargeRecordId || isSigning}
+              onClick={() => {
+                if (selectedDischargeRecordId) {
+                  const b = occupiedBeds.find((item) => item.recordId === selectedDischargeRecordId);
+                  signDischargeSummary({
+                    recordId: selectedDischargeRecordId,
+                    dischargeDiagnosis: b?.diagnosis || 'Viêm da tiếp xúc dị ứng - Đã ổn định',
+                    treatmentSummary: 'Bệnh nhân điều trị nội trú tiến triển tốt, đủ điều kiện ra viện.',
+                    dischargeCondition: 'improved',
+                  });
+                }
+              }}
+            >
+              {isSigning ? 'Đang ký...' : 'Cho phép xuất viện'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-[#1e293b]">Đánh dấu Cấp cứu:</span>
+            <select
+              className={cn(styles.input, 'w-48 text-xs')}
+              value={selectedEmergencyBedId}
+              onChange={(e) => setSelectedEmergencyBedId(e.target.value)}
+            >
+              <option value="">-- Chọn giường --</option>
+              {bedsList.map((b) => (
+                <option key={b.id} value={b.id}>
+                  Giường {b.bed} ({b.patient || 'Trống'})
+                </option>
+              ))}
+            </select>
+            <button
+              className={cn(styles.secondaryButton, 'text-red-600 border-red-300 hover:bg-red-50 text-xs h-9 px-3')}
+              type="button"
+              disabled={!selectedEmergencyBedId}
+              onClick={() => {
+                if (selectedEmergencyBedId) {
+                  setEmergencyBedIds((prev) =>
+                    prev.includes(selectedEmergencyBedId)
+                      ? prev.filter((id) => id !== selectedEmergencyBedId)
+                      : [...prev, selectedEmergencyBedId]
+                  );
+                }
+              }}
+            >
+              {emergencyBedIds.includes(selectedEmergencyBedId) ? 'Bỏ Cấp cứu' : 'Đánh dấu Cấp cứu'}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap justify-between gap-4 pt-1">
+          <div className="flex flex-wrap gap-3">
+            <select className={cn(styles.input, 'w-36 text-xs')}>
+              <option>Tất cả buồng</option>
+            </select>
+            <select className={cn(styles.input, 'w-40 text-xs')}>
+              <option>Tất cả trạng thái</option>
+            </select>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            {[
+              ['bg-[#cbd5e1]', 'Trống'],
+              ['bg-[#006096]', 'Đang dùng'],
+              ['bg-[#b91c1c]', 'Cấp cứu'],
+              ['bg-[#22c55e]', 'Chờ xuất viện'],
+            ].map(([color, label]) => (
+              <span
+                className="inline-flex items-center gap-2 text-xs font-medium text-[#64748b]"
+                key={label}
+              >
+                <span className={cn('h-2.5 w-2.5 rounded-full', color)} />
+                {label}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
+
+      {transferSourceBedId && (
+        <div className="flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 p-4 text-xs text-[#006096]">
+          <div>
+            <span className="font-bold">
+              Đang chuyển bệnh nhân từ giường {bedsList.find((b) => b.id === transferSourceBedId)?.bed ?? ''}
+            </span>{' '}
+            — chọn giường trống bên dưới để chuyển đến.
+            {bedsList.filter((b) => b.status === 'available').length === 0 && (
+              <span className="ml-2 font-semibold text-red-600">
+                (Không có giường trống nào để chuyển đến)
+              </span>
+            )}
+          </div>
+          <button
+            className={cn(styles.secondaryButton, 'h-7 px-3 text-xs')}
+            type="button"
+            onClick={() => setTransferSourceBedId(null)}
+          >
+            Hủy
+          </button>
+        </div>
+      )}
+
       <div className="space-y-8">
-        <section>
-          <h2 className="mb-4 text-xs font-bold uppercase tracking-[1px] text-[#94a3b8]">
-            Buồng 101
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {beds.slice(0, 4).map((bed) => (
-              <BedCard bed={bed} key={bed.bed} />
-            ))}
-          </div>
-        </section>
-        <section>
-          <h2 className="mb-4 text-xs font-bold uppercase tracking-[1px] text-[#94a3b8]">
-            Buồng 102
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {beds.slice(4).map((bed) => (
-              <BedCard bed={bed} key={bed.bed} />
-            ))}
-          </div>
-        </section>
+        {Object.entries(rooms).map(([roomName, roomBeds]) => (
+          <section key={roomName}>
+            <h2 className="mb-4 text-xs font-bold uppercase tracking-[1px] text-[#94a3b8]">
+              {roomName}
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {roomBeds.map((bed) => (
+                <BedCard
+                  bed={bed}
+                  key={bed.id}
+                  selectedRecordId={selectedRecordId}
+                  isEmergency={emergencyBedIds.includes(bed.id)}
+                  allBeds={bedsList}
+                  waitingPatients={waitingPatients}
+                  transferSourceBedId={transferSourceBedId}
+                  onStartTransfer={(bedId) => setTransferSourceBedId(bedId)}
+                  onSelectTransferTarget={(targetBed) => setTransferTargetBed(targetBed)}
+                  isChanging={isChanging}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
+
+      {transferTargetBed && sourceBedForModal && (
+        <TransferReasonModal
+          sourceBed={sourceBedForModal}
+          targetBed={transferTargetBed}
+          isPending={isChanging}
+          onCancel={() => setTransferTargetBed(null)}
+          onConfirm={(reason) => {
+            if (sourceBedForModal.recordId && sourceBedForModal.recordVersion != null) {
+              changeBed(
+                {
+                  recordId: sourceBedForModal.recordId,
+                  targetBedId: transferTargetBed.id,
+                  action: 'transfer',
+                  reason,
+                  expectedRecordVersion: sourceBedForModal.recordVersion,
+                },
+                {
+                  onSuccess: () => {
+                    setTransferTargetBed(null);
+                    setTransferSourceBedId(null);
+                  },
+                }
+              );
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function OrderStatus({ status }: { status: CareOrder['status'] }) {
-  if (status === 'done') {
+function OrderStatus({ order }: { order: OrderDto }) {
+  const { mutate: updateStatus, isPending } = useUpdateOrderStatus();
+
+  if (order.status === 'done') {
     return (
       <div className="flex items-center gap-3">
         <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-white">
           <Icon className="h-4 w-4" name="check" />
         </span>
         <span>
-          <span className="block text-xs font-bold text-[#15803d]">Đã thực hiện 07:12</span>
+          <span className="block text-xs font-bold text-[#15803d]">Đã thực hiện</span>
           <span className="block text-[10px] font-medium text-[#64748b]">
             Bởi ĐD Nguyễn Thị Hương
           </span>
@@ -703,7 +1073,20 @@ function OrderStatus({ status }: { status: CareOrder['status'] }) {
     );
   }
 
-  if (status === 'blocked') {
+  if (order.status === 'cancelled') {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-100 text-red-600">
+          <Icon name="alert" />
+        </span>
+        <span>
+          <span className="block text-xs font-bold text-red-700">Đã hủy</span>
+        </span>
+      </div>
+    );
+  }
+
+  if (order.status === 'blocked') {
     return (
       <button
         className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-400 px-4 text-xs font-bold text-white opacity-80"
@@ -715,7 +1098,7 @@ function OrderStatus({ status }: { status: CareOrder['status'] }) {
     );
   }
 
-  if (status === 'delayed') {
+  if (order.status === 'delayed') {
     return (
       <div className="flex items-center gap-3">
         <span className="flex h-8 w-8 items-center justify-center rounded-full border border-orange-200 bg-orange-100 text-orange-600">
@@ -737,35 +1120,61 @@ function OrderStatus({ status }: { status: CareOrder['status'] }) {
         <input className="mt-0.5 h-4 w-4 rounded border-[#cbd5e1]" type="checkbox" />
         Đã test da – Kết quả: ÂM TÍNH
       </label>
-      <button className={styles.primaryButton} type="button">
-        Xác nhận thực hiện
+      <button 
+        className={styles.primaryButton} 
+        type="button"
+        disabled={isPending}
+        onClick={() => updateStatus({ orderId: order.id, status: 'done' })}
+      >
+        {isPending ? 'Đang xử lý...' : 'Xác nhận thực hiện'}
       </button>
-      <button className={styles.secondaryButton} type="button">
-        Báo hoãn
+      <button 
+        className={styles.secondaryButton} 
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          const reason = prompt('Nhập lý do hủy:');
+          if (reason) {
+            updateStatus({ orderId: order.id, status: 'cancelled', cancelReason: reason });
+          }
+        }}
+      >
+        Hủy y lệnh
       </button>
     </div>
   );
 }
 
 function OrdersScreen() {
+  const { data: apiOrders, isLoading } = useOrders();
+  const ordersList: OrderDto[] = apiOrders || [];
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-[#64748b]">Đang tải dữ liệu y lệnh...</div>;
+  }
+
+  const pendingCount = ordersList.filter(o => o.status === 'active' || o.status === 'pending').length;
+  const doneCount = ordersList.filter(o => o.status === 'done').length;
+  const cancelledCount = ordersList.filter(o => o.status === 'cancelled').length;
+
   const stats: StatCard[] = [
     {
-      value: '8',
+      value: pendingCount.toString(),
       label: 'Chờ thực hiện',
       icon: 'activity',
       iconClass: 'bg-orange-50 text-[#ea580c]',
       valueClass: 'text-orange-700',
     },
     {
-      value: '14',
+      value: doneCount.toString(),
       label: 'Đã thực hiện hôm nay',
       icon: 'check',
       iconClass: 'bg-green-50 text-[#16a34a]',
       valueClass: 'text-green-700',
     },
     {
-      value: '2',
-      label: 'Đã hoãn / sự cố',
+      value: cancelledCount.toString(),
+      label: 'Đã hủy',
       icon: 'alert',
       iconClass: 'bg-red-50 text-[#dc2626]',
       valueClass: 'text-red-700',
@@ -823,31 +1232,26 @@ function OrdersScreen() {
               </tr>
             </thead>
             <tbody>
-              {careOrders.map((order) => (
+              {ordersList.map((order) => (
                 <tr
                   className={cn(order.status === 'blocked' && 'bg-red-50/30')}
-                  key={`${order.time}-${order.title}`}
+                  key={order.id}
                 >
                   <td className={styles.td}>
                     <p
                       className={cn(
                         'text-base font-bold',
-                        order.status === 'pending' ? 'text-[#006096]' : 'text-[#334155]',
+                        order.status === 'pending' || order.status === 'active' ? 'text-[#006096]' : 'text-[#334155]',
                       )}
                     >
-                      {order.time}
+                      {new Date(order.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
-                    {order.status === 'pending' && (
-                      <span className="mt-1 inline-flex rounded-sm bg-red-600 px-2 py-0.5 text-[9px] font-bold uppercase leading-3 text-white">
-                        Đã quá giờ
-                      </span>
-                    )}
                   </td>
                   <td className={styles.td}>
                     <p className="text-sm font-bold uppercase leading-5 text-[#1e293b]">
-                      {order.patient}
+                      {order.patientName}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-[#64748b]">{order.room}</p>
+                    <p className="mt-1 text-xs font-medium text-[#64748b]">{order.roomLabel}</p>
                   </td>
                   <td className={styles.td}>
                     {order.status === 'pending' && (
@@ -884,15 +1288,12 @@ function OrdersScreen() {
                     </p>
                   </td>
                   <td className={cn(styles.td, 'min-w-56')}>
-                    <OrderStatus status={order.status} />
+                    <OrderStatus order={order} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
-        <div className="border-t border-[#e2e8f0] bg-[#f8fafc] px-4 py-5 text-center text-xs font-medium uppercase tracking-[0.6px] text-[#94a3b8]">
-          Đang tải thêm dữ liệu...
         </div>
       </section>
     </div>

@@ -6,3 +6,401 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+model Department {
+  id             String          @id @default(uuid()) @db.VarChar(36)
+  code           String          @unique(map: "unique_key_department_code") @db.VarChar(20)
+  name           String          @db.VarChar(255)
+  type           DepartmentType  @default(clinical)
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
+  medicalRecords MedicalRecord[]
+  rooms          Room[]
+  users          User[]
+
+  @@index([isActive], map: "index_department_active")
+  @@map("departments")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  code        String   @unique(map: "unique_key_roles_code") @db.VarChar(30)
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@map("roles")
+}
+
+model User {
+  id                                String             @id @default(uuid()) @db.VarChar(36)
+  username                          String             @unique(map: "unique_key_users_username") @db.VarChar(50)
+  password                          String             @db.VarChar(255)
+  fullName                          String             @db.VarChar(255)
+  gender                            Gender
+  dateOfBirth                       DateTime           @db.Date
+  phoneNumber                       String             @db.VarChar(10)
+  identityCardNumber                String             @unique(map: "unique_key_users_identity_card") @db.VarChar(12)
+  departmentId                      String             @db.VarChar(36)
+  isActive                          Boolean            @default(true)
+  lastLoginAt                       DateTime?
+  createdAt                         DateTime           @default(now())
+  updatedAt                         DateTime           @default(now()) @updatedAt
+  bedAssignmentsAsAssignedBy        BedAssignment[]    @relation("AssignedByBedAssignments")
+  bedAssignmentsAsReleasedBy        BedAssignment[]    @relation("ReleasedByBedAssignments")
+  dischargeSummariesAsSignedBy      DischargeSummary[] @relation("SignedByDischargeSummaries")
+  medicalRecordsAsClosedBy          MedicalRecord[]    @relation("ClosedByRecords")
+  medicalRecordsAsDiagnosedBy       MedicalRecord[]    @relation("DiagnosedByRecords")
+  medicalRecordsAsDiagnosisSignedBy MedicalRecord[]    @relation("DiagnosisSignedByRecords")
+  medicalRecordsAsDoctor            MedicalRecord[]    @relation("DoctorMedicalRecords")
+  medicalRecordsAsVitalConfirmedBy  MedicalRecord[]    @relation("VitalConfirmedByRecords")
+  treatmentOrdersAsCancelledBy      TreatmentOrder[]   @relation("CancelledByTreatmentOrders")
+  treatmentOrdersAsExecutedBy       TreatmentOrder[]   @relation("ExecutedByTreatmentOrders")
+  treatmentOrdersAsOrderedBy        TreatmentOrder[]   @relation("OrderedByTreatmentOrders")
+  department                        Department         @relation(fields: [departmentId], references: [id], map: "foreign_key_users_department")
+
+  @@index([departmentId], map: "foreign_key_users_department")
+  @@index([isActive], map: "index_users_active")
+  @@map("users")
+}
+
+model Patient {
+  id                                 String          @id @default(uuid()) @db.VarChar(36)
+  patientCode                        String          @unique(map: "unique_key_patients_code") @db.VarChar(20)
+  fullName                           String          @db.VarChar(255)
+  dateOfBirth                        DateTime?       @db.Date
+  gender                             Gender
+  phoneNumber                        String?         @db.VarChar(10)
+  phoneNumberUnavailableReason       String?         @db.VarChar(500)
+  isEmergencyBypass                  Boolean         @default(false)
+  emergencyReason                    String?         @db.VarChar(500)
+  identityCardNumber                 String?         @unique(map: "unique_key_patients_identity_card") @db.VarChar(12)
+  address                            String?         @db.VarChar(500)
+  province                           String?         @db.VarChar(100)
+  ward                               String?         @db.VarChar(100)
+  bloodType                          BloodType?
+  allergies                          String?         @db.Text
+  healthInsuranceCode                String?         @db.VarChar(20)
+  healthInsuranceExpiryDate          DateTime?       @db.Date
+  healthInsuranceInitialFacilityCode String?         @db.VarChar(10)
+  healthInsuranceBenefitRateHint     Decimal?        @db.Decimal(5, 4)
+  emergencyContact                   String?         @db.VarChar(255)
+  emergencyPhoneNumber               String?         @db.VarChar(10)
+  guardianFullName                   String?         @db.VarChar(255)
+  guardianPhoneNumber                String?         @db.VarChar(10)
+  privacyNoticeAccepted              Boolean         @default(false)
+  privacyNoticeAcceptedAt            DateTime?
+  deletedAt                          DateTime?
+  version                            Int             @default(1)
+  createdAt                          DateTime        @default(now())
+  updatedAt                          DateTime        @default(now()) @updatedAt
+  beds                               Bed[]
+  medicalRecords                     MedicalRecord[]
+
+  @@index([deletedAt], map: "index_patients_deleted")
+  @@index([healthInsuranceCode], map: "index_patients_health_insurance")
+  @@index([healthInsuranceInitialFacilityCode], map: "index_patients_health_insurance_facility")
+  @@index([fullName(length: 50)], map: "index_patients_name")
+  @@index([phoneNumber], map: "index_patients_phone")
+  @@index([province], map: "index_patients_province")
+  @@map("patients")
+}
+
+model Room {
+  id           String      @id @default(uuid()) @db.VarChar(36)
+  code         String      @unique(map: "unique_key_rooms_code") @db.VarChar(50)
+  name         String?     @db.VarChar(255)
+  departmentId String?     @db.VarChar(36)
+  roomType     RoomType    @default(other)
+  floor        String?     @db.VarChar(20)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @default(now()) @updatedAt
+  beds         Bed[]
+  department   Department? @relation(fields: [departmentId], references: [id], map: "foreign_key_rooms_department")
+
+  @@index([isActive], map: "index_rooms_active")
+  @@index([departmentId], map: "index_rooms_department")
+  @@map("rooms")
+}
+
+model Bed {
+  id             String          @id @default(uuid()) @db.VarChar(36)
+  roomId         String          @db.VarChar(36)
+  number         String          @db.VarChar(20)
+  dailyRate      Decimal         @default(200000.00) @db.Decimal(15, 2)
+  status         BedStatus       @default(available)
+  patientId      String?         @db.VarChar(36)
+  assignedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
+  bedAssignments BedAssignment[]
+  patient        Patient?        @relation(fields: [patientId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_patient")
+  room           Room            @relation(fields: [roomId], references: [id], map: "foreign_key_bed_room")
+  medicalRecords MedicalRecord[]
+
+  @@unique([roomId, number], map: "unique_key_bed_room_number")
+  @@index([patientId], map: "foreign_key_bed_patient")
+  @@index([roomId], map: "foreign_key_bed_room")
+  @@index([status], map: "index_bed_status")
+  @@map("beds")
+}
+
+model MedicalRecord {
+  id                       String                                    @id @default(uuid()) @db.VarChar(36)
+  recordCode               String                                    @unique(map: "unique_key_medical_record_code") @db.VarChar(20)
+  patientId                String                                    @db.VarChar(36)
+  doctorId                 String                                    @db.VarChar(36)
+  departmentId             String?                                   @db.VarChar(36)
+  status                   MedicalRecordStatus                       @default(open)
+  isEmergency              Boolean                                   @default(false)
+  emergencyReason          String?                                   @db.VarChar(500)
+  chiefComplaint           String?                                   @db.VarChar(500)
+  vitalSigns               Json?
+  heightCm                 Decimal?                                  @db.Decimal(5, 1)
+  weightKg                 Decimal?                                  @db.Decimal(5, 1)
+  historyOfPresentIllness  String?                                   @db.Text
+  pastMedicalHistory       String?                                   @db.Text
+  familyHistory            String?                                   @db.Text
+  skinLesionTypes          String?
+  skinLesionDescription    String?                                   @db.Text
+  skinLesionLocation       String?                                   @db.VarChar(500)
+  skinLesionDistribution   medical_records_skinLesionDistribution?
+  bodySurfaceAreaPercent   Decimal?                                  @db.Decimal(5, 2)
+  itchSeverity             medical_records_itchSeverity?
+  vitalConfirmedBy         String?                                   @db.VarChar(36)
+  vitalConfirmedAt         DateTime?
+  deletedAt                DateTime?
+  createdAt                DateTime                                  @default(now())
+  updatedAt                DateTime                                  @default(now()) @updatedAt
+  icd10                    String?                                   @db.VarChar(10)
+  icdCodingSystem          medical_records_icdCodingSystem?
+  diagnosisText            String?                                   @db.VarChar(1000)
+  diagnosedBy              String?                                   @db.VarChar(36)
+  diagnosedAt              DateTime?
+  diagnosisSignedBy        String?                                   @db.VarChar(36)
+  diagnosisSignedAt        DateTime?
+  diagnosisSignatureMethod medical_records_diagnosisSignatureMethod?
+  treatmentType            TreatmentType?
+  bedId                    String?                                   @db.VarChar(36)
+  notes                    String?                                   @db.Text
+  closedAt                 DateTime?
+  closedBy                 String?                                   @db.VarChar(36)
+  closeSignatureMethod     medical_records_closeSignatureMethod?
+  version                  Int                                       @default(1)
+  bedAssignments           BedAssignment[]
+  dischargeSummary         DischargeSummary?
+  bed                      Bed?                                      @relation(fields: [bedId], references: [id], map: "foreign_key_medical_record_bed")
+  closedByUser             User?                                     @relation("ClosedByRecords", fields: [closedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_closed_by")
+  department               Department?                               @relation(fields: [departmentId], references: [id], onDelete: Restrict, map: "foreign_key_medical_record_department")
+  diagnosedByUser          User?                                     @relation("DiagnosedByRecords", fields: [diagnosedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_diagnosed_by")
+  diagnosisSignedByUser    User?                                     @relation("DiagnosisSignedByRecords", fields: [diagnosisSignedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_diagnosis_signed_by")
+  doctor                   User                                      @relation("DoctorMedicalRecords", fields: [doctorId], references: [id], map: "foreign_key_medical_record_doctor")
+  patient                  Patient                                   @relation(fields: [patientId], references: [id], onDelete: NoAction, map: "foreign_key_medical_record_patient")
+  vitalConfirmedByUser     User?                                     @relation("VitalConfirmedByRecords", fields: [vitalConfirmedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_vital_confirmed_by")
+  treatmentOrders          TreatmentOrder[]
+
+  @@index([bedId], map: "foreign_key_medical_record_bed")
+  @@index([closedBy], map: "foreign_key_medical_record_closed_by")
+  @@index([departmentId], map: "foreign_key_medical_record_department")
+  @@index([diagnosedBy], map: "foreign_key_medical_record_diagnosed_by")
+  @@index([diagnosisSignedBy], map: "foreign_key_medical_record_diagnosis_signed_by")
+  @@index([vitalConfirmedBy], map: "foreign_key_medical_record_vital_confirmed_by")
+  @@index([createdAt], map: "index_medical_record_created_at")
+  @@index([deletedAt], map: "index_medical_record_deleted")
+  @@index([doctorId], map: "index_medical_record_doctor_id")
+  @@index([patientId], map: "index_medical_record_patient_id")
+  @@index([patientId, status, createdAt], map: "index_medical_record_patient_status_created")
+  @@index([status], map: "index_medical_record_status")
+  @@map("medical_records")
+}
+
+model BedAssignment {
+  id                String         @id @default(uuid()) @db.VarChar(36)
+  recordId          String         @db.VarChar(36)
+  bedId             String         @db.VarChar(36)
+  dailyRateSnapshot Decimal        @db.Decimal(15, 2)
+  assignedBy        String         @db.VarChar(36)
+  assignedAt        DateTime       @default(now())
+  releasedBy        String?        @db.VarChar(36)
+  releasedAt        DateTime?
+  releaseReason     ReleaseReason?
+  note              String?        @db.VarChar(255)
+  openRecordSlot    String?        @unique(map: "unique_key_bed_assignment_open_record") @db.VarChar(36)
+  openBedSlot       String?        @unique(map: "unique_key_bed_assignment_open_bed") @db.VarChar(36)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @default(now()) @updatedAt
+  assignedByUser    User           @relation("AssignedByBedAssignments", fields: [assignedBy], references: [id], onDelete: NoAction, map: "foreign_key_bed_assignment_assigned_by")
+  bed               Bed            @relation(fields: [bedId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_assignment_bed")
+  record            MedicalRecord  @relation(fields: [recordId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_assignment_record")
+  releasedByUser    User?          @relation("ReleasedByBedAssignments", fields: [releasedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_assignment_released_by")
+
+  @@index([assignedBy], map: "foreign_key_bed_assignment_assigned_by")
+  @@index([releasedBy], map: "foreign_key_bed_assignment_released_by")
+  @@index([bedId, assignedAt], map: "index_bed_assignment_bed_time")
+  @@index([recordId, assignedAt], map: "index_bed_assignment_record_time")
+  @@map("bed_assignments")
+}
+
+model TreatmentOrder {
+  id              String               @id @default(uuid()) @db.VarChar(36)
+  recordId        String               @db.VarChar(36)
+  orderedBy       String               @db.VarChar(36)
+  orderType       TreatmentOrderType
+  content         String               @db.VarChar(1000)
+  orderedAt       DateTime             @default(now())
+  status          TreatmentOrderStatus @default(active)
+  executedBy      String?              @db.VarChar(36)
+  executedAt      DateTime?
+  cancelReason    String?              @db.VarChar(500)
+  cancelledBy     String?              @db.VarChar(36)
+  cancelledAt     DateTime?
+  note            String?              @db.VarChar(500)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @default(now()) @updatedAt
+  cancelledByUser User?                @relation("CancelledByTreatmentOrders", fields: [cancelledBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_treatment_order_cancelled_by")
+  executedByUser  User?                @relation("ExecutedByTreatmentOrders", fields: [executedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_treatment_order_executed_by")
+  orderedByUser   User                 @relation("OrderedByTreatmentOrders", fields: [orderedBy], references: [id], onDelete: NoAction, map: "foreign_key_treatment_order_ordered_by")
+  record          MedicalRecord        @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_treatment_order_record")
+
+  @@index([cancelledBy], map: "foreign_key_treatment_order_cancelled_by")
+  @@index([executedBy], map: "foreign_key_treatment_order_executed_by")
+  @@index([orderedBy], map: "index_treatment_order_ordered_by")
+  @@index([recordId], map: "index_treatment_order_record")
+  @@index([status], map: "index_treatment_order_status")
+  @@map("treatment_orders")
+}
+
+model DischargeSummary {
+  id                 String             @id @default(uuid()) @db.VarChar(36)
+  recordId           String             @unique(map: "unique_key_discharge_summary_record") @db.VarChar(36)
+  dischargeDiagnosis String             @db.VarChar(1000)
+  icd10              String?            @db.VarChar(10)
+  treatmentSummary   String             @db.Text
+  dischargeCondition DischargeCondition
+  doctorAdvice       String?            @db.Text
+  followUpDate       DateTime?          @db.Date
+  signedBy           String             @db.VarChar(36)
+  signedAt           DateTime           @default(now())
+  signatureMethod    SignatureMethod    @default(dev_e_confirmation)
+  dischargedAt       DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @default(now()) @updatedAt
+  record             MedicalRecord      @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_discharge_summary_record")
+  signedByUser       User               @relation("SignedByDischargeSummaries", fields: [signedBy], references: [id], onDelete: NoAction, map: "foreign_key_discharge_summary_signed_by")
+
+  @@index([signedBy], map: "foreign_key_discharge_summary_signed_by")
+  @@map("discharge_summaries")
+}
+
+enum DepartmentType {
+  clinical
+  paraclinical
+  administrative
+}
+
+enum Gender {
+  male
+  female
+}
+
+enum BloodType {
+  A_PLUS   @map("A+")
+  A_MINUS  @map("A-")
+  B_PLUS   @map("B+")
+  B_MINUS  @map("B-")
+  AB_PLUS  @map("AB+")
+  AB_MINUS @map("AB-")
+  O_PLUS   @map("O+")
+  O_MINUS  @map("O-")
+}
+
+enum RoomType {
+  exam
+  lab
+  inpatient
+  procedure
+  storage
+  other
+}
+
+enum BedStatus {
+  available
+  occupied
+  maintenance
+}
+
+enum MedicalRecordStatus {
+  open
+  waiting_results
+  diagnosed
+  closed
+}
+
+enum TreatmentType {
+  outpatient
+  inpatient
+}
+
+enum ReleaseReason {
+  discharge
+  transfer
+  correction
+}
+
+enum TreatmentOrderType {
+  medication
+  monitoring
+  care
+  diet
+  procedure
+}
+
+enum TreatmentOrderStatus {
+  active
+  done
+  cancelled
+}
+
+enum DischargeCondition {
+  recovered
+  improved
+  unchanged
+  worse
+  deceased
+}
+
+enum SignatureMethod {
+  dev_e_confirmation
+}
+
+enum medical_records_skinLesionDistribution {
+  localized
+  scattered
+  generalized
+  symmetric
+  dermatomal
+  flexural
+}
+
+enum medical_records_itchSeverity {
+  none
+  mild
+  moderate
+  severe
+}
+
+enum medical_records_icdCodingSystem {
+  TT06_2026
+}
+
+enum medical_records_diagnosisSignatureMethod {
+  dev_e_confirmation
+}
+
+enum medical_records_closeSignatureMethod {
+  dev_e_confirmation
+}
