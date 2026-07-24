@@ -27,6 +27,12 @@ export async function listDoctorWorklist(
       },
       chiefComplaint: record.chiefComplaint,
       status: record.status,
+      // Distinguishes "Chờ xét nghiệm" (lab_wait) from "Có kết quả" (lab_ready) in the doctor
+      // sidebar (Tailieu/doctor.html GROUP_META) without a separate per-record lookup.
+      hasReadyResults:
+        record.status === 'waiting_results' &&
+        record.lab_tests.length > 0 &&
+        record.lab_tests.every((test) => test.status === 'resulted'),
     })),
     pagination: { page: query.page, pageSize: query.pageSize, totalItems },
   };
@@ -70,7 +76,12 @@ export async function getMedicalRecordDetail(recordId: string, principal: Princi
         gender: record.patients.gender,
         allergies: record.patients.allergies,
         healthInsuranceCode: record.patients.healthInsuranceCode,
+        healthInsuranceExpiryDate: record.patients.healthInsuranceExpiryDate,
+        address: record.patients.address,
+        emergencyContact: record.patients.emergencyContact,
+        emergencyPhoneNumber: record.patients.emergencyPhoneNumber,
       },
+      createdAt: record.createdAt,
       clinicalAssessment: {
         heightCm: record.heightCm,
         weightKg: record.weightKg,

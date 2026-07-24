@@ -33,7 +33,7 @@ export function findWorklist(query: WorklistQuery) {
   return Promise.all([
     prisma.medical_records.findMany({
       where,
-      include: { patients: true },
+      include: { patients: true, lab_tests: { select: { status: true } } },
       orderBy: { createdAt: 'desc' },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
