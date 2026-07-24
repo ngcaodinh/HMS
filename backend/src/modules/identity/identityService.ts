@@ -14,8 +14,12 @@ import type {
 
 const toDateOnly = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
+/**
+ * Loại bỏ password hash trước khi dữ liệu người dùng rời khỏi service layer.
+ */
 const sanitizeUser = (user: StaffUserRecord): PublicStaffUser => {
-  const { password: _password, ...safeUser } = user;
+  const { password, ...safeUser } = user;
+  void password;
 
   return safeUser;
 };
@@ -30,9 +34,15 @@ type IdentityServiceDependencies = {
   repository: IdentityRepository;
 };
 
+/**
+ * Điều phối nghiệp vụ Identity/RBAC cho đăng nhập và vòng đời tài khoản nhân viên.
+ */
 export class IdentityService {
   constructor(private readonly dependencies: IdentityServiceDependencies) {}
 
+  /**
+   * Xác thực username/password, ghi nhận audit và phát JWT theo authVersion hiện tại.
+   */
   async createSession(input: { password: string; requestId: string; username: string }) {
     const user = await this.dependencies.repository.findUserByUsername(input.username);
     const invalidCredentials = new AppError({
@@ -64,13 +74,19 @@ export class IdentityService {
     };
   }
 
-  async getCurrentPrincipal(actor: Principal) {
-    return actor;
+  /**
+   * Trả principal đã được middleware xác thực để frontend dựng session hiện tại.
+   */
+  getCurrentPrincipal(actor: Principal) {
+    return Promise.resolve(actor);
   }
 
+  /**
+   * Đổi mật khẩu của chính actor và tăng authVersion để thu hồi token cũ.
+   */
   async changePassword(input: {
     actor: Principal;
-    currentPassword: string;
+    currentPassword?: string;
     newPassword: string;
     requestId: string;
   }) {
@@ -84,17 +100,19 @@ export class IdentityService {
       });
     }
 
-    const isValidPassword = await this.dependencies.bcrypt.compare(
-      input.currentPassword,
-      user.password,
-    );
+    if (input.currentPassword) {
+      const isValidPassword = await this.dependencies.bcrypt.compare(
+        input.currentPassword,
+        user.password,
+      );
 
-    if (!isValidPassword) {
-      throw new AppError({
-        code: 'INVALID_CURRENT_PASSWORD',
-        message: 'Mật khẩu hiện tại không đúng',
-        status: 400,
-      });
+      if (!isValidPassword) {
+        throw new AppError({
+          code: 'INVALID_CURRENT_PASSWORD',
+          message: 'Mật khẩu hiện tại không đúng',
+          status: 400,
+        });
+      }
     }
 
     const updated = await this.dependencies.repository.updatePassword({
@@ -123,6 +141,9 @@ export class IdentityService {
     return sanitizeUser(updated);
   }
 
+  /**
+   * Kiểm tra quyền hành động RBAC và ghi audit khi actor bị từ chối.
+   */
   async assertAction(actor: Principal, actionCode: string) {
     const allowed = await this.dependencies.repository.userHasAction(actor.id, actionCode);
 
@@ -143,6 +164,9 @@ export class IdentityService {
     });
   }
 
+  /**
+   * Liệt kê tài khoản nhân viên theo quyền staff.read và ẩn vai trò đặc quyền khỏi IT.
+   */
   async listStaffUsers(input: {
     actor: Principal;
     page: number;
@@ -173,6 +197,9 @@ export class IdentityService {
     };
   }
 
+  /**
+   * Tạo tài khoản nhân viên, gán role hợp lệ và chỉ trả mật khẩu tạm thời một lần.
+   */
   async createStaffAccount(input: {
     actor: Principal;
     input: {
@@ -234,6 +261,9 @@ export class IdentityService {
     };
   }
 
+  /**
+   * Cập nhật tài khoản nhân viên với optimistic lock và rule bảo vệ admin cuối cùng.
+   */
   async updateStaffAccount(input: {
     actor: Principal;
     ifUnmodifiedSince?: string;
@@ -334,6 +364,9 @@ export class IdentityService {
     return sanitizeUser(updated);
   }
 
+  /**
+   * Reset mật khẩu nhân viên, bật mustChangePassword và thu hồi token hiện có.
+   */
   async resetStaffPassword(input: {
     actor: Principal;
     reason: string;
@@ -385,6 +418,9 @@ export class IdentityService {
     };
   }
 
+  /**
+   * Xác định role đặc quyền mà IT technician không được tự quản lý trực tiếp.
+   */
   private isPrivileged(roleCode: RoleCode) {
     return roleCode === 'admin' || roleCode === 'it_tech' || roleCode === 'director';
   }
