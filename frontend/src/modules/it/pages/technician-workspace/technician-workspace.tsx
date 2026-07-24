@@ -948,82 +948,950 @@ function RbacContent() {
   );
 }
 
+interface StaffUserItem {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  phone: string;
+  cccd?: string;
+  dept?: string;
+  lastLogin: string;
+  status: 'active' | 'locked' | 'current';
+  chipClass: string;
+}
+
+const initialStaffUsers: StaffUserItem[] = [
+  {
+    id: 'NV-0041',
+    lastLogin: '18/07/2026 07:30',
+    name: 'Trần Minh Khoa',
+    phone: '0912 345 678',
+    role: 'Bác sĩ',
+    status: 'active',
+    username: 'khoa.tran',
+    chipClass: 'ktv-chip-blue',
+  },
+  {
+    id: 'NV-0027',
+    lastLogin: '18/07/2026 06:55',
+    name: 'Lê Thị Thu Hương',
+    phone: '0987 654 321',
+    role: 'Điều dưỡng',
+    status: 'active',
+    username: 'huong.le',
+    chipClass: 'ktv-chip-teal',
+  },
+  {
+    id: 'NV-0035',
+    lastLogin: '17/07/2026 20:11',
+    name: 'Phạm Văn Dũng',
+    phone: '0903 111 222',
+    role: 'Dược sĩ',
+    status: 'active',
+    username: 'dung.pham',
+    chipClass: 'ktv-chip-amber',
+  },
+  {
+    id: 'NV-0012',
+    lastLogin: '10/06/2026 14:22',
+    name: 'Ngô Thị Bảo Châu',
+    phone: '0967 888 999',
+    role: 'Kế toán',
+    status: 'locked',
+    username: 'chau.ngo',
+    chipClass: 'ktv-chip-purple',
+  },
+  {
+    id: 'NV-0003',
+    lastLogin: '18/07/2026 08:00',
+    name: 'Nguyễn Đức Hùng',
+    phone: '0978 000 001',
+    role: 'KTV IT',
+    status: 'current',
+    username: 'hung.nguyen',
+    chipClass: 'ktv-chip-indigo',
+  },
+];
+
 function UsersContent() {
+  const [users, setUsers] = useState<StaffUserItem[]>(initialStaffUsers);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [passResetTarget, setPassResetTarget] = useState<string | null>(null);
+  const [editUser, setEditUser] = useState<StaffUserItem | null>(null);
+
+  // Form states for Add User
+  const [addForm, setAddForm] = useState({
+    fullname: '',
+    username: '',
+    phone: '',
+    cccd: '',
+    role: '',
+    dept: '',
+    password: 'Temp@2026!',
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedPass, setCopiedPass] = useState(false);
+
+  const activeCount = users.filter((u) => u.status === 'active' || u.status === 'current').length;
+  const lockedCount = users.filter((u) => u.status === 'locked').length;
+
+  const filteredUsers = users.filter((u) => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      u.name.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      u.phone.includes(q) ||
+      u.id.toLowerCase().includes(q)
+    );
+  });
+
+  const handleToggleLock = (userId: string) => {
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.id === userId && u.status !== 'current') {
+          const newStatus = u.status === 'locked' ? 'active' : 'locked';
+          return { ...u, status: newStatus };
+        }
+        return u;
+      }),
+    );
+  };
+
+  const handleCreateUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addForm.fullname || !addForm.username || !addForm.phone || !addForm.role) {
+      alert('Vui lòng điền đầy đủ các thông tin bắt buộc (*)');
+      return;
+    }
+
+    const nextIdNumber = users.length + 10;
+    const newId = `NV-00${nextIdNumber}`;
+
+    let chipClass = 'ktv-chip-blue';
+    if (addForm.role.includes('Điều dưỡng')) chipClass = 'ktv-chip-teal';
+    else if (addForm.role.includes('Dược sĩ')) chipClass = 'ktv-chip-amber';
+    else if (addForm.role.includes('Kế toán')) chipClass = 'ktv-chip-purple';
+    else if (addForm.role.includes('KTV IT')) chipClass = 'ktv-chip-indigo';
+
+    const newUser: StaffUserItem = {
+      chipClass,
+      id: newId,
+      lastLogin: 'Vừa khởi tạo',
+      name: addForm.fullname,
+      phone: addForm.phone,
+      role: addForm.role.split(' ')[0],
+      status: 'active',
+      username: addForm.username,
+    };
+
+    setUsers((prev) => [newUser, ...prev]);
+    setIsAddModalOpen(false);
+    setAddForm({
+      cccd: '',
+      dept: '',
+      fullname: '',
+      password: 'Temp@2026!',
+      phone: '',
+      role: '',
+      username: '',
+    });
+    alert(`Đã tạo thành công tài khoản cho ${newUser.name} (${newUser.username})`);
+  };
+
+  const handleSaveEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editUser) return;
+    setUsers((prev) => prev.map((u) => (u.id === editUser.id ? editUser : u)));
+    setEditUser(null);
+    alert(`Đã cập nhật thông tin tài khoản ${editUser.username}`);
+  };
+
   return (
-    <div className="min-w-[1080px] space-y-6 p-8">
-      <PageHeader
-        actions={(
-          <>
-            <div className="w-72">
-              <SearchBox label="Tìm nhân viên" placeholder="Tìm theo tên, username, SĐT..." />
-            </div>
-            <button className={styles.primaryButton} type="button">
-              <Icon className="h-4 w-4" name="plus" />
-              Thêm tài khoản mới
-            </button>
-          </>
-        )}
-        subtitle="Quản lý vòng đời tài khoản - 48 nhân viên trong hệ thống"
-        title="Quản trị người dùng"
-      />
+    <div className="min-w-[1080px] space-y-5 p-6 font-sans text-slate-800">
+      <style>{`
+        .ktv-stat-mini {
+          background: #ffffff;
+          border-radius: 10px;
+          padding: 14px 16px;
+          border: 1px solid #dfe3e7;
+          box-shadow: 0 2px 12px rgba(0,96,150,0.09), 0 1px 3px rgba(0,0,0,0.04);
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .ktv-stat-mini-label {
+          font-size: 11px;
+          font-weight: 600;
+          color: #707882;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .ktv-stat-mini-value {
+          font-size: 22px;
+          font-weight: 700;
+          color: #171c1f;
+        }
+        .ktv-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 3px 10px;
+          border-radius: 999px;
+          font-size: 11.5px;
+          font-weight: 600;
+          letter-spacing: 0.2px;
+          white-space: nowrap;
+        }
+        .ktv-chip-blue { background: #dbeafe; color: #1e40af; }
+        .ktv-chip-teal { background: #ccfbf1; color: #0f766e; }
+        .ktv-chip-amber { background: #fef3c7; color: #b45309; }
+        .ktv-chip-purple { background: #f3e8ff; color: #6b21a8; }
+        .ktv-chip-indigo { background: #e0e7ff; color: #3730a3; }
+        .ktv-chip-green { background: #dcfce7; color: #166534; }
+        .ktv-chip-red { background: #fee2e2; color: #ba1a1a; }
+        .ktv-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
 
-      <section className="grid grid-cols-4 gap-6">
-        {userStats.map((card) => (
-          <SummaryCardView card={card} key={card.label} />
-        ))}
-      </section>
+        .ktv-btn-action {
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          border-radius: 10px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid #dfe3e7;
+          background: #ffffff;
+          transition: all 180ms ease;
+          cursor: pointer;
+        }
+        .ktv-btn-action-edit { color: #006096; }
+        .ktv-btn-action-edit:hover:not(:disabled) { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+        .ktv-btn-action-key { color: #7a4f00; }
+        .ktv-btn-action-key:hover:not(:disabled) { background: #fef3c7; border-color: #fde047; color: #b45309; }
+        .ktv-btn-action-lock { color: #ba1a1a; }
+        .ktv-btn-action-lock:hover:not(:disabled) { background: #fee2e2; border-color: #fca5a5; color: #ba1a1a; }
+        .ktv-btn-action-unlock { color: #1b6e3c; }
+        .ktv-btn-action-unlock:hover:not(:disabled) { background: #dcfce7; border-color: #86efac; color: #166534; }
 
-      <section className={cn(styles.card, 'overflow-hidden')}>
-        <table className="w-full text-left">
-          <thead className="bg-slate-100 text-[11px] font-bold uppercase tracking-[0.5px] text-slate-600">
-            <tr>
-              {['Mã NV', 'Username', 'Họ và tên', 'Vai trò', 'Số điện thoại', 'Đăng nhập cuối', 'Trạng thái', 'Thao tác'].map((head) => (
-                <th className="px-6 py-4" key={head}>{head}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {staffUsers.map((user) => {
-              const statusTone = user.status === 'locked' ? 'red' : user.status === 'current' ? 'sky' : 'green';
-              const statusLabel = user.status === 'locked' ? 'Bị khóa' : user.status === 'current' ? 'Tài khoản hiện tại' : 'Hoạt động';
+        .ktv-pass-reveal-box {
+          background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+          border: 2px solid #ff8f00;
+          border-radius: 10px;
+          padding: 16px 20px;
+          text-align: center;
+        }
+        .ktv-pass-reveal-label {
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          color: #c55a00;
+          margin-bottom: 6px;
+        }
+        .ktv-pass-reveal-value {
+          font-size: 22px;
+          font-weight: 700;
+          font-family: monospace;
+          color: #3e2c00;
+          letter-spacing: 3px;
+        }
+        .ktv-pass-reveal-note {
+          font-size: 10.5px;
+          color: #7a4f00;
+          margin-top: 6px;
+        }
 
-              return (
-                <tr key={user.id}>
-                  <td className="px-6 py-5 font-mono text-xs font-bold text-sky-900">{user.id}</td>
-                  <td className="px-6 py-5 font-bold">{user.username}</td>
-                  <td className="px-6 py-5 font-medium">{user.name}</td>
-                  <td className="px-6 py-5"><ToneBadge tone="sky">{user.role}</ToneBadge></td>
-                  <td className="px-6 py-5 font-mono text-xs text-slate-600">{user.phone}</td>
-                  <td className="px-6 py-5 text-sm text-slate-600">{user.lastLogin}</td>
-                  <td className="px-6 py-5"><ToneBadge tone={statusTone}>{statusLabel}</ToneBadge></td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-1">
-                      <button aria-label={`Xem ${user.username}`} className={styles.iconButton} type="button">
-                        <Icon className="h-4 w-4" name="eye" />
-                      </button>
-                      <button aria-label={`Phân quyền ${user.username}`} className={styles.iconButton} type="button">
-                        <Icon className="h-4 w-4" name="key" />
-                      </button>
-                      {user.status === 'locked' ? (
-                        <button className={styles.secondaryButton} type="button">Mở khóa</button>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-4">
-          <p className="text-xs text-slate-500">
-            Hiển thị <strong className="text-slate-800">5</strong> / 48 nhân viên. Mọi thay đổi đều được hệ thống Audit ghi lại.
-          </p>
-          <div className="flex gap-2">
-            <button className={styles.secondaryButton} type="button">Trước</button>
-            <button className={styles.secondaryButton} type="button">Sau</button>
+        .ktv-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.45);
+          backdrop-filter: blur(3px);
+          z-index: 999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        .ktv-modal {
+          background: #ffffff;
+          border-radius: 16px;
+          box-shadow: 0 4px 20px rgba(0,96,150,0.13), 0 1px 4px rgba(0,0,0,0.06);
+          padding: 24px;
+          width: 100%;
+          position: relative;
+          animation: ktv-modal-in 0.2s ease;
+        }
+        @keyframes ktv-modal-in {
+          from { opacity: 0; transform: scale(0.95) translateY(12px); }
+          to { opacity: 1; transform: none; }
+        }
+      `}</style>
+
+      {/* Screen Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <div className="text-[11px] font-semibold tracking-[1.4px] text-[#006096] uppercase mb-1">
+            QUẢN TRỊ NGƯỜI DÙNG
+          </div>
+          <div className="text-[22px] font-semibold text-[#171c1f] leading-snug">
+            Quản lý tài khoản nhân viên
+          </div>
+          <div className="text-xs text-[#707882] mt-0.5">
+            Quản lý cấp phát tài khoản, cấp lại mật khẩu và kiểm soát trạng thái hoạt động của cán bộ y tế trong hệ thống
           </div>
         </div>
-      </section>
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="relative w-72">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-[#707882]"
+              fill="none"
+              height="15"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              width="15"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" x2="16.65" y1="21" y2="16.65" />
+            </svg>
+            <input
+              className="w-full pl-9 pr-3 py-2 text-xs border border-[#bfc7d2] rounded-lg outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white text-[#171c1f]"
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tên, username, SĐT..."
+              type="text"
+              value={searchQuery}
+            />
+          </div>
+          <button
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white text-xs font-semibold rounded-lg shadow-sm transition whitespace-nowrap"
+            onClick={() => setIsAddModalOpen(true)}
+            type="button"
+          >
+            <svg
+              fill="none"
+              height="14"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.5"
+              viewBox="0 0 24 24"
+              width="14"
+            >
+              <line x1="12" x2="12" y1="5" y2="19" />
+              <line x1="5" x2="19" y1="12" y2="12" />
+            </svg>
+            Thêm tài khoản mới
+          </button>
+        </div>
+      </div>
+
+      {/* Mini Stats Grid */}
+      <div className="grid grid-cols-4 gap-4 mb-4">
+        <div className="ktv-stat-mini">
+          <div className="ktv-stat-mini-label">Tổng tài khoản</div>
+          <div className="ktv-stat-mini-value">48</div>
+        </div>
+        <div className="ktv-stat-mini">
+          <div className="ktv-stat-mini-label">Đang hoạt động</div>
+          <div className="ktv-stat-mini-value" style={{ color: '#1b6e3c' }}>
+            {activeCount + 40}
+          </div>
+        </div>
+        <div className="ktv-stat-mini">
+          <div className="ktv-stat-mini-label">Bị khóa</div>
+          <div className="ktv-stat-mini-value" style={{ color: '#ba1a1a' }}>
+            {lockedCount + 2}
+          </div>
+        </div>
+        <div className="ktv-stat-mini">
+          <div className="ktv-stat-mini-label">Đăng nhập hôm nay</div>
+          <div className="ktv-stat-mini-value" style={{ color: '#006096' }}>
+            31
+          </div>
+        </div>
+      </div>
+
+      {/* Table Card Container */}
+      <div className="bg-white rounded-2xl border border-[#dfe3e7] shadow-[0_2px_12px_rgba(0,96,150,0.09)] p-5">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse" id="user-table">
+            <thead>
+              <tr className="bg-[#f0f4f8] text-[11px] font-semibold text-[#707882] uppercase tracking-[0.5px] border-b border-[#dfe3e7]">
+                <th className="px-3.5 py-2.5">Mã NV</th>
+                <th className="px-3.5 py-2.5">Username</th>
+                <th className="px-3.5 py-2.5">Họ và tên</th>
+                <th className="px-3.5 py-2.5">Vai trò</th>
+                <th className="px-3.5 py-2.5">Số điện thoại</th>
+                <th className="px-3.5 py-2.5">Đăng nhập cuối</th>
+                <th className="px-3.5 py-2.5">Trạng thái</th>
+                <th className="px-3.5 py-2.5 text-center">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.map((user) => {
+                const isLocked = user.status === 'locked';
+                const isCurrent = user.status === 'current';
+
+                return (
+                  <tr
+                    className={`border-b border-[#dfe3e7] hover:bg-[#e8f4ff] transition ${
+                      isLocked ? 'opacity-60 bg-slate-50/50' : ''
+                    }`}
+                    key={user.id}
+                  >
+                    <td className="px-3.5 py-3 font-mono text-xs text-[#3f4851]">{user.id}</td>
+                    <td className="px-3.5 py-3 font-semibold text-[#171c1f]">{user.username}</td>
+                    <td className="px-3.5 py-3 font-medium text-[#171c1f]">{user.name}</td>
+                    <td className="px-3.5 py-3">
+                      <span className={`ktv-chip ${user.chipClass}`}>{user.role}</span>
+                    </td>
+                    <td className="px-3.5 py-3 font-mono text-xs text-[#171c1f]">{user.phone}</td>
+                    <td className="px-3.5 py-3 text-xs text-[#3f4851]">{user.lastLogin}</td>
+                    <td className="px-3.5 py-3">
+                      {isLocked ? (
+                        <span className="ktv-chip ktv-chip-red">
+                          <span className="ktv-dot" /> Bị khóa
+                        </span>
+                      ) : (
+                        <span className="ktv-chip ktv-chip-green">
+                          <span className="ktv-dot" /> Hoạt động
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3.5 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        {/* Edit button */}
+                        <button
+                          className="ktv-btn-action ktv-btn-action-edit"
+                          disabled={isLocked}
+                          onClick={() => setEditUser(user)}
+                          style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
+                          title={isLocked ? 'Tài khoản đang bị khóa' : 'Chỉnh sửa tài khoản'}
+                          type="button"
+                        >
+                          <svg
+                            fill="none"
+                            height="14"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                            width="14"
+                          >
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+
+                        {/* Reset password button */}
+                        <button
+                          className="ktv-btn-action ktv-btn-action-key"
+                          disabled={isLocked}
+                          onClick={() => setPassResetTarget(user.name)}
+                          style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
+                          title={isLocked ? 'Tài khoản đang bị khóa' : 'Cấp lại mật khẩu'}
+                          type="button"
+                        >
+                          <svg
+                            fill="none"
+                            height="14"
+                            stroke="currentColor"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            viewBox="0 0 24 24"
+                            width="14"
+                          >
+                            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                          </svg>
+                        </button>
+
+                        {/* Lock / Unlock button */}
+                        {isCurrent ? (
+                          <>
+                            <button
+                              className="ktv-btn-action ktv-btn-action-lock"
+                              disabled
+                              style={{ cursor: 'not-allowed', opacity: 0.35 }}
+                              title="Không thể tự khóa tài khoản của mình"
+                              type="button"
+                            >
+                              <svg
+                                fill="none"
+                                height="14"
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                viewBox="0 0 24 24"
+                                width="14"
+                              >
+                                <rect height="11" rx="2" ry="2" width="18" x="3" y="11" />
+                                <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                              </svg>
+                            </button>
+                            <span className="ktv-chip ktv-chip-indigo text-[10.5px] px-2 py-0.5 opacity-85 flex items-center gap-1">
+                              <svg
+                                fill="none"
+                                height="11"
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                viewBox="0 0 24 24"
+                                width="11"
+                              >
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                              </svg>
+                              Hiện tại
+                            </span>
+                          </>
+                        ) : isLocked ? (
+                          <button
+                            className="ktv-btn-action ktv-btn-action-unlock"
+                            onClick={() => handleToggleLock(user.id)}
+                            title={`Mở khóa tài khoản ${user.username}`}
+                            type="button"
+                          >
+                            <svg
+                              fill="none"
+                              height="14"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                              width="14"
+                            >
+                              <rect height="11" rx="2" ry="2" width="18" x="3" y="11" />
+                              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                            </svg>
+                          </button>
+                        ) : (
+                          <button
+                            className="ktv-btn-action ktv-btn-action-lock"
+                            onClick={() => handleToggleLock(user.id)}
+                            title={`Khóa tài khoản ${user.username}`}
+                            type="button"
+                          >
+                            <svg
+                              fill="none"
+                              height="14"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              viewBox="0 0 24 24"
+                              width="14"
+                            >
+                              <rect height="11" rx="2" ry="2" width="18" x="3" y="11" />
+                              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Table Footer Pagination */}
+        <div className="mt-3.5 flex items-center justify-between flex-wrap gap-2 text-xs text-[#707882]">
+          <span>Hiển thị {filteredUsers.length} / 48 nhân viên</span>
+          <div className="flex gap-1.5">
+            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+              ‹ Trước
+            </button>
+            <button className="px-3 py-1.5 bg-[#006096] text-white rounded-md text-xs font-semibold shadow-sm" type="button">
+              1
+            </button>
+            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+              2
+            </button>
+            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+              3
+            </button>
+            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+              Sau ›
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal: Thêm tài khoản */}
+      {isAddModalOpen ? (
+        <div className="ktv-modal-overlay">
+          <div className="ktv-modal max-w-[520px]">
+            <button
+              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
+              onClick={() => setIsAddModalOpen(false)}
+              type="button"
+            >
+              ✕
+            </button>
+            <div className="text-base font-bold text-[#171c1f] mb-1">
+              Thêm tài khoản nhân viên mới
+            </div>
+            <div className="text-xs text-[#707882] mb-5">
+              Điền đầy đủ thông tin. Nhân viên bắt buộc đổi mật khẩu khi đăng nhập lần đầu.
+            </div>
+
+            <form onSubmit={handleCreateUser}>
+              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                    Họ và tên <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    onChange={(e) => setAddForm({ ...addForm, fullname: e.target.value })}
+                    placeholder="Nguyễn Văn A"
+                    required
+                    type="text"
+                    value={addForm.fullname}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                    Tên đăng nhập (Username) <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
+                    placeholder="a.nguyen"
+                    required
+                    type="text"
+                    value={addForm.username}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                    Số điện thoại <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    placeholder="09xx xxx xxx"
+                    required
+                    type="text"
+                    value={addForm.phone}
+                  />
+                  <div className="text-[10px] text-[#707882] mt-1">10 số di động Việt Nam</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                    Số CCCD (12 số) <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    maxLength={12}
+                    onChange={(e) => setAddForm({ ...addForm, cccd: e.target.value })}
+                    placeholder="012345678901"
+                    type="text"
+                    value={addForm.cccd}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                    Vai trò <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
+                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
+                    required
+                    value={addForm.role}
+                  >
+                    <option value="">-- Chọn vai trò --</option>
+                    <option value="Bác sĩ (doctor)">Bác sĩ (doctor)</option>
+                    <option value="Điều dưỡng (nurse)">Điều dưỡng (nurse)</option>
+                    <option value="Dược sĩ (pharmacist)">Dược sĩ (pharmacist)</option>
+                    <option value="Kế toán (accountant)">Kế toán (accountant)</option>
+                    <option value="Tiếp tân (receptionist)">Tiếp tân (receptionist)</option>
+                    <option value="KTV IT (it_tech)">KTV IT (it_tech)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                    Khoa / Phòng <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
+                    onChange={(e) => setAddForm({ ...addForm, dept: e.target.value })}
+                    required
+                    value={addForm.dept}
+                  >
+                    <option value="">-- Chọn khoa/phòng --</option>
+                    <option value="Khoa Da liễu">Khoa Da liễu</option>
+                    <option value="Khoa Nội">Khoa Nội</option>
+                    <option value="Khoa Ngoại">Khoa Ngoại</option>
+                    <option value="Khoa Xét nghiệm">Khoa Xét nghiệm</option>
+                    <option value="Phòng Dược">Phòng Dược</option>
+                    <option value="Phòng Kế toán">Phòng Kế toán</option>
+                    <option value="Phòng IT">Phòng IT</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  Mật khẩu khởi tạo
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    className="w-full pl-3 pr-10 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
+                    type={showPassword ? 'text' : 'password'}
+                    value={addForm.password}
+                  />
+                  <button
+                    className="absolute right-2.5 p-1 text-[#707882] hover:text-[#006096]"
+                    onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
+                    type="button"
+                  >
+                    <svg
+                      fill="none"
+                      height="18"
+                      stroke="currentColor"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="18"
+                    >
+                      {showPassword ? (
+                        <>
+                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                          <line x1="1" x2="23" y1="1" y2="23" />
+                        </>
+                      ) : (
+                        <>
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </>
+                      )}
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 justify-end pt-2">
+                <button
+                  className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
+                  onClick={() => setIsAddModalOpen(false)}
+                  type="button"
+                >
+                  Hủy
+                </button>
+                <button
+                  className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  type="submit"
+                >
+                  ✓ Tạo tài khoản
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Modal: Cấp lại mật khẩu */}
+      {passResetTarget ? (
+        <div className="ktv-modal-overlay">
+          <div className="ktv-modal max-w-[420px] text-center">
+            <button
+              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
+              onClick={() => {
+                setPassResetTarget(null);
+                setCopiedPass(false);
+              }}
+              type="button"
+            >
+              ✕
+            </button>
+            <div className="mb-2.5 flex justify-center text-[#006096]">
+              <svg
+                fill="none"
+                height="36"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="36"
+              >
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+              </svg>
+            </div>
+            <div className="text-base font-bold text-[#171c1f] mb-1">
+              Cấp lại mật khẩu ngẫu nhiên
+            </div>
+            <div className="text-xs text-[#707882] mb-4">Nhân viên: {passResetTarget}</div>
+
+            <div className="ktv-pass-reveal-box">
+              <div className="ktv-pass-reveal-label flex items-center justify-center gap-1">
+                <svg
+                  fill="none"
+                  height="11"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  viewBox="0 0 24 24"
+                  width="11"
+                >
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" x2="12" y1="9" y2="13" />
+                  <line x1="12" x2="12.01" y1="17" y2="17" />
+                </svg>
+                Mật khẩu mới — chỉ hiển thị 1 lần
+              </div>
+              <div className="ktv-pass-reveal-value">Hm#7kP$2</div>
+              <div className="ktv-pass-reveal-note">
+                Ghi chép mật khẩu này trước khi đóng hộp thoại.
+                <br />
+                Hệ thống không lưu trữ mật khẩu này sau khi đóng.
+              </div>
+            </div>
+
+            <div className="mt-4 flex gap-2.5 justify-center">
+              <button
+                className="px-3.5 py-2 bg-[#e8f4ff] text-[#006096] border border-[#cee5ff] hover:bg-[#cee5ff] rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
+                onClick={() => {
+                  navigator.clipboard.writeText('Hm#7kP$2');
+                  setCopiedPass(true);
+                  setTimeout(() => setCopiedPass(false), 3000);
+                }}
+                type="button"
+              >
+                <svg
+                  fill="none"
+                  height="12"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  width="12"
+                >
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                  <rect height="4" rx="1" ry="1" width="8" x="8" y="2" />
+                </svg>
+                {copiedPass ? 'Đã sao chép!' : 'Sao chép'}
+              </button>
+              <button
+                className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                onClick={() => setPassResetTarget(null)}
+                type="button"
+              >
+                ✓ Đã bàn giao — Đóng
+              </button>
+            </div>
+
+            <div className="text-[11px] text-[#707882] mt-3">
+              Hành động này đã được ghi vào Audit Log · 18/07/2026 08:05:00
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Modal: Edit User */}
+      {editUser ? (
+        <div className="ktv-modal-overlay">
+          <div className="ktv-modal max-w-[480px]">
+            <button
+              className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
+              onClick={() => setEditUser(null)}
+              type="button"
+            >
+              ✕
+            </button>
+            <div className="text-base font-bold text-[#171c1f] mb-1">
+              Chỉnh sửa tài khoản nhân viên
+            </div>
+            <div className="text-xs text-[#707882] mb-4">
+              Mã NV: <span className="font-mono font-bold text-[#006096]">{editUser.id}</span> — Username: <span className="font-bold text-[#171c1f]">{editUser.username}</span>
+            </div>
+
+            <form onSubmit={handleSaveEditUser}>
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  Họ và tên
+                </label>
+                <input
+                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
+                  required
+                  type="text"
+                  value={editUser.name}
+                />
+              </div>
+
+              <div className="mb-3.5">
+                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  Số điện thoại
+                </label>
+                <input
+                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                  onChange={(e) => setEditUser({ ...editUser, phone: e.target.value })}
+                  required
+                  type="text"
+                  value={editUser.phone}
+                />
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  Vai trò
+                </label>
+                <select
+                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
+                  onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
+                  value={editUser.role}
+                >
+                  <option value="Bác sĩ">Bác sĩ</option>
+                  <option value="Điều dưỡng">Điều dưỡng</option>
+                  <option value="Dược sĩ">Dược sĩ</option>
+                  <option value="Kế toán">Kế toán</option>
+                  <option value="KTV IT">KTV IT</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2.5 justify-end">
+                <button
+                  className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
+                  onClick={() => setEditUser(null)}
+                  type="button"
+                >
+                  Hủy
+                </button>
+                <button
+                  className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  type="submit"
+                >
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
