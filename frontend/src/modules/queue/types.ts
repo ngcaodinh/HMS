@@ -1,12 +1,9 @@
-export type QueueHistoryItem = {
-  counter: string;
-  isCurrent?: boolean;
-  number: string;
-  time?: string;
-};
-
-export type QueueStat = {
-  label: string;
-  tone?: 'blue' | 'green' | 'amber';
-  value: string;
-};
+export type {
+  IssuedTicketDto,
+  PublicQueueDisplayDto,
+  QueueHistoryItem,
+  QueueRealtimePayload,
+  QueueStat,
+  QueueStatus,
+  QueueTicketDto,
+} from './types/queue.types';

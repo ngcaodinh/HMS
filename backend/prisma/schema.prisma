@@ -6,3 +6,33 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+enum QueueTicketStatus {
+  waiting
+  called
+  served
+  skipped
+}
+
+/// Bảng queue_tickets có sẵn trong hms_vn (cột camelCase).
+model QueueTicket {
+  id        String            @id @db.VarChar(36)
+  number    Int
+  date      DateTime          @default(dbgenerated("(curdate())")) @db.Date
+  status    QueueTicketStatus @default(waiting)
+  calledAt  DateTime?
+  servedAt  DateTime?
+  createdAt DateTime          @default(now())
+
+  @@unique([date, number], map: "unique_key_queue_ticket_date_number")
+  @@map("queue_tickets")
+}
+
+/// Sequence atomic theo ngày (bảng mới, G9-friendly).
+model QueueDailySequence {
+  date       DateTime @id @db.Date
+  lastNumber Int      @default(0) @map("last_number")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("queue_daily_sequences")
+}

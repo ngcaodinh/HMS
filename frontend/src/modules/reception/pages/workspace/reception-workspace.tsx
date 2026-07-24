@@ -1,12 +1,23 @@
 'use client';
 
 import Image from 'next/image';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { getApiErrorMessage } from '@/shared/api-client/api-client';
+import {
+  callNextQueueTicket,
+  issueDeskTicket,
+  listQueueTickets,
+  recallQueueTicket,
+  skipQueueTicket,
+} from '@/modules/queue/services/queue.api';
+import type { QueueTicketDto } from '@/modules/queue/types';
 
 import { receptionWorkspaceStyles as styles } from './reception-workspace.styles';
 
 type WorkspaceMode = 'empty' | 'queue' | 'emergency';
 type Gender = 'male' | 'female';
+type QueueTab = 'waiting' | 'skipped';
 
 type IconProps = {
   className?: string;
@@ -20,12 +31,39 @@ type FieldProps = {
   value?: string;
 };
 
-const waitingTickets = [
-  { number: '1025', time: '08:41' },
-  { number: '1026', time: '08:43' },
-  { number: '1027', time: '08:46' },
-  { number: '1028', time: '08:48' },
-];
+const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+function getLegalDateString(reference: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: VIETNAM_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(reference);
+}
+
+function formatTicketNumber(ticketNumber: number) {
+  return String(ticketNumber).padStart(4, '0');
+}
+
+function formatTicketTime(iso: string | null) {
+  if (!iso) {
+    return '--:--';
+  }
+  return new Intl.DateTimeFormat('vi-VN', {
+    hour: '2-digit',
+    hour12: false,
+    minute: '2-digit',
+    timeZone: VIETNAM_TIME_ZONE,
+  }).format(new Date(iso));
+}
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `desk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(' ');
@@ -267,57 +305,216 @@ function EmptyQueueWorkspace({ onStart }: { onStart: () => void }) {
 }
 
 function QueueTicketPanel() {
+  const legalDate = useMemo(() => getLegalDateString(), []);
+  const [tab, setTab] = useState<QueueTab>('waiting');
+  const [waiting, setWaiting] = useState<QueueTicketDto[]>([]);
+  const [skipped, setSkipped] = useState<QueueTicketDto[]>([]);
+  const [called, setCalled] = useState<QueueTicketDto | null>(null);
+  const [isBusy, setIsBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [deskMessage, setDeskMessage] = useState<string | null>(null);
+
+  const refreshLists = useCallback(async () => {
+    const [waitingResult, skippedResult, calledResult] = await Promise.all([
+      listQueueTickets({ date: legalDate, status: 'waiting', pageSize: 50 }),
+      listQueueTickets({ date: legalDate, status: 'skipped', pageSize: 50 }),
+      listQueueTickets({ date: legalDate, status: 'called', pageSize: 10 }),
+    ]);
+
+    setWaiting(waitingResult.items);
+    setSkipped(skippedResult.items);
+    setCalled(calledResult.items[0] ?? null);
+  }, [legalDate]);
+
+  useEffect(() => {
+    void refreshLists().catch((error: unknown) => {
+      setActionError(getApiErrorMessage(error, 'Không tải được hàng đợi'));
+    });
+
+    const poll = window.setInterval(() => {
+      void refreshLists().catch(() => undefined);
+    }, 10000);
+
+    return () => window.clearInterval(poll);
+  }, [refreshLists]);
+
+  const runAction = async (action: () => Promise<void>) => {
+    if (isBusy) {
+      return;
+    }
+    setIsBusy(true);
+    setActionError(null);
+    setDeskMessage(null);
+    try {
+      await action();
+      await refreshLists();
+    } catch (error) {
+      setActionError(getApiErrorMessage(error, 'Thao tác hàng đợi thất bại'));
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleCallNext = () =>
+    runAction(async () => {
+      const ticket = await callNextQueueTicket(legalDate);
+      setCalled(ticket);
+    });
+
+  const handleSkip = () =>
+    runAction(async () => {
+      if (!called) {
+        throw new Error('Chưa có số đang gọi để bỏ qua');
+      }
+      await skipQueueTicket(called.ticketId, 'Bệnh nhân không có mặt');
+    });
+
+  const handleRecall = () =>
+    runAction(async () => {
+      const target = skipped[0] ?? (called?.status === 'skipped' ? called : null);
+      if (!target && skipped.length === 0) {
+        throw new Error('Không có số bỏ qua để gọi lại');
+      }
+      const ticketId = (skipped[0] ?? target)?.ticketId;
+      if (!ticketId) {
+        throw new Error('Không có số bỏ qua để gọi lại');
+      }
+      const ticket = await recallQueueTicket(ticketId, 'Bệnh nhân đã quay lại quầy');
+      setCalled(ticket);
+      setTab('waiting');
+    });
+
+  const handleDeskIssue = () =>
+    runAction(async () => {
+      const issued = await issueDeskTicket(createIdempotencyKey());
+      setDeskMessage(`Đã bốc số ${formatTicketNumber(issued.number)} tại quầy`);
+    });
+
+  const list = tab === 'waiting' ? waiting : skipped;
+
   return (
     <aside className={styles.queuePanel}>
       <section className={styles.nowServing}>
         <p className={styles.sectionKicker}>SỐ ĐANG PHỤC VỤ</p>
-        <p className={styles.servingNumber}>1024</p>
-        <p className={styles.servingDesk}>Quầy Tiếp Nhận 2</p>
+        <p className={styles.servingNumber}>
+          {called ? formatTicketNumber(called.number) : '----'}
+        </p>
+        <p className={styles.servingDesk}>Quầy Tiếp Nhận</p>
         <span className={styles.statusPill}>
           <span className="h-1.5 w-1.5 rounded-full bg-[#006096]" />
-          Đang gọi
+          {called ? 'Đang gọi' : 'Chờ gọi số'}
         </span>
       </section>
 
       <section className={styles.queueActions}>
         <button
           className={cn(styles.primaryButton, 'mb-2 w-full rounded-[10px] py-3 uppercase')}
+          disabled={isBusy}
+          onClick={() => {
+            void handleCallNext();
+          }}
           type="button"
         >
           GỌI SỐ TIẾP THEO
         </button>
         <div className="grid grid-cols-2 gap-2">
-          <button className={styles.secondaryButton} type="button">
+          <button
+            className={styles.secondaryButton}
+            disabled={isBusy || skipped.length === 0}
+            onClick={() => {
+              void handleRecall();
+            }}
+            type="button"
+          >
             Gọi lại
           </button>
-          <button className={styles.dangerOutlineButton} type="button">
+          <button
+            className={styles.dangerOutlineButton}
+            disabled={isBusy || !called}
+            onClick={() => {
+              void handleSkip();
+            }}
+            type="button"
+          >
             Bỏ qua
           </button>
         </div>
-        <button className={cn(styles.mutedButton, 'mt-2 w-full')} type="button">
+        <button
+          className={cn(styles.mutedButton, 'mt-2 w-full')}
+          disabled={isBusy}
+          onClick={() => {
+            void handleDeskIssue();
+          }}
+          type="button"
+        >
           Bốc số tại quầy
         </button>
+        {actionError ? (
+          <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{actionError}</p>
+        ) : null}
+        {deskMessage ? (
+          <p className="mt-2 text-[11px] font-medium text-[#006096]">{deskMessage}</p>
+        ) : null}
       </section>
 
       <div className={styles.queueTabs}>
-        <button className={cn(styles.queueTab, styles.queueTabActive)} type="button">
-          Đang chờ <span className="rounded-full bg-[#cee5ff] px-1.5 py-0.5 text-[9px]">4</span>
+        <button
+          className={cn(styles.queueTab, tab === 'waiting' && styles.queueTabActive)}
+          onClick={() => setTab('waiting')}
+          type="button"
+        >
+          Đang chờ{' '}
+          <span className="rounded-full bg-[#cee5ff] px-1.5 py-0.5 text-[9px]">
+            {waiting.length}
+          </span>
         </button>
-        <button className={styles.queueTab} type="button">
-          Bỏ qua <span className="rounded-full bg-[#eaeef2] px-1.5 py-0.5 text-[9px]">2</span>
+        <button
+          className={cn(styles.queueTab, tab === 'skipped' && styles.queueTabActive)}
+          onClick={() => setTab('skipped')}
+          type="button"
+        >
+          Bỏ qua{' '}
+          <span className="rounded-full bg-[#eaeef2] px-1.5 py-0.5 text-[9px]">
+            {skipped.length}
+          </span>
         </button>
       </div>
 
       <div className={styles.queueList}>
-        {waitingTickets.map((ticket) => (
-          <div className={styles.queueItem} key={ticket.number}>
-            <p className={styles.queueNumber}>{ticket.number}</p>
-            <p className={styles.queueTime}>Lấy số lúc {ticket.time}</p>
-            <button className={styles.callButton} type="button">
-              Gọi
-            </button>
-          </div>
-        ))}
+        {list.length === 0 ? (
+          <p className="px-2 py-3 text-[12px] text-[#707882]">Không có số trong danh sách.</p>
+        ) : (
+          list.map((ticket) => (
+            <div className={styles.queueItem} key={ticket.ticketId}>
+              <p className={styles.queueNumber}>{formatTicketNumber(ticket.number)}</p>
+              <p className={styles.queueTime}>
+                {tab === 'waiting'
+                  ? `Số ${formatTicketNumber(ticket.number)}`
+                  : `Gọi lúc ${formatTicketTime(ticket.calledAt)}`}
+              </p>
+              {tab === 'skipped' ? (
+                <button
+                  className={styles.callButton}
+                  disabled={isBusy}
+                  onClick={() => {
+                    void runAction(async () => {
+                      const recalled = await recallQueueTicket(
+                        ticket.ticketId,
+                        'Gọi lại thủ công từ danh sách bỏ qua',
+                      );
+                      setCalled(recalled);
+                    });
+                  }}
+                  type="button"
+                >
+                  Gọi
+                </button>
+              ) : (
+                <span className="text-[10px] font-semibold text-[#707882]">Chờ</span>
+              )}
+            </div>
+          ))
+        )}
       </div>
     </aside>
   );
@@ -351,7 +548,9 @@ function PatientReceptionForm() {
             <p className="text-[11px] font-medium leading-normal text-[#3f4851]">
               Đang làm thủ tục cho
             </p>
-            <p className="text-[18px] font-black leading-normal text-[#006096]">1024 · Quầy 2</p>
+            <p className="text-[18px] font-black leading-normal text-[#006096]">
+              Tiếp nhận · Quầy
+            </p>
           </div>
           <span className={styles.statusPill}>Đang gọi</span>
         </div>

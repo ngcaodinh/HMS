@@ -5,6 +5,8 @@ import { Server } from 'socket.io';
 import { createApp } from './app';
 import { config } from './config/unifiedConfig';
 import { logger } from './core/logger/logger';
+import { realtimePort } from './core/ports/realtimePort';
+import { registerQueueSocketHandlers } from './sockets/queue.socket';
 
 const app = createApp();
 const httpServer = createServer(app);
@@ -16,9 +18,8 @@ const io = new Server(httpServer, {
   },
 });
 
-io.on('connection', (socket) => {
-  logger.debug({ socketId: socket.id }, 'Socket connected');
-});
+realtimePort.setSocketServer(io);
+registerQueueSocketHandlers(io);
 
 httpServer.listen(config.app.port, config.app.host, () => {
   logger.info(
