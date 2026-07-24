@@ -1,0 +1,39 @@
+{
+  "request": {
+    "path": { "invoiceId": "32323232-3232-4232-8232-323232323232" },
+    "headers": { "Idempotency-Key": "42424242-4242-4242-8242-424242424242" },
+    "body": {}
+  },
+  "response": {
+    "data": {
+      "invoiceId": "32323232-3232-4232-8232-323232323232",
+      "momoOrderId": "HMS-20260724-32323232",
+      "requestId": "MOMO-HMS-20260724-32323232-0",
+      "amount": "20000.00",
+      "payUrl": "https://test-payment.momo.vn/pay/mock/HMS-20260724-32323232",
+      "qrPayload": "https://test-payment.momo.vn/pay/mock/HMS-20260724-32323232",
+      "expiresAt": "2026-07-24T14:30:00+07:00",
+      "intentPersistence": "mock_G9",
+      "status": "pending"
+    }
+  },
+  "errors": [
+    "INVOICE_NOT_PENDING",
+    "MOMO_ORDER_ALREADY_EXISTS",
+    "MOMO_SANDBOX_UNAVAILABLE",
+    "FORBIDDEN"
+  ],
+  "momoWireReference": {
+    "source": "doc-momo/MomoPayment.js",
+    "host": "test-payment.momo.vn",
+    "path": "/v2/gateway/api/create",
+    "requestType": "payWithMethod",
+    "signature": "HMAC-SHA256 hex over ordered fields",
+    "responseFields": {
+      "payUrl": "URL cổng thanh toán Momo (bắt buộc)",
+      "qrCodeUrl": "Payload gen QR trên trang merchant (optional; map sang qrPayload)",
+      "deeplink": "Mở app MoMo (optional, không bắt buộc FE v1)"
+    },
+    "qrPayloadRule": "qrCodeUrl từ Momo nếu có; fallback payUrl để FE luôn vẽ được QR"
+  }
+}

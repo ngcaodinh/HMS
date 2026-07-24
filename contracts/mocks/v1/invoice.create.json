@@ -1,0 +1,67 @@
+{
+  "request": {
+    "recordId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    "healthInsuranceBenefitLevel": "RATE_80",
+    "healthInsuranceRouteType": "right_route",
+    "statementIssueRequested": true
+  },
+  "response": {
+    "data": {
+      "invoiceId": "32323232-3232-4232-8232-323232323232",
+      "recordId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      "status": "pending",
+      "healthInsuranceEligibility": {
+        "cardStatus": "valid",
+        "effectiveBenefitLevel": "RATE_80",
+        "effectiveBenefitRate": "0.8000",
+        "healthInsuranceRouteType": "right_route",
+        "healthInsuranceRuleSource": "NĐ 188/2025/NĐ-CP; TT 12/2026/TT-BTC",
+        "noticeCode": null
+      },
+      "items": [
+        {
+          "invoiceItemId": "33333333-3333-4333-8333-333333333333",
+          "description": "Phí khám",
+          "category": "consultation",
+          "quantity": "1.00",
+          "unitPrice": "100000.00",
+          "amount": "100000.00",
+          "coveredByHealthInsurance": true,
+          "healthInsuranceBenefitLevel": "RATE_80",
+          "healthInsuranceBenefitRateSnapshot": "0.8000",
+          "healthInsuranceEligibleAmount": "100000.00",
+          "healthInsuranceCeilingAmount": "100000.00",
+          "healthInsuranceFundAmount": "80000.00",
+          "patientCoPayAmount": "20000.00"
+        }
+      ],
+      "subtotal": "100000.00",
+      "healthInsuranceBaseAmount": "100000.00",
+      "healthInsuranceDiscountAmount": "80000.00",
+      "totalAmount": "20000.00",
+      "advanceAppliedAmount": "0.00",
+      "amountDue": "20000.00",
+      "statement": { "status": "draft", "copies": 2 },
+      "healthInsuranceClaim": {
+        "claimId": "35353535-3535-4353-8353-353535353535",
+        "status": "draft",
+        "source": "auto_on_invoice"
+      },
+      "settlement": {
+        "isSettlementFinal": false,
+        "allowedStatuses": ["paid", "write_off"],
+        "writeOffEligibility": "emergency_with_approval_only"
+      },
+      "version": 1
+    }
+  },
+  "errors": [
+    "INVOICE_ALREADY_EXISTS",
+    "INCOMPLETE_COST_DATA",
+    "MISSING_HEALTH_INSURANCE_BENEFIT_LEVEL",
+    "INVALID_HEALTH_INSURANCE_BENEFIT_LEVEL",
+    "MANUAL_HEALTH_INSURANCE_DISCOUNT_BLOCKED",
+    "INVALID_AMOUNT",
+    "INSUFFICIENT_BED_DATA"
+  ]
+}

@@ -32,6 +32,59 @@ enum ServiceOrderStatus {
   cancelled
 }
 
+enum InvoiceStatus {
+  pending
+  paid
+  cancelled
+  write_off
+}
+
+enum HealthInsuranceBenefitLevel {
+  NO_COVERAGE
+  RATE_80
+  RATE_95
+  RATE_100
+}
+
+enum HealthInsuranceRouteType {
+  right_route
+  referral
+  emergency
+  wrong_route
+}
+
+enum HealthInsuranceClaimStatus {
+  draft
+  exported_xml
+  voided
+}
+
+enum PaymentMethod {
+  cash
+  momo
+}
+
+enum PaymentIntentStatus {
+  pending
+  paid
+  expired
+  failed
+}
+
+enum PaymentAdvanceType {
+  deposit
+  refund
+}
+
+enum InvoiceItemCategory {
+  consultation
+  lab
+  medicine
+  bed
+  procedure
+  other
+}
+
 /// Bảng queue_tickets — G2: recordId sau tiếp nhận.
 model QueueTicket {
   id        String            @id @db.VarChar(36)
@@ -146,6 +199,8 @@ model MedicalRecord {
   department    Department?    @relation(fields: [departmentId], references: [id])
   serviceOrders ServiceOrder[]
   queueTicket   QueueTicket?
+  invoices      Invoice[]
+  paymentAdvances PaymentAdvance[]
 
   @@index([patientId], map: "index_medical_record_patient")
   @@index([doctorId], map: "index_medical_record_doctor")
@@ -168,10 +223,175 @@ model ServiceOrder {
   @@map("service_orders")
 }
 
-/// Sequence mã BN / HS.
+/// Sequence mã BN / HS / hóa đơn / phiếu thu.
 model CodeSequence {
   key        String @id @db.VarChar(30)
   lastNumber Int    @default(0) @map("last_number")
 
   @@map("code_sequences")
+}
+
+/// Hóa đơn nội bộ + nguồn bảng kê/claim (Lane 7).
+model Invoice {
+  id                              String                       @id @db.VarChar(36)
+  recordId                        String                       @db.VarChar(36) @map("record_id")
+  status                          InvoiceStatus                @default(pending)
+  healthInsuranceBenefitLevel     HealthInsuranceBenefitLevel  @map("health_insurance_benefit_level")
+  healthInsuranceRouteType        HealthInsuranceRouteType?    @map("health_insurance_route_type")
+  healthInsuranceBenefitRateSnapshot String?                   @db.VarChar(10) @map("health_insurance_benefit_rate_snapshot")
+  healthInsuranceRuleSource       String?                      @db.VarChar(255) @map("health_insurance_rule_source")
+  subtotal                        Decimal                      @db.Decimal(18, 2)
+  healthInsuranceBaseAmount       Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_base_amount")
+  healthInsuranceDiscountAmount   Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_discount_amount")
+  totalAmount                     Decimal                      @db.Decimal(18, 2) @map("total_amount")
+  advanceAppliedAmount            Decimal                      @default(0) @db.Decimal(18, 2) @map("advance_applied_amount")
+  amountDue                       Decimal                      @db.Decimal(18, 2) @map("amount_due")
+  paymentMethod                   PaymentMethod?               @map("payment_method")
+  receiptNumber                   String?                      @unique @db.VarChar(40) @map("receipt_number")
+  paidAt                          DateTime?                    @map("paid_at")
+  momoOrderId                     String?                      @unique @db.VarChar(80) @map("momo_order_id")
+  statementStatus                 String                       @default("draft") @db.VarChar(20) @map("statement_status")
+  statementNumber                 String?                      @db.VarChar(40) @map("statement_number")
+  statementSignedAt               DateTime?                    @map("statement_signed_at")
+  statementSignedBy               String?                      @db.VarChar(36) @map("statement_signed_by")
+  cancelReason                    String?                      @db.VarChar(500) @map("cancel_reason")
+  cancelledAt                     DateTime?                    @map("cancelled_at")
+  writeOffReason                  String?                      @db.VarChar(500) @map("write_off_reason")
+  writeOffAt                      DateTime?                    @map("write_off_at")
+  version                         Int                          @default(1)
+  // Không dùng @updatedAt — Prisma now() là UTC, lệch giờ VN trên MySQL DATETIME.
+  // Service luôn gán createdAt/updatedAt/paidAt bằng toVietnamDbDateTime().
+  createdAt                       DateTime                     @map("created_at")
+  updatedAt                       DateTime                     @map("updated_at")
+
+  medicalRecord MedicalRecord          @relation(fields: [recordId], references: [id])
+  items         InvoiceItem[]
+  claim         HealthInsuranceClaim?
+  paymentIntents PaymentIntent[]
+  writeOffApproval EmergencyWriteOffApproval?
+
+  @@index([recordId], map: "index_invoice_record")
+  @@index([status], map: "index_invoice_status")
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                                 String                       @id @db.VarChar(36)
+  invoiceId                          String                       @db.VarChar(36) @map("invoice_id")
+  description                        String                       @db.VarChar(255)
+  category                           InvoiceItemCategory
+  quantity                           Decimal                      @db.Decimal(12, 2)
+  unitPrice                          Decimal                      @db.Decimal(18, 2) @map("unit_price")
+  amount                             Decimal                      @db.Decimal(18, 2)
+  coveredByHealthInsurance           Boolean                      @default(false) @map("covered_by_health_insurance")
+  healthInsuranceBenefitLevel        HealthInsuranceBenefitLevel? @map("health_insurance_benefit_level")
+  healthInsuranceBenefitRateSnapshot String?                      @db.VarChar(10) @map("health_insurance_benefit_rate_snapshot")
+  healthInsuranceEligibleAmount      Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_eligible_amount")
+  healthInsuranceCeilingAmount       Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_ceiling_amount")
+  healthInsuranceFundAmount          Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_fund_amount")
+  patientCoPayAmount                 Decimal                      @default(0) @db.Decimal(18, 2) @map("patient_co_pay_amount")
+  sortOrder                          Int                          @default(0) @map("sort_order")
+  createdAt                          DateTime                     @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "index_invoice_item_invoice")
+  @@map("invoice_items")
+}
+
+model HealthInsuranceClaim {
+  id          String                     @id @db.VarChar(36)
+  invoiceId   String                     @unique @db.VarChar(36) @map("invoice_id")
+  status      HealthInsuranceClaimStatus @default(draft)
+  voidReason  String?                    @db.VarChar(100) @map("void_reason")
+  voidedAt    DateTime?                  @map("voided_at")
+  createdAt   DateTime                   @map("created_at")
+  updatedAt   DateTime                   @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("health_insurance_claims")
+}
+
+/// Intent Momo (G9 light) — Payment đăng ký qua Billing port.
+model PaymentIntent {
+  id              String              @id @db.VarChar(36)
+  invoiceId       String              @db.VarChar(36) @map("invoice_id")
+  momoOrderId     String              @unique @db.VarChar(80) @map("momo_order_id")
+  requestId       String              @db.VarChar(120) @map("request_id")
+  amount          Decimal             @db.Decimal(18, 2)
+  status          PaymentIntentStatus @default(pending)
+  payUrl          String?             @db.VarChar(1000) @map("pay_url")
+  expiresAt       DateTime            @map("expires_at")
+  idempotencyKey  String              @unique @db.VarChar(36) @map("idempotency_key")
+  transId         String?             @db.VarChar(80) @map("trans_id")
+  /// Thời điểm thanh toán thành công (wall-clock VN), mirror invoice.paid_at.
+  paidAt          DateTime?           @map("paid_at")
+  createdAt       DateTime            @map("created_at")
+  updatedAt       DateTime            @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "index_payment_intent_invoice")
+  @@map("payment_intents")
+}
+
+/// IPN Momo — append-only (Lane 8).
+model PaymentIpnLog {
+  id              String   @id @db.VarChar(36)
+  orderId         String?  @db.VarChar(80) @map("order_id")
+  transId         String?  @db.VarChar(80) @map("trans_id")
+  resultCode      Int?     @map("result_code")
+  signatureValid  Boolean  @default(false) @map("signature_valid")
+  processing      String   @db.VarChar(40)
+  rawPayload      Json     @map("raw_payload")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([orderId], map: "index_payment_ipn_order")
+  @@index([transId], map: "index_payment_ipn_trans")
+  @@map("payment_ipn_logs")
+}
+
+/// Idempotency request-result store (G9 light) — cash/momo commands.
+model IdempotencyRequest {
+  id           String   @id @db.VarChar(36)
+  key          String   @unique @db.VarChar(36)
+  route        String   @db.VarChar(120)
+  requestHash  String?  @db.VarChar(64) @map("request_hash")
+  statusCode   Int      @map("status_code")
+  responseJson Json     @map("response_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_requests")
+}
+
+model PaymentAdvance {
+  id            String             @id @db.VarChar(36)
+  recordId      String             @db.VarChar(36) @map("record_id")
+  type          PaymentAdvanceType
+  amount        Decimal            @db.Decimal(18, 2)
+  method        PaymentMethod
+  reason        String?            @db.VarChar(500)
+  receiptNumber String?            @unique @db.VarChar(40) @map("receipt_number")
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+
+  @@index([recordId], map: "index_payment_advance_record")
+  @@map("payment_advances")
+}
+
+model EmergencyWriteOffApproval {
+  id                     String   @id @db.VarChar(36)
+  invoiceId              String   @unique @db.VarChar(36) @map("invoice_id")
+  recordId               String   @db.VarChar(36) @map("record_id")
+  approvedInvoiceVersion Int      @map("approved_invoice_version")
+  approvedByUserId       String   @db.VarChar(36) @map("approved_by_user_id")
+  writeOffReason         String   @db.VarChar(500) @map("write_off_reason")
+  approvedAt             DateTime @map("approved_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_write_off_approvals")
 }

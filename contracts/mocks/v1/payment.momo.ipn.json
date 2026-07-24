@@ -1,0 +1,34 @@
+{
+  "request": {
+    "orderId": "HMS-20260724-32323232",
+    "transId": "MOMO-TX-001",
+    "resultCode": 0,
+    "amount": 20000,
+    "signature": "sandbox-signature",
+    "partnerCode": "MOMO",
+    "requestId": "MOMO-HMS-20260724-32323232-0",
+    "orderInfo": "Thanh toan vien phi",
+    "extraData": "",
+    "message": "Success"
+  },
+  "vendorResponse": {
+    "resultCode": 0,
+    "message": "Received"
+  },
+  "internalProcessing": {
+    "data": {
+      "received": true,
+      "momoOrderId": "HMS-20260724-32323232",
+      "transId": "MOMO-TX-001",
+      "signatureValid": true,
+      "processing": "settled",
+      "invoiceStatus": "paid"
+    }
+  },
+  "errors": ["INVALID_IPN_SIGNATURE", "ORDER_NOT_FOUND", "PAYMENT_REFERENCE_MISMATCH"],
+  "notes": [
+    "HTTP 200 always to Momo after receive (doc-momo controller pattern)",
+    "Always append payment_ipn_logs with full raw payload",
+    "Settle only once per transId via BillingSettlementPort"
+  ]
+}
