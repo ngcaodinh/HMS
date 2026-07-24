@@ -1,0 +1,97 @@
+openapi: 3.0.3
+info:
+  title: HMS-VN Identity, RBAC & Staff API
+  version: v1
+servers:
+  - url: /api/v1
+paths:
+  /auth/sessions:
+    post:
+      operationId: createSession
+      summary: Create a staff JWT session
+      responses:
+        '200':
+          description: Session created
+        '401':
+          description: Invalid credentials
+  /auth/me:
+    get:
+      operationId: getCurrentPrincipal
+      summary: Return the current authenticated principal
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current principal
+  /auth/password:
+    put:
+      operationId: changePassword
+      summary: Change current principal password and revoke old JWTs
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Password changed
+  /staff-users:
+    get:
+      operationId: listStaffUsers
+      summary: List staff users without credential fields
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Staff page
+    post:
+      operationId: createStaffAccount
+      summary: Create a staff account and return one-time temporary password
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Staff account created
+  /staff-users/{userId}:
+    patch:
+      operationId: updateStaffAccount
+      summary: Update staff profile, active state, or single role with optimistic locking
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: header
+          name: If-Unmodified-Since
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Staff account updated
+        '409':
+          description: Staff record was modified since read
+  /staff-users/{userId}/password-resets:
+    post:
+      operationId: resetStaffPassword
+      summary: Reset a staff password and return one-time temporary password
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Password reset
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

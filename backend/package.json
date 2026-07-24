@@ -12,7 +12,9 @@
     "format:write": "prettier --write .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
+    "seed:identity": "tsx prisma/seedIdentity.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
