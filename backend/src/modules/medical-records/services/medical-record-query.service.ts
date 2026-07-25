@@ -102,6 +102,7 @@ export async function getMedicalRecordDetail(recordId: string, principal: Princi
         testName: test.testName,
         isUrgent: test.isUrgent,
         resultTableKey: test.lab_test_types.resultTableKey,
+        specimenType: test.specimenType ?? test.lab_test_types.specimen,
       })),
       diagnosis: record.icd10
         ? {
