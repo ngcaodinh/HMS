@@ -1,0 +1,500 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { httpClient } from '../../../shared/api-client/http-client';
+
+// Types
+export interface BedDto {
+  id: string;
+  bed: string;
+  roomName: string;
+  status: 'occupied' | 'empty' | 'emergency' | 'discharge' | 'maintenance' | 'available';
+  patient: string | null;
+  diagnosis: string | null;
+  meta: string | null;
+  allergy: boolean;
+  assignmentId: string | null;
+  recordId: string | null;
+  recordVersion: number | null;
+}
+
+export interface OrderDto {
+  id: string;
+  treatmentOrderId?: string;
+  title: string;
+  instruction: string;
+  note: string;
+  patient: string;
+  patientName: string;
+  room: string;
+  roomLabel: string;
+  status: 'pending' | 'done' | 'blocked' | 'delayed' | 'active' | 'cancelled';
+  time: string;
+  tone: 'danger' | 'purple' | 'blue' | 'green';
+  orderType: string;
+  hasAllergyWarning: boolean;
+}
+
+export interface AdmissionBoardDto {
+  recordId: string;
+  recordCode: string;
+  patientName: string;
+  patientId: string;
+  diagnosis: string;
+  age: number;
+  gender: string;
+  version: number;
+}
+
+export interface VitalsWorklistItemDto {
+  recordId: string;
+  recordCode: string;
+  patientName: string;
+  age: number;
+  gender: string;
+  diagnosis: string | null;
+  allergies: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface QueueTicketDto {
+  id: string;
+  number: number;
+  calledAt: string | null;
+}
+
+export interface VitalsQueueStatsDto {
+  measuredTodayCount: number;
+  measuredTodayDelta: number;
+  waitingCount: number;
+  allergyAlertTodayCount: number;
+  avgMinutesPerPatient: number;
+}
+
+// Queries
+export const useBeds = () => {
+  return useQuery({
+    queryKey: ['beds'],
+    queryFn: async () => {
+      const res = await httpClient.get<any, { data: BedDto[] }>('/beds');
+      return res.data;
+    },
+  });
+};
+export const useOrders = (params?: { recordId?: string; bedId?: string; departmentId?: string }) => {
+  return useQuery({
+    queryKey: ['orders', params],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (params?.recordId) queryParams.append('recordId', params.recordId);
+      if (params?.bedId) queryParams.append('bedId', params.bedId);
+      if (params?.departmentId) queryParams.append('departmentId', params.departmentId);
+      const queryString = queryParams.toString();
+      const res = await httpClient.get<any, { data: any[] }>(
+        queryString ? `/treatment-orders?${queryString}` : '/treatment-orders'
+      );
+      return (res.data || []).map((o: any) => {
+        const tone: 'danger' | 'purple' | 'blue' | 'green' =
+          o.status === 'cancelled' ? 'danger' : o.status === 'done' ? 'blue' : 'purple';
+        return {
+          id: o.treatmentOrderId || o.id,
+          treatmentOrderId: o.treatmentOrderId || o.id,
+          title: o.orderType ? String(o.orderType).toUpperCase() : 'Y LỆNH',
+          instruction: o.content || '',
+          note: o.note || '',
+          patient: o.patientName || '',
+          patientName: o.patientName || '',
+          room: o.roomLabel || '',
+          roomLabel: o.roomLabel || '',
+          status: o.status,
+          time: o.orderedAt || '',
+          tone,
+          orderType: o.orderType || '',
+          hasAllergyWarning: !!o.hasAllergyWarning,
+        };
+      });
+    },
+    refetchInterval: 15000,
+  });
+};
+
+export const useAdmissionBoard = () => {
+  return useQuery({
+    queryKey: ['admission-board'],
+    queryFn: async () => {
+      const res = await httpClient.get<any, { data: { waitingForBedRecords: AdmissionBoardDto[] } }>(
+        '/inpatient/admission-board'
+      );
+      return res.data.waitingForBedRecords;
+    },
+  });
+};
+
+// Mutations
+export const useToggleMaintenance = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ bedId, status }: { bedId: string; status: 'maintenance' | 'available' }) => {
+      const res = await httpClient.put(`/beds/${bedId}/maintenance`, { status });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+    },
+  });
+};
+
+export const useAssignBed = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      recordId,
+      bedId,
+      expectedRecordVersion,
+      note,
+    }: {
+      recordId: string;
+      bedId: string;
+      expectedRecordVersion: number;
+      note?: string;
+    }) => {
+      const res = await httpClient.post(`/medical-records/${recordId}/bed-assignments`, {
+        bedId,
+        expectedRecordVersion,
+        note,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+      queryClient.invalidateQueries({ queryKey: ['admission-board'] });
+    },
+  });
+};
+
+export const useChangeBedAssignment = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      recordId,
+      targetBedId,
+      expectedRecordVersion,
+      action = 'transfer',
+      reason,
+      note,
+    }: {
+      recordId: string;
+      targetBedId?: string;
+      expectedRecordVersion: number;
+      action?: 'transfer' | 'correction';
+      reason: string;
+      note?: string;
+    }) => {
+      const res = await httpClient.post(`/medical-records/${recordId}/bed-assignment-changes`, {
+        targetBedId,
+        expectedRecordVersion,
+        action,
+        reason,
+        note,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+    },
+  });
+};
+
+export const useSignDischargeSummary = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      recordId,
+      dischargeDiagnosis,
+      treatmentSummary,
+      dischargeCondition = 'improved',
+    }: {
+      recordId: string;
+      dischargeDiagnosis: string;
+      treatmentSummary: string;
+      dischargeCondition?: string;
+    }) => {
+      const res = await httpClient.post(`/medical-records/${recordId}/discharge-summaries`, {
+        dischargeDiagnosis,
+        treatmentSummary,
+        dischargeCondition,
+        signatureConfirmation: true,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+    },
+  });
+};
+
+export const useProcessDischarge = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      recordId,
+      expectedRecordVersion,
+    }: {
+      recordId: string;
+      expectedRecordVersion: number;
+    }) => {
+      const res = await httpClient.post(`/medical-records/${recordId}/discharges`, {
+        expectedRecordVersion,
+        dischargeConfirmation: true,
+      });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+      queryClient.invalidateQueries({ queryKey: ['admission-board'] });
+    },
+  });
+};
+
+export const useUpdateOrderStatus = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      orderId,
+      status,
+      cancelReason,
+    }: {
+      orderId: string;
+      status: 'done' | 'cancelled' | 'delayed' | 'active';
+      cancelReason?: string;
+    }) => {
+      const res = await httpClient.put(`/treatment-orders/${orderId}/status`, { status, cancelReason });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+};
+
+export const useCancelOrder = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ orderId, cancelReason }: { orderId: string; cancelReason: string }) => {
+      const res = await httpClient.post(`/treatment-orders/${orderId}/cancel`, { cancelReason });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+};
+
+export const useVitalsQueue = () =>
+  useQuery({
+    queryKey: ['vitals-queue'],
+    queryFn: async () => {
+      const res = await httpClient.get<
+        any,
+        {
+          data: {
+            worklist: VitalsWorklistItemDto[];
+            ticketQueue: {
+              currentCalled: QueueTicketDto | null;
+              waitingCount: number;
+              waitingNumbers: number[];
+            };
+            stats: VitalsQueueStatsDto;
+          };
+        }
+      >('/inpatient/vitals-queue');
+      return res.data;
+    },
+  });
+
+export const useCallNextTicket = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => httpClient.post('/inpatient/queue-tickets/call-next', {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vitals-queue'] }),
+  });
+};
+
+export const useRecallTicket = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ticketId: string) =>
+      httpClient.post(`/inpatient/queue-tickets/${ticketId}/recall`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vitals-queue'] }),
+  });
+};
+
+export const useRecordVitalSigns = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      recordId: string;
+      ticketId: string;
+      expectedRecordVersion: number;
+      pulse: number;
+      temperatureC?: number;
+      bloodPressureSystolic: number;
+      bloodPressureDiastolic: number;
+      respiratoryRate?: number;
+      spo2: number;
+      heightCm?: number;
+      weightKg?: number;
+      allergies?: string;
+    }) => {
+      const { recordId, ...body } = payload;
+      return httpClient.post(`/medical-records/${recordId}/vital-signs`, body);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vitals-queue'] }),
+  });
+};
+
+// Specimen Collection Types & Hooks
+export interface SpecimenDto {
+  id: string;
+  recordId: string;
+  patientCode: string;
+  patientName: string;
+  departmentName: string;
+  specimenCode: string;
+  specimenType: string;
+  orderDescription: string;
+  priority: boolean;
+  status: 'pending' | 'collected' | 'handed_over';
+  barcodePrinted: boolean;
+  collectedBy: string | null;
+  collectedAt: string | null;
+  handedOverBy: string | null;
+  handedOverAt: string | null;
+  labReceiverName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const useSpecimens = (status?: string) => {
+  return useQuery({
+    queryKey: ['specimens', status],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (status) queryParams.append('status', status);
+      const queryString = queryParams.toString();
+      const res = await httpClient.get<any, { data: SpecimenDto[] }>(
+        queryString ? `/specimens?${queryString}` : '/specimens'
+      );
+      return res.data || [];
+    },
+  });
+};
+
+export const useCreateSpecimen = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      recordId: string;
+      patientCode: string;
+      patientName: string;
+      departmentName: string;
+      specimenCode: string;
+      specimenType: string;
+      orderDescription: string;
+      priority?: boolean;
+    }) => {
+      const res = await httpClient.post('/specimens', payload);
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+export const useCollectSpecimen = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const res = await httpClient.post(`/specimens/${id}/collect`, {});
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+export const usePrintSpecimenBarcode = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const res = await httpClient.post(`/specimens/${id}/print-barcode`, {});
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+export const useHandoffSpecimen = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, labReceiverName }: { id: string; labReceiverName?: string }) => {
+      const res = await httpClient.post(`/specimens/${id}/handoff`, { labReceiverName });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+// Emergency Identity Standardization Types & Hooks
+export interface UnidentifiedEmergencyPatientDto {
+  patientId: string;
+  sttNumber: number;
+  tempName: string;
+  gender: 'male' | 'female';
+  bedLabel: string | null;
+  roomLabel: string | null;
+  admittedAt: string;
+  emergencyReason: string | null;
+}
+
+export const useUnidentifiedEmergencyPatients = () => {
+  return useQuery({
+    queryKey: ['unidentified-emergency-patients'],
+    queryFn: async () => {
+      const res = await httpClient.get<any, { data: UnidentifiedEmergencyPatientDto[] }>(
+        '/inpatient/emergency-unidentified-patients'
+      );
+      return res.data || [];
+    },
+  });
+};
+
+export const useStandardizeEmergencyIdentity = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      patientId: string;
+      fullName: string;
+      dateOfBirth: string;
+      gender: 'male' | 'female';
+      phoneNumber: string;
+      identityCardNumber: string;
+      address?: string;
+      healthInsuranceCode?: string;
+      guardianFullName: string;
+      privacyConfirmed: true;
+    }) => {
+      const { patientId, ...body } = payload;
+      return httpClient.post(`/patients/${patientId}/emergency-identity`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unidentified-emergency-patients'] });
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+    },
+  });
+};

@@ -22,8 +22,27 @@ backend/uploads/*
 test_plan/
 doc-momo/
 .agents/
+.gemini/
+.claude/
 AGENTS.md
+GEMINI.md
+CLAUDE.md
 
 doc
 
 *.tsbuildinfo
+
+# Markdown files
+*.md
+
+# Temp directory
+temp/
+
+# Database files
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal

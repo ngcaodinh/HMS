@@ -17,7 +17,6 @@ export type IconName =
   | 'user';
 
 export type NavItem = {
-  badge?: string;
   icon: IconName;
   id: NurseScreen;
   label: string;
@@ -57,14 +56,7 @@ export type Bed = {
   status: BedStatus;
 };
 
-export type SampleOrder = {
-  code: string;
-  name: string;
-  order: string;
-  status: 'pending' | 'done';
-  time?: string;
-  type: string;
-};
+
 
 export type CareOrder = {
   instruction: string;
@@ -77,12 +69,20 @@ export type CareOrder = {
   tone?: 'danger' | 'purple' | 'blue' | 'green';
 };
 
+export const orderTypeLabels: Record<string, string> = {
+  medication: 'Thuốc',
+  monitoring: 'Theo dõi',
+  care: 'Chăm sóc',
+  diet: 'Dinh dưỡng',
+  procedure: 'Thủ thuật',
+};
+
 export const navItems: NavItem[] = [
-  { id: 'vitals', label: 'Tiếp nhận & Sinh hiệu', badge: '7', icon: 'heart' },
-  { id: 'samples', label: 'Lấy mẫu & Bàn giao', badge: '4', icon: 'flask' },
+  { id: 'vitals', label: 'Tiếp nhận & Sinh hiệu', icon: 'heart' },
+  { id: 'samples', label: 'Lấy mẫu & Bàn giao', icon: 'flask' },
   { id: 'beds', label: 'Quản lý buồng giường', icon: 'bed' },
-  { id: 'orders', label: 'Y lệnh & Chăm sóc', badge: '3', icon: 'clipboard' },
-  { id: 'emergency', label: 'Chuẩn hóa cấp cứu', badge: '2', icon: 'shield' },
+  { id: 'orders', label: 'Y lệnh & Chăm sóc', icon: 'clipboard' },
+  { id: 'emergency', label: 'Chuẩn hóa cấp cứu', icon: 'shield' },
 ];
 
 export const screenMeta: Record<
@@ -217,23 +217,7 @@ export const beds: Bed[] = [
   { bed: '102-B', status: 'empty' },
 ];
 
-export const sampleOrders: SampleOrder[] = [
-  {
-    code: 'DL-2607-001',
-    type: 'Máu toàn phần (EDTA)',
-    order: 'Chỉ định: Công thức máu',
-    name: 'NGUYỄN VĂN A',
-    status: 'pending',
-  },
-  {
-    code: 'DL-2607-002',
-    type: 'Sinh thiết da (GAP)',
-    order: 'Chỉ định: Mổ sinh thiết chẩn đoán',
-    name: 'NGUYỄN VĂN A',
-    status: 'done',
-    time: '08:15 – 17/07',
-  },
-];
+
 
 export const careOrders: CareOrder[] = [
   {
