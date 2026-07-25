@@ -19,7 +19,8 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 !backend/uploads/lab-results/
 !backend/uploads/lab-results/.gitkeep
-
+test_plan/
+doc-momo/
 .agents/
 AGENTS.md
 

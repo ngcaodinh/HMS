@@ -38,6 +38,16 @@ export function attachDevPrincipal(req: Request, _res: Response, next: NextFunct
         'patient.search',
         'emergency.create',
         'emergency.identity.normalize',
+        // Billing / Payment (dev principal — Sprint 1)
+        'invoice.create',
+        'invoice.read',
+        'invoice.cancel',
+        'invoice.write_off',
+        'statement.sign',
+        'payment.cash.create',
+        'payment.momo.create',
+        'payment.read',
+        'payment_advance.write',
       ],
       authVersion: 1,
     };

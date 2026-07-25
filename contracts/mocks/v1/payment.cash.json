@@ -1,0 +1,22 @@
+{
+  "request": {
+    "path": { "invoiceId": "32323232-3232-4232-8232-323232323232" },
+    "headers": { "Idempotency-Key": "41414141-4141-4141-8141-414141414141" },
+    "body": { "paidAt": "2026-07-24T14:00:00+07:00" }
+  },
+  "response": {
+    "data": {
+      "invoiceId": "32323232-3232-4232-8232-323232323232",
+      "paymentMethod": "cash",
+      "status": "paid",
+      "receiptNumber": "PT-20260724-001",
+      "paidAt": "2026-07-24T14:00:00+07:00",
+      "recordClosure": {
+        "performed": true,
+        "recordId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "status": "closed"
+      }
+    }
+  },
+  "errors": ["INVOICE_NOT_PENDING", "PAYMENT_IDEMPOTENCY_CONFLICT", "FORBIDDEN"]
+}
