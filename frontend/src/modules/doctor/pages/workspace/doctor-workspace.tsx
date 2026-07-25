@@ -89,7 +89,7 @@ export function DoctorWorkspacePage() {
         worklist={isWorklistLoading ? [] : worklist?.data ?? []}
       />
       <section className={styles.workspace}>
-        <Topbar doctorName={principal?.fullName ?? 'Bác sĩ'} hasPatient={currentScreen !== 'empty'} />
+        <Topbar />
         <div className={cn(styles.body, currentScreen === 'empty' && styles.bodyEmpty)}>
           {currentScreen === 'empty' && (
             <EmptyState

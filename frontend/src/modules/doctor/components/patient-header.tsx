@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import type { MedicalRecordDetail } from '../types/medical-record.types';
 import { AssetIcon, calculateAge, cn, formatDateVN, genderLabel } from './shared';
@@ -24,8 +24,15 @@ export function visibleSteps(diagnosis: { treatmentType: string } | null): Array
   return BASE_STEPS;
 }
 
-export function Topbar({ doctorName, hasPatient }: { doctorName: string; hasPatient: boolean }) {
-  const now = new Date();
+export function Topbar() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
     <header className={styles.topbar}>
       <div className="flex min-w-0 items-center gap-3">
@@ -38,23 +45,17 @@ export function Topbar({ doctorName, hasPatient }: { doctorName: string; hasPati
         </span>
       </div>
       <div className={styles.topbarRight}>
-        <div>
-          <p className={styles.topbarDoctorName}>{doctorName}</p>
-          <p className={styles.topbarDoctorRole}>Bác sĩ · Da liễu</p>
-        </div>
         <span className={styles.dutyPill}>
           <span className="h-1.5 w-1.5 rounded-full bg-[#1b6e3f]" />
           Đang trực
         </span>
-        {hasPatient && (
-          <>
-            <div className="h-6 w-px bg-[#bfc7d2]" />
-            <div>
-              <p className={styles.topbarTimeStrong}>{now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
-              <p className={styles.topbarTime}>{now.toLocaleTimeString('vi-VN')} ICT</p>
-            </div>
-          </>
-        )}
+        <div className="h-6 w-px bg-[#bfc7d2]" />
+        <div>
+          <p className={styles.topbarTimeStrong}>
+            {now ? now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : ' '}
+          </p>
+          <p className={styles.topbarTime}>{now ? `${now.toLocaleTimeString('vi-VN')} ICT` : ' '}</p>
+        </div>
       </div>
     </header>
   );
@@ -381,7 +382,7 @@ export function EmptyState({ onStart }: { onStart: () => void }) {
       </div>
       <button className={cn(styles.primaryButton, 'mt-6 px-6 text-base font-bold')} onClick={onStart} type="button">
         <AssetIcon className="h-4 w-[22px] brightness-0 invert" name="icon-call-next.svg" />
-        Chọn bệnh nhân đầu tiên trong danh sách
+        Gọi bệnh nhân kế tiếp
       </button>
     </section>
   );

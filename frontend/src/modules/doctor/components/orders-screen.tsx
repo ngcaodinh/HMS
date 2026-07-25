@@ -146,7 +146,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                 <tr key={test.labTestId}>
                   <td className={styles.td}>{selected.length + index + 1}</td>
                   <td className={cn(styles.td, 'font-bold text-[#001d32]')}>{test.testName}</td>
-                  <td className={styles.td}>—</td>
+                  <td className={styles.td}>{test.specimenType ?? '—'}</td>
                   <td className={styles.td}>
                     <span className={test.status === 'resulted' ? styles.statusNormal : styles.statusPending}>
                       {test.status === 'resulted' ? 'Có kết quả' : 'Đã chỉ định'}

@@ -4,6 +4,7 @@ import { apiGet, apiGetPaginated, apiPatch, apiPost } from '@/shared/api-client'
 import type {
   DiagnoseInput,
   Icd10Entry,
+  LabTestResultDetail,
   LabTestTypeOption,
   MedicalRecordDetail,
   VitalSignsFormInput,
@@ -43,6 +44,18 @@ export function useLabTestTypes(keyword: string) {
     queryKey: ['lab-test-types', keyword],
     queryFn: () => apiGet<LabTestTypeOption[]>('/lab-test-types', { params: { keyword: keyword || undefined } }),
   });
+}
+
+export function useLabResultDetail(labTestId: string | null) {
+  return useQuery({
+    queryKey: ['lab-tests', 'detail', labTestId],
+    queryFn: () => apiGet<LabTestResultDetail>(`/lab-tests/${labTestId}`),
+    enabled: Boolean(labTestId),
+  });
+}
+
+export function downloadAttachmentUrl(attachmentId: string): string {
+  return `/api/proxy/attachments/${attachmentId}/file`;
 }
 
 function useInvalidateRecord(recordId: string) {

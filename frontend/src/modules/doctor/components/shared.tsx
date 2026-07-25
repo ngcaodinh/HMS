@@ -25,6 +25,18 @@ export function formatDateVN(dateOfBirth: string): string {
   return new Date(dateOfBirth).toLocaleDateString('vi-VN');
 }
 
+export function formatDateTimeVN(value: string): string {
+  return new Date(value).toLocaleString('vi-VN');
+}
+
 export function genderLabel(gender: 'male' | 'female'): string {
   return gender === 'male' ? 'Nam' : 'Nữ';
 }
+
+export const RESULT_TABLE_LABELS: Record<string, string> = {
+  xn_hoa_sinh_mau: 'Hoá sinh máu',
+  xn_vi_sinh: 'Vi sinh',
+  xn_mo_benh_hoc: 'Giải phẫu bệnh',
+  xn_nuoc_tieu: 'Nước tiểu / Phân',
+  xn_cong_thuc_mau: 'Công thức máu (CBC)',
+};

@@ -83,7 +83,7 @@ export function DiagnosisScreen({
       <div className="mb-5">
         <h2 className="text-[15px] font-bold leading-[22.5px]">Chẩn đoán bệnh & Quyết định hướng điều trị</h2>
         <p className="text-xs leading-[18px] text-[#3f4851]">
-          Chọn mã ICD-10 (TT 06/2026/TT-BYT) · Mã đầu tiên là <strong>bệnh chính</strong> · Quyết định NGOẠI TRÚ
+          Chọn 1 mã ICD-10 (TT 06/2026/TT-BYT) làm <strong>chẩn đoán chính</strong> · Quyết định NGOẠI TRÚ
           (Tab 5A) hoặc NỘI TRÚ (Tab 5B).
         </p>
       </div>
@@ -129,7 +129,7 @@ export function DiagnosisScreen({
                   />
                 </span>
                 <span className="mt-2 block text-[11px] leading-[13.75px] text-[#707882]">
-                  Gõ mã (L50) hoặc tên bệnh. Có thể chọn mã; mã đầu = bệnh chính.
+                  Gõ mã (L50) hoặc tên bệnh để tìm và chọn mã chẩn đoán chính.
                 </span>
                 {icdErrorVisible && (
                   <span className="mt-1 block text-[11px] font-medium text-[#ba1a1a]">
@@ -172,7 +172,7 @@ export function DiagnosisScreen({
                 )}
               </span>
             ) : (
-              <span className="text-xs text-[#707882]">Chưa chọn mã ICD-10 (mã đầu là bệnh chính).</span>
+              <span className="text-xs text-[#707882]">Chưa chọn mã ICD-10 chẩn đoán chính.</span>
             )}
           </div>
 

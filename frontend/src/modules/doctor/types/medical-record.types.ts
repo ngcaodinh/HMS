@@ -55,6 +55,57 @@ export interface RecordLabTestSummary {
   testName: string;
   isUrgent: boolean;
   resultTableKey: string;
+  specimenType: string | null;
+}
+
+export type ResultTableKey = 'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
+
+export interface ReferenceRange {
+  fieldKey: string;
+  code: string;
+  label: string;
+  unit: string | null;
+  lowerBound: string | null;
+  upperBound: string | null;
+  condition: 'all' | 'male' | 'female';
+}
+
+export interface LabTestAttachment {
+  attachmentId: string;
+  fileType: 'pdf' | 'png' | 'jpeg' | 'xml';
+  originalName: string;
+  uploadedAt: string;
+}
+
+export interface LabTestResultDetail {
+  labTestId: string;
+  recordId: string;
+  testName: string;
+  status: 'ordered' | 'in_progress' | 'resulted';
+  resultTableKey: ResultTableKey;
+  isUrgent: boolean;
+  specimenType: string | null;
+  reportCode: string | null;
+  method: string | null;
+  conclusion: string | null;
+  resultedBy: string | null;
+  resultedAt: string | null;
+  signedBy: string | null;
+  signedAt: string | null;
+  patient: {
+    patientId: string;
+    patientCode: string;
+    fullName: string;
+    dateOfBirth: string;
+    gender: 'male' | 'female';
+    healthInsuranceCode: string | null;
+  };
+  department: { name: string } | null;
+  orderingDoctor: { fullName: string };
+  diagnosis: { icd10: string; diagnosisText: string | null } | null;
+  structuredResult: Record<string, unknown> | null;
+  referenceRanges: ReferenceRange[];
+  attachments: LabTestAttachment[];
 }
 
 export interface RecordDiagnosis {
