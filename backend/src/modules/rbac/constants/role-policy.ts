@@ -22,6 +22,7 @@ export const ROLE_POLICY: Record<string, string[]> = {
   'attachment.download': ['doctor', 'lab_tech', 'pharmacist'],
   'catalog.lab_type.manage': ['admin', 'lab_tech'],
   'catalog.lab_type.read': ['doctor', 'lab_tech', 'admin'],
+  'lab_test.stats.read': ['lab_tech'],
 
   // Pharmacy & Prescription (Lane 5)
   'medicine.read': ['doctor', 'pharmacist'],

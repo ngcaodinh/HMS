@@ -6,3 +6,1731 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model attachments {
+  id             String                @id @db.VarChar(36)
+  ownerType      attachments_ownerType
+  ownerId        String                @db.VarChar(36)
+  filePath       String                @db.VarChar(1000)
+  fileType       attachments_fileType
+  originalName   String                @db.VarChar(255)
+  mimeType       String                @db.VarChar(100)
+  sizeBytes      BigInt                @db.UnsignedBigInt
+  checksumSha256 String                @db.Char(64)
+  uploadedBy     String                @db.VarChar(36)
+  uploadedAt     DateTime              @default(now())
+  users          users                 @relation(fields: [uploadedBy], references: [id], onDelete: NoAction, map: "foreign_key_attachment_uploaded_by")
+
+  @@index([uploadedBy], map: "foreign_key_attachment_uploaded_by")
+  @@index([checksumSha256], map: "index_attachment_checksum")
+  @@index([ownerType, ownerId], map: "index_attachment_owner")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model audit_logs {
+  id         String            @id @db.VarChar(36)
+  userId     String?           @db.VarChar(36)
+  userRole   String            @default("public") @db.VarChar(30)
+  userName   String            @default("") @db.VarChar(255)
+  action     audit_logs_action
+  resource   String            @db.VarChar(50)
+  resourceId String?           @db.VarChar(36)
+  metadata   Json?
+  createdAt  DateTime          @default(now())
+
+  @@index([createdAt], map: "index_audit_log_created_at")
+  @@index([resource, resourceId], map: "index_audit_log_resource")
+  @@index([userId, createdAt], map: "index_audit_log_user_created")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model bed_assignments {
+  id                                      String                         @id @db.VarChar(36)
+  recordId                                String                         @db.VarChar(36)
+  bedId                                   String                         @db.VarChar(36)
+  dailyRateSnapshot                       Decimal                        @db.Decimal(15, 2)
+  assignedBy                              String                         @db.VarChar(36)
+  assignedAt                              DateTime                       @default(now())
+  releasedBy                              String?                        @db.VarChar(36)
+  releasedAt                              DateTime?
+  releaseReason                           bed_assignments_releaseReason?
+  note                                    String?                        @db.VarChar(255)
+  openRecordSlot                          String?                        @unique(map: "unique_key_bed_assignment_open_record") @db.VarChar(36)
+  openBedSlot                             String?                        @unique(map: "unique_key_bed_assignment_open_bed") @db.VarChar(36)
+  createdAt                               DateTime                       @default(now())
+  updatedAt                               DateTime                       @default(now())
+  users_bed_assignments_assignedByTousers users                          @relation("bed_assignments_assignedByTousers", fields: [assignedBy], references: [id], onDelete: NoAction, map: "foreign_key_bed_assignment_assigned_by")
+  beds                                    beds                           @relation(fields: [bedId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_assignment_bed")
+  medical_records                         medical_records                @relation(fields: [recordId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_assignment_record")
+  users_bed_assignments_releasedByTousers users?                         @relation("bed_assignments_releasedByTousers", fields: [releasedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_assignment_released_by")
+
+  @@index([assignedBy], map: "foreign_key_bed_assignment_assigned_by")
+  @@index([releasedBy], map: "foreign_key_bed_assignment_released_by")
+  @@index([bedId, assignedAt], map: "index_bed_assignment_bed_time")
+  @@index([recordId, assignedAt], map: "index_bed_assignment_record_time")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model beds {
+  id              String            @id @db.VarChar(36)
+  roomId          String            @db.VarChar(36)
+  number          String            @db.VarChar(20)
+  dailyRate       Decimal           @default(200000.00) @db.Decimal(15, 2)
+  status          beds_status       @default(available)
+  patientId       String?           @db.VarChar(36)
+  assignedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now())
+  bed_assignments bed_assignments[]
+  patients        patients?         @relation(fields: [patientId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_bed_patient")
+  rooms           rooms             @relation(fields: [roomId], references: [id], map: "foreign_key_bed_room")
+  medical_records medical_records[]
+
+  @@unique([roomId, number], map: "unique_key_bed_room_number")
+  @@index([patientId], map: "foreign_key_bed_patient")
+  @@index([roomId], map: "foreign_key_bed_room")
+  @@index([status], map: "index_bed_status")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model departments {
+  id              String            @id @db.VarChar(36)
+  code            String            @unique(map: "unique_key_department_code") @db.VarChar(20)
+  name            String            @db.VarChar(255)
+  type            departments_type  @default(clinical)
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now())
+  lab_test_types  lab_test_types[]
+  medical_records medical_records[]
+  rooms           rooms[]
+  service_catalog service_catalog[]
+  service_orders  service_orders[]
+  users           users[]
+
+  @@index([isActive], map: "index_department_active")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model discharge_summaries {
+  id                 String                                 @id @db.VarChar(36)
+  recordId           String                                 @unique(map: "unique_key_discharge_summary_record") @db.VarChar(36)
+  dischargeDiagnosis String                                 @db.VarChar(1000)
+  icd10              String?                                @db.VarChar(10)
+  treatmentSummary   String                                 @db.Text
+  dischargeCondition discharge_summaries_dischargeCondition
+  doctorAdvice       String?                                @db.Text
+  followUpDate       DateTime?                              @db.Date
+  signedBy           String                                 @db.VarChar(36)
+  signedAt           DateTime                               @default(now())
+  signatureMethod    discharge_summaries_signatureMethod    @default(dev_e_confirmation)
+  dischargedAt       DateTime?
+  createdAt          DateTime                               @default(now())
+  updatedAt          DateTime                               @default(now())
+  medical_records    medical_records                        @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_discharge_summary_record")
+  users              users                                  @relation(fields: [signedBy], references: [id], onDelete: NoAction, map: "foreign_key_discharge_summary_signed_by")
+
+  @@index([signedBy], map: "foreign_key_discharge_summary_signed_by")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model e_invoices {
+  id               String            @id @db.VarChar(36)
+  invoiceId        String            @db.VarChar(36)
+  templateCode     String            @db.VarChar(20)
+  invoiceSeries    String            @db.VarChar(20)
+  invoiceNumber    String            @db.VarChar(20)
+  taxAuthorityCode String?           @db.VarChar(50)
+  status           e_invoices_status @default(draft)
+  activeInvoiceId  String?           @unique(map: "unique_key_electronic_invoice_active") @db.VarChar(36)
+  invoiceYear      Int?
+  issuedAt         DateTime?
+  xmlUrl           String?           @db.VarChar(1000)
+  buyerTaxCode     String?           @db.VarChar(20)
+  totalAmount      Decimal           @db.Decimal(15, 2)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now())
+  invoices         invoices          @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_electronic_invoice_invoice")
+
+  @@unique([invoiceYear, templateCode, invoiceSeries, invoiceNumber], map: "unique_key_electronic_invoice_year_template_series_number")
+  @@index([invoiceId], map: "index_electronic_invoice_invoice")
+  @@index([status], map: "index_electronic_invoice_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model health_insurance_claims {
+  id              String                         @id @db.VarChar(36)
+  invoiceId       String                         @unique(map: "unique_key_health_insurance_claim_invoice") @db.VarChar(36)
+  claimPeriod     String                         @db.VarChar(7)
+  claimCode       String?                        @db.VarChar(50)
+  requestedAmount Decimal                        @db.Decimal(15, 2)
+  status          health_insurance_claims_status @default(draft)
+  xmlFilePath     String?                        @db.VarChar(1000)
+  exportedAt      DateTime?
+  note            String?                        @db.VarChar(255)
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @default(now())
+  invoices        invoices                       @relation(fields: [invoiceId], references: [id], map: "foreign_key_health_insurance_claim_invoice")
+
+  @@index([claimPeriod], map: "index_health_insurance_claim_period")
+  @@index([status], map: "index_health_insurance_claim_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model invoice_items {
+  id                                 String                                    @id @db.VarChar(36)
+  invoiceId                          String                                    @db.VarChar(36)
+  description                        String                                    @db.VarChar(500)
+  category                           invoice_items_category
+  quantity                           Decimal                                   @default(1.00) @db.Decimal(10, 2)
+  unitPrice                          Decimal                                   @db.Decimal(15, 2)
+  amount                             Decimal                                   @db.Decimal(15, 2)
+  coveredByHealthInsurance           Boolean                                   @default(false)
+  healthInsuranceBenefitLevel        invoice_items_healthInsuranceBenefitLevel @default(NO_COVERAGE)
+  healthInsuranceBenefitRateSnapshot Decimal                                   @default(0.0000) @db.Decimal(5, 4)
+  healthInsuranceEligibleAmount      Decimal                                   @default(0.00) @db.Decimal(15, 2)
+  healthInsuranceFundAmount          Decimal                                   @default(0.00) @db.Decimal(15, 2)
+  patientCoPayAmount                 Decimal                                   @db.Decimal(15, 2)
+  healthInsuranceCeilingAmount       Decimal?                                  @db.Decimal(15, 2)
+  healthInsuranceRuleSource          String?                                   @db.VarChar(255)
+  referenceType                      invoice_items_referenceType?
+  referenceId                        String?                                   @db.VarChar(36)
+  createdAt                          DateTime                                  @default(now())
+  invoices                           invoices                                  @relation(fields: [invoiceId], references: [id], onDelete: NoAction, map: "foreign_key_invoice_item_invoice")
+
+  @@index([invoiceId], map: "foreign_key_invoice_item_invoice")
+  @@index([category], map: "index_invoice_item_category")
+  @@index([coveredByHealthInsurance, healthInsuranceBenefitLevel], map: "index_invoice_item_health_insurance")
+  @@index([referenceType, referenceId], map: "index_invoice_item_reference")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model invoices {
+  id                                             String                               @id @db.VarChar(36)
+  recordId                                       String                               @db.VarChar(36)
+  createdBy                                      String                               @db.VarChar(36)
+  consultationFee                                Decimal                              @default(0.00) @db.Decimal(15, 2)
+  labFees                                        Decimal                              @default(0.00) @db.Decimal(15, 2)
+  medicineFee                                    Decimal                              @default(0.00) @db.Decimal(15, 2)
+  serviceFees                                    Decimal                              @default(0.00) @db.Decimal(15, 2)
+  bedFee                                         Decimal                              @default(0.00) @db.Decimal(15, 2)
+  bedDays                                        Int?
+  bedDailyRate                                   Decimal?                             @db.Decimal(15, 2)
+  subtotal                                       Decimal                              @db.Decimal(15, 2)
+  healthInsuranceBaseAmount                      Decimal                              @default(0.00) @db.Decimal(15, 2)
+  healthInsuranceBenefitLevel                    invoices_healthInsuranceBenefitLevel @default(NO_COVERAGE)
+  healthInsuranceBenefitRateSnapshot             Decimal                              @default(0.0000) @db.Decimal(5, 4)
+  healthInsuranceRouteType                       invoices_healthInsuranceRouteType?
+  healthInsuranceCheckedBy                       String?                              @db.VarChar(36)
+  healthInsuranceRuleSource                      String                               @default("188/2025/ND-CP + 12/2026/TT-BTC + 130/QD-BYT + 4750/QD-BYT + 3176/QD-BYT") @db.VarChar(255)
+  healthInsuranceDiscountAmount                  Decimal                              @default(0.00) @db.Decimal(15, 2)
+  totalAmount                                    Decimal                              @db.Decimal(15, 2)
+  advanceAppliedAmount                           Decimal                              @default(0.00) @db.Decimal(15, 2)
+  amountDue                                      Decimal                              @db.Decimal(15, 2)
+  status                                         invoices_status                      @default(pending)
+  activeRecordId                                 String?                              @unique(map: "unique_key_invoice_record_active") @db.VarChar(36)
+  paymentMethod                                  invoices_paymentMethod?
+  momoOrderId                                    String?                              @unique(map: "unique_key_invoice_momo") @db.VarChar(255)
+  receiptNumber                                  String?                              @unique(map: "unique_key_invoice_receipt") @db.VarChar(50)
+  paidAt                                         DateTime?
+  cancelledAt                                    DateTime?
+  cancelledBy                                    String?                              @db.VarChar(36)
+  cancelReason                                   String?                              @db.VarChar(500)
+  writeOffReason                                 String?                              @db.VarChar(500)
+  writeOffBy                                     String?                              @db.VarChar(36)
+  writeOffAt                                     DateTime?
+  statementNumber                                String?                              @unique(map: "unique_key_invoice_statement") @db.VarChar(50)
+  statementIssuedAt                              DateTime?
+  statementSignedBy                              String?                              @db.VarChar(36)
+  statementSignedAt                              DateTime?
+  statementSignatureMethod                       invoices_statementSignatureMethod?
+  version                                        Int                                  @default(1)
+  createdAt                                      DateTime                             @default(now())
+  updatedAt                                      DateTime                             @default(now())
+  e_invoices                                     e_invoices[]
+  health_insurance_claims                        health_insurance_claims?
+  invoice_items                                  invoice_items[]
+  users_invoices_cancelledByTousers              users?                               @relation("invoices_cancelledByTousers", fields: [cancelledBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_invoice_cancelled_by")
+  users_invoices_createdByTousers                users                                @relation("invoices_createdByTousers", fields: [createdBy], references: [id], onDelete: NoAction, map: "foreign_key_invoice_created_by")
+  users_invoices_healthInsuranceCheckedByTousers users?                               @relation("invoices_healthInsuranceCheckedByTousers", fields: [healthInsuranceCheckedBy], references: [id], onDelete: NoAction, map: "foreign_key_invoice_health_insurance_checked_by")
+  medical_records                                medical_records                      @relation(fields: [recordId], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_invoice_record")
+  users_invoices_statementSignedByTousers        users?                               @relation("invoices_statementSignedByTousers", fields: [statementSignedBy], references: [id], onDelete: NoAction, map: "foreign_key_invoice_statement_signed_by")
+  users_invoices_writeOffByTousers               users?                               @relation("invoices_writeOffByTousers", fields: [writeOffBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_invoice_write_off_by")
+
+  @@index([cancelledBy], map: "foreign_key_invoice_cancelled_by")
+  @@index([statementSignedBy], map: "foreign_key_invoice_statement_signed_by")
+  @@index([writeOffBy], map: "foreign_key_invoice_write_off_by")
+  @@index([createdBy], map: "index_invoice_created_by")
+  @@index([healthInsuranceCheckedBy], map: "index_invoice_health_insurance_checked_by")
+  @@index([paidAt], map: "index_invoice_paid_at")
+  @@index([recordId], map: "index_invoice_record")
+  @@index([status], map: "index_invoice_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model lab_test_types {
+  id             String                        @id @db.VarChar(36)
+  code           String                        @unique(map: "unique_key_lab_test_types_code") @db.VarChar(30)
+  name           String                        @db.VarChar(255)
+  category       String?                       @db.VarChar(100)
+  price          Decimal                       @db.Decimal(15, 2)
+  specimen       String?                       @db.VarChar(100)
+  resultUnit     String?                       @db.VarChar(50)
+  referenceRange String?                       @db.VarChar(255)
+  method         String?                       @db.VarChar(255)
+  resultTableKey lab_test_types_resultTableKey
+  departmentId   String?                       @db.VarChar(36)
+  isActive       Boolean                       @default(true)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @default(now())
+  departments    departments?                  @relation(fields: [departmentId], references: [id], map: "foreign_key_lab_test_types_department")
+  lab_tests      lab_tests[]
+  lab_reference_ranges lab_reference_ranges[]
+
+  @@index([departmentId], map: "foreign_key_lab_test_types_department")
+  @@index([isActive], map: "index_lab_test_types_active")
+}
+
+model lab_reference_ranges {
+  id             String                          @id @db.VarChar(36)
+  labTestTypeId  String                          @db.VarChar(36)
+  fieldKey       String                          @db.VarChar(100)
+  code           String                          @db.VarChar(20)
+  label          String                          @db.VarChar(255)
+  unit           String?                         @db.VarChar(50)
+  lowerBound     Decimal?                        @db.Decimal(10, 4)
+  upperBound     Decimal?                        @db.Decimal(10, 4)
+  condition      lab_reference_ranges_condition  @default(all)
+  isActive       Boolean                         @default(true)
+  createdAt      DateTime                        @default(now())
+  updatedAt      DateTime                        @default(now())
+  lab_test_types lab_test_types                  @relation(fields: [labTestTypeId], references: [id], onDelete: Cascade, map: "foreign_key_lab_reference_range_type")
+
+  @@unique([labTestTypeId, fieldKey, condition], map: "unique_key_lab_reference_range_field")
+  @@index([labTestTypeId], map: "foreign_key_lab_reference_range_type")
+}
+
+enum lab_reference_ranges_condition {
+  all
+  male
+  female
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model lab_tests {
+  id                                String                     @id @db.VarChar(36)
+  recordId                          String                     @db.VarChar(36)
+  labTestTypeId                     String                     @db.VarChar(36)
+  isUrgent                          Boolean                    @default(false)
+  orderedBy                         String                     @db.VarChar(36)
+  testName                          String                     @db.VarChar(255)
+  fee                               Decimal                    @db.Decimal(15, 2)
+  reportCode                        String?                    @unique(map: "unique_key_lab_test_report_code") @db.VarChar(30)
+  specimenType                      String?                    @db.VarChar(100)
+  specimenCollectedAt               DateTime?
+  specimenReceivedAt                DateTime?
+  method                            String?                    @db.VarChar(255)
+  conclusion                        String?                    @db.VarChar(1000)
+  status                            lab_tests_status           @default(ordered)
+  resultedBy                        String?                    @db.VarChar(36)
+  resultedAt                        DateTime?
+  signedBy                          String?                    @db.VarChar(36)
+  signedAt                          DateTime?
+  signatureMethod                   lab_tests_signatureMethod?
+  createdAt                         DateTime                   @default(now())
+  updatedAt                         DateTime                   @default(now())
+  users_lab_tests_orderedByTousers  users                      @relation("lab_tests_orderedByTousers", fields: [orderedBy], references: [id], onDelete: NoAction, map: "foreign_key_lab_test_ordered_by")
+  medical_records                   medical_records            @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_lab_test_record")
+  users_lab_tests_resultedByTousers users?                     @relation("lab_tests_resultedByTousers", fields: [resultedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_lab_test_resulted_by")
+  users_lab_tests_signedByTousers   users?                     @relation("lab_tests_signedByTousers", fields: [signedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_lab_test_signed_by")
+  lab_test_types                    lab_test_types             @relation(fields: [labTestTypeId], references: [id], map: "foreign_key_lab_test_type")
+  xn_cong_thuc_mau                  xn_cong_thuc_mau?
+  xn_hoa_sinh_mau                   xn_hoa_sinh_mau?
+  xn_mo_benh_hoc                    xn_mo_benh_hoc?
+  xn_nuoc_tieu                      xn_nuoc_tieu?
+  xn_vi_sinh                        xn_vi_sinh?
+
+  @@index([resultedBy], map: "foreign_key_lab_test_resulted_by")
+  @@index([signedBy], map: "foreign_key_lab_test_signed_by")
+  @@index([orderedBy], map: "index_lab_test_ordered_by")
+  @@index([recordId], map: "index_lab_test_record_id")
+  @@index([status], map: "index_lab_test_status")
+  @@index([labTestTypeId], map: "index_lab_test_type_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model medical_records {
+  id                                             String                                    @id @db.VarChar(36)
+  recordCode                                     String                                    @unique(map: "unique_key_medical_record_code") @db.VarChar(20)
+  patientId                                      String                                    @db.VarChar(36)
+  doctorId                                       String                                    @db.VarChar(36)
+  departmentId                                   String?                                   @db.VarChar(36)
+  status                                         medical_records_status                    @default(open)
+  isEmergency                                    Boolean                                   @default(false)
+  emergencyReason                                String?                                   @db.VarChar(500)
+  chiefComplaint                                 String?                                   @db.VarChar(500)
+  vitalSigns                                     Json?
+  heightCm                                       Decimal?                                  @db.Decimal(5, 1)
+  weightKg                                       Decimal?                                  @db.Decimal(5, 1)
+  historyOfPresentIllness                        String?                                   @db.Text
+  pastMedicalHistory                             String?                                   @db.Text
+  familyHistory                                  String?                                   @db.Text
+  skinLesionTypes                                String?
+  skinLesionDescription                          String?                                   @db.Text
+  skinLesionLocation                             String?                                   @db.VarChar(500)
+  skinLesionDistribution                         medical_records_skinLesionDistribution?
+  bodySurfaceAreaPercent                         Decimal?                                  @db.Decimal(5, 2)
+  itchSeverity                                   medical_records_itchSeverity?
+  vitalConfirmedBy                               String?                                   @db.VarChar(36)
+  vitalConfirmedAt                               DateTime?
+  deletedAt                                      DateTime?
+  createdAt                                      DateTime                                  @default(now())
+  updatedAt                                      DateTime                                  @default(now())
+  icd10                                          String?                                   @db.VarChar(10)
+  icdCodingSystem                                medical_records_icdCodingSystem?
+  diagnosisText                                  String?                                   @db.VarChar(1000)
+  diagnosedBy                                    String?                                   @db.VarChar(36)
+  diagnosedAt                                    DateTime?
+  diagnosisSignedBy                              String?                                   @db.VarChar(36)
+  diagnosisSignedAt                              DateTime?
+  diagnosisSignatureMethod                       medical_records_diagnosisSignatureMethod?
+  treatmentType                                  medical_records_treatmentType?
+  bedId                                          String?                                   @db.VarChar(36)
+  notes                                          String?                                   @db.Text
+  closedAt                                       DateTime?
+  closedBy                                       String?                                   @db.VarChar(36)
+  closeSignatureMethod                           medical_records_closeSignatureMethod?
+  version                                        Int                                       @default(1)
+  bed_assignments                                bed_assignments[]
+  discharge_summaries                            discharge_summaries?
+  invoices                                       invoices[]
+  lab_tests                                      lab_tests[]
+  beds                                           beds?                                     @relation(fields: [bedId], references: [id], map: "foreign_key_medical_record_bed")
+  users_medical_records_closedByTousers          users?                                    @relation("medical_records_closedByTousers", fields: [closedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_closed_by")
+  departments                                    departments?                              @relation(fields: [departmentId], references: [id], onDelete: Restrict, map: "foreign_key_medical_record_department")
+  users_medical_records_diagnosedByTousers       users?                                    @relation("medical_records_diagnosedByTousers", fields: [diagnosedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_diagnosed_by")
+  users_medical_records_diagnosisSignedByTousers users?                                    @relation("medical_records_diagnosisSignedByTousers", fields: [diagnosisSignedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_diagnosis_signed_by")
+  users_medical_records_doctorIdTousers          users                                     @relation("medical_records_doctorIdTousers", fields: [doctorId], references: [id], map: "foreign_key_medical_record_doctor")
+  patients                                       patients                                  @relation(fields: [patientId], references: [id], onDelete: NoAction, map: "foreign_key_medical_record_patient")
+  users_medical_records_vitalConfirmedByTousers  users?                                    @relation("medical_records_vitalConfirmedByTousers", fields: [vitalConfirmedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_medical_record_vital_confirmed_by")
+  payment_advances                               payment_advances[]
+  prescriptions                                  prescriptions[]
+  service_orders                                 service_orders[]
+  treatment_orders                               treatment_orders[]
+  vital_sign_logs                                vital_sign_logs[]
+
+  @@index([bedId], map: "foreign_key_medical_record_bed")
+  @@index([closedBy], map: "foreign_key_medical_record_closed_by")
+  @@index([departmentId], map: "foreign_key_medical_record_department")
+  @@index([diagnosedBy], map: "foreign_key_medical_record_diagnosed_by")
+  @@index([diagnosisSignedBy], map: "foreign_key_medical_record_diagnosis_signed_by")
+  @@index([vitalConfirmedBy], map: "foreign_key_medical_record_vital_confirmed_by")
+  @@index([createdAt], map: "index_medical_record_created_at")
+  @@index([deletedAt], map: "index_medical_record_deleted")
+  @@index([doctorId], map: "index_medical_record_doctor_id")
+  @@index([patientId], map: "index_medical_record_patient_id")
+  @@index([patientId, status, createdAt], map: "index_medical_record_patient_status_created")
+  @@index([status], map: "index_medical_record_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model medicine_batches {
+  id          String    @id @db.VarChar(36)
+  medicineId  String    @db.VarChar(36)
+  batchNumber String    @db.VarChar(50)
+  expiryDate  DateTime  @db.Date
+  costPrice   Decimal?  @db.Decimal(15, 2)
+  supplier    String?   @db.VarChar(255)
+  receivedAt  DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now())
+  medicines   medicines @relation(fields: [medicineId], references: [id], map: "foreign_key_medicine_batch_medicine")
+
+  @@unique([medicineId, batchNumber], map: "unique_key_medicine_batch_medicine_number")
+  @@index([medicineId, expiryDate], map: "index_medicine_batch_medicine_expiry")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model medicines {
+  id                          String               @id @db.VarChar(36)
+  name                        String               @unique(map: "unique_key_medicine_name") @db.VarChar(255)
+  brandName                   String?              @db.VarChar(255)
+  unit                        String               @db.VarChar(50)
+  category                    String?              @db.VarChar(100)
+  drugGroup                   String?              @db.VarChar(100)
+  activeIngredient            String?              @db.VarChar(255)
+  dosage                      String?              @db.VarChar(100)
+  dosageForm                  String?              @db.VarChar(100)
+  routeOfAdministration       String?              @db.VarChar(100)
+  packageSpec                 String?              @db.VarChar(100)
+  registrationNumber          String?              @db.VarChar(50)
+  manufacturer                String?              @db.VarChar(255)
+  countryOfManufacture        String?              @db.VarChar(100)
+  expiryDate                  DateTime?            @db.Date
+  unitPrice                   Decimal              @db.Decimal(15, 2)
+  coveredByHealthInsurance    Boolean              @default(false)
+  healthInsuranceCeilingPrice Decimal?             @db.Decimal(15, 2)
+  isActive                    Boolean              @default(true)
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @default(now())
+  medicine_batches            medicine_batches[]
+  prescription_items          prescription_items[]
+
+  @@index([isActive], map: "index_medicine_active")
+  @@index([coveredByHealthInsurance], map: "index_medicine_health_insurance")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model patients {
+  id                                 String              @id @db.VarChar(36)
+  patientCode                        String              @unique(map: "unique_key_patients_code") @db.VarChar(20)
+  fullName                           String              @db.VarChar(255)
+  dateOfBirth                        DateTime?           @db.Date
+  gender                             patients_gender
+  phoneNumber                        String?             @db.VarChar(10)
+  phoneNumberUnavailableReason       String?             @db.VarChar(500)
+  isEmergencyBypass                  Boolean             @default(false)
+  emergencyReason                    String?             @db.VarChar(500)
+  identityCardNumber                 String?             @unique(map: "unique_key_patients_identity_card") @db.VarChar(12)
+  address                            String?             @db.VarChar(500)
+  province                           String?             @db.VarChar(100)
+  ward                               String?             @db.VarChar(100)
+  bloodType                          patients_bloodType?
+  allergies                          String?             @db.Text
+  healthInsuranceCode                String?             @db.VarChar(20)
+  healthInsuranceExpiryDate          DateTime?           @db.Date
+  healthInsuranceInitialFacilityCode String?             @db.VarChar(10)
+  healthInsuranceBenefitRateHint     Decimal?            @db.Decimal(5, 4)
+  emergencyContact                   String?             @db.VarChar(255)
+  emergencyPhoneNumber               String?             @db.VarChar(10)
+  guardianFullName                   String?             @db.VarChar(255)
+  guardianPhoneNumber                String?             @db.VarChar(10)
+  privacyNoticeAccepted              Boolean             @default(false)
+  privacyNoticeAcceptedAt            DateTime?
+  deletedAt                          DateTime?
+  version                            Int                 @default(1)
+  createdAt                          DateTime            @default(now())
+  updatedAt                          DateTime            @default(now())
+  beds                               beds[]
+  medical_records                    medical_records[]
+
+  @@index([deletedAt], map: "index_patients_deleted")
+  @@index([healthInsuranceCode], map: "index_patients_health_insurance")
+  @@index([healthInsuranceInitialFacilityCode], map: "index_patients_health_insurance_facility")
+  @@index([fullName(length: 50)], map: "index_patients_name")
+  @@index([phoneNumber], map: "index_patients_phone")
+  @@index([province], map: "index_patients_province")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payment_advances {
+  id              String                  @id @db.VarChar(36)
+  recordId        String                  @db.VarChar(36)
+  type            payment_advances_type   @default(deposit)
+  amount          Decimal                 @db.Decimal(15, 2)
+  method          payment_advances_method
+  receiptNumber   String?                 @unique(map: "unique_key_payment_advance_receipt") @db.VarChar(50)
+  collectedBy     String                  @db.VarChar(36)
+  reason          String?                 @db.VarChar(500)
+  note            String?                 @db.VarChar(255)
+  createdAt       DateTime                @default(now())
+  users           users                   @relation(fields: [collectedBy], references: [id], onDelete: NoAction, map: "foreign_key_payment_advance_collected_by")
+  medical_records medical_records         @relation(fields: [recordId], references: [id], map: "foreign_key_payment_advance_record")
+
+  @@index([collectedBy], map: "foreign_key_payment_advance_collected_by")
+  @@index([recordId], map: "index_payment_advance_record")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model payment_ipn_logs {
+  id             String   @id @db.VarChar(36)
+  momoOrderId    String?  @db.VarChar(255)
+  transId        String?  @db.VarChar(100)
+  receivedAt     DateTime @default(now())
+  signatureValid Boolean
+  resultCode     Int?
+  rawPayload     String?  @db.Text
+
+  @@index([momoOrderId, receivedAt], map: "index_payment_ipn_log_order")
+  @@index([transId], map: "index_payment_ipn_trans_id")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model permissions {
+  id                                  String   @id @db.VarChar(36)
+  userId                              String   @db.VarChar(36)
+  roleCode                            String   @db.VarChar(30)
+  assignedAt                          DateTime @default(now())
+  assignedBy                          String?  @db.VarChar(36)
+  users_permissions_assignedByTousers users?   @relation("permissions_assignedByTousers", fields: [assignedBy], references: [id], map: "foreign_key_permissions_assigned_by")
+  roles                               roles    @relation(fields: [roleCode], references: [code], onDelete: Cascade, map: "foreign_key_permissions_role")
+  users_permissions_userIdTousers     users    @relation("permissions_userIdTousers", fields: [userId], references: [id], onDelete: Cascade, map: "foreign_key_permissions_user")
+
+  @@unique([userId, roleCode], map: "unique_key_user_role")
+  @@index([assignedBy], map: "foreign_key_permissions_by")
+  @@index([roleCode], map: "index_permissions_role")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model prescription_items {
+  id                       String        @id @db.VarChar(36)
+  prescriptionId           String        @db.VarChar(36)
+  medicineId               String        @db.VarChar(36)
+  medicineNameSnapshot     String?       @db.VarChar(255)
+  activeIngredientSnapshot String?       @db.VarChar(255)
+  dosageSnapshot           String?       @db.VarChar(100)
+  quantity                 Int
+  days                     Int
+  dosePerUse               String?       @db.VarChar(50)
+  usesPerDay               Int?
+  useTiming                String?       @db.VarChar(100)
+  dosageInstruction        String        @db.VarChar(500)
+  longTermReason           String?       @db.VarChar(500)
+  unitPrice                Decimal       @db.Decimal(15, 2)
+  total                    Decimal       @db.Decimal(15, 2)
+  createdAt                DateTime      @default(now())
+  medicines                medicines     @relation(fields: [medicineId], references: [id], onDelete: NoAction, map: "foreign_key_prescription_item_medicine")
+  prescriptions            prescriptions @relation(fields: [prescriptionId], references: [id], onDelete: NoAction, map: "foreign_key_prescription_item_prescription")
+
+  @@index([medicineId], map: "foreign_key_prescription_item_medicine")
+  @@index([prescriptionId], map: "foreign_key_prescription_item_prescription")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model prescriptions {
+  id                                           String                         @id @db.VarChar(36)
+  recordId                                     String                         @db.VarChar(36)
+  prescriptionCode                             String?                        @unique(map: "unique_key_prescription_code") @db.VarChar(14)
+  facilityCodeSnapshot                         String?                        @db.Char(5)
+  prescriptionType                             prescriptions_prescriptionType @default(C)
+  prescribedBy                                 String                         @db.VarChar(36)
+  roundNumber                                  Int                            @default(1)
+  status                                       prescriptions_status           @default(draft)
+  isSigned                                     Boolean                        @default(false)
+  signedBy                                     String?                        @db.VarChar(36)
+  signedAt                                     DateTime?
+  signatureMethod                              prescriptions_signatureMethod?
+  xmlExportedAt                                DateTime?
+  xmlFilePath                                  String?                        @db.VarChar(1000)
+  allergyOverrideReason                        String?                        @db.VarChar(500)
+  allergyOverrideBy                            String?                        @db.VarChar(36)
+  allergyOverrideAt                            DateTime?
+  cancelReason                                 String?                        @db.VarChar(500)
+  cancelledBy                                  String?                        @db.VarChar(36)
+  cancelledAt                                  DateTime?
+  dispensedBy                                  String?                        @db.VarChar(36)
+  dispensedAt                                  DateTime?
+  version                                      Int                            @default(1)
+  createdAt                                    DateTime                       @default(now())
+  updatedAt                                    DateTime                       @default(now())
+  prescription_items                           prescription_items[]
+  users_prescriptions_allergyOverrideByTousers users?                         @relation("prescriptions_allergyOverrideByTousers", fields: [allergyOverrideBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_prescription_allergy_override_by")
+  users_prescriptions_cancelledByTousers       users?                         @relation("prescriptions_cancelledByTousers", fields: [cancelledBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_prescription_cancelled_by")
+  users_prescriptions_dispensedByTousers       users?                         @relation("prescriptions_dispensedByTousers", fields: [dispensedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_prescription_dispensed_by")
+  users_prescriptions_prescribedByTousers      users                          @relation("prescriptions_prescribedByTousers", fields: [prescribedBy], references: [id], onDelete: NoAction, map: "foreign_key_prescription_prescribed_by")
+  medical_records                              medical_records                @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_prescription_record")
+  users_prescriptions_signedByTousers          users?                         @relation("prescriptions_signedByTousers", fields: [signedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_prescription_signed_by")
+
+  @@unique([recordId, roundNumber], map: "unique_key_prescription_record_round")
+  @@index([allergyOverrideBy], map: "foreign_key_prescription_allergy_override_by")
+  @@index([cancelledBy], map: "foreign_key_prescription_cancelled_by")
+  @@index([dispensedBy], map: "foreign_key_prescription_dispensed_by")
+  @@index([prescribedBy], map: "foreign_key_prescription_prescribed_by")
+  @@index([signedBy], map: "foreign_key_prescription_signed_by")
+  @@index([status], map: "index_prescription_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model queue_tickets {
+  id        String               @id @db.VarChar(36)
+  number    Int
+  date      DateTime             @default(dbgenerated("(curdate())")) @db.Date
+  status    queue_tickets_status @default(waiting)
+  calledAt  DateTime?
+  servedAt  DateTime?
+  createdAt DateTime             @default(now())
+
+  @@unique([date, number], map: "unique_key_queue_ticket_date_number")
+  @@index([date, status], map: "index_queue_ticket_date_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model roles {
+  id          String        @id @db.VarChar(36)
+  code        String        @unique(map: "unique_key_roles_code") @db.VarChar(30)
+  name        String        @db.VarChar(100)
+  description String?       @db.VarChar(255)
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now())
+  permissions permissions[]
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model rooms {
+  id             String           @id @db.VarChar(36)
+  code           String           @unique(map: "unique_key_rooms_code") @db.VarChar(50)
+  name           String?          @db.VarChar(255)
+  departmentId   String?          @db.VarChar(36)
+  roomType       rooms_roomType   @default(other)
+  floor          String?          @db.VarChar(20)
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now())
+  beds           beds[]
+  departments    departments?     @relation(fields: [departmentId], references: [id], map: "foreign_key_rooms_department")
+  service_orders service_orders[]
+
+  @@index([isActive], map: "index_rooms_active")
+  @@index([departmentId], map: "index_rooms_department")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model service_catalog {
+  id                          String               @id @db.VarChar(36)
+  code                        String               @unique(map: "unique_key_service_code") @db.VarChar(30)
+  name                        String               @db.VarChar(255)
+  type                        service_catalog_type
+  unit                        String?              @db.VarChar(50)
+  price                       Decimal              @default(0.00) @db.Decimal(15, 2)
+  coveredByHealthInsurance    Boolean              @default(false)
+  healthInsuranceCeilingPrice Decimal?             @db.Decimal(15, 2)
+  departmentId                String?              @db.VarChar(36)
+  isActive                    Boolean              @default(true)
+  createdAt                   DateTime             @default(now())
+  updatedAt                   DateTime             @default(now())
+  departments                 departments?         @relation(fields: [departmentId], references: [id], map: "foreign_key_service_department")
+  service_orders              service_orders[]
+
+  @@index([departmentId], map: "foreign_key_service_department")
+  @@index([isActive], map: "index_service_active")
+  @@index([coveredByHealthInsurance], map: "index_service_health_insurance")
+  @@index([type], map: "index_service_type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model service_orders {
+  id                                     String                @id @db.VarChar(36)
+  recordId                               String                @db.VarChar(36)
+  serviceCatalogId                       String                @db.VarChar(36)
+  fee                                    Decimal               @db.Decimal(15, 2)
+  departmentId                           String                @db.VarChar(36)
+  doctorId                               String                @db.VarChar(36)
+  roomId                                 String?               @db.VarChar(36)
+  assignedBy                             String                @db.VarChar(36)
+  assignedAt                             DateTime              @default(now())
+  status                                 service_orders_status @default(waiting)
+  note                                   String?               @db.VarChar(500)
+  createdAt                              DateTime              @default(now())
+  updatedAt                              DateTime              @default(now())
+  users_service_orders_assignedByTousers users                 @relation("service_orders_assignedByTousers", fields: [assignedBy], references: [id], map: "foreign_key_service_order_assigned_by")
+  service_catalog                        service_catalog       @relation(fields: [serviceCatalogId], references: [id], map: "foreign_key_service_order_catalog")
+  departments                            departments           @relation(fields: [departmentId], references: [id], map: "foreign_key_service_order_department")
+  users_service_orders_doctorIdTousers   users                 @relation("service_orders_doctorIdTousers", fields: [doctorId], references: [id], map: "foreign_key_service_order_doctor")
+  medical_records                        medical_records       @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_service_order_record")
+  rooms                                  rooms?                @relation(fields: [roomId], references: [id], map: "foreign_key_service_order_room")
+
+  @@index([assignedBy], map: "index_service_order_assigned_by")
+  @@index([serviceCatalogId], map: "index_service_order_catalog")
+  @@index([departmentId], map: "index_service_order_department")
+  @@index([doctorId], map: "index_service_order_doctor")
+  @@index([recordId], map: "index_service_order_record")
+  @@index([roomId], map: "index_service_order_room")
+  @@index([status], map: "index_service_order_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model treatment_orders {
+  id                                        String                     @id @db.VarChar(36)
+  recordId                                  String                     @db.VarChar(36)
+  orderedBy                                 String                     @db.VarChar(36)
+  orderType                                 treatment_orders_orderType
+  content                                   String                     @db.VarChar(1000)
+  orderedAt                                 DateTime                   @default(now())
+  status                                    treatment_orders_status    @default(active)
+  executedBy                                String?                    @db.VarChar(36)
+  executedAt                                DateTime?
+  cancelReason                              String?                    @db.VarChar(500)
+  cancelledBy                               String?                    @db.VarChar(36)
+  cancelledAt                               DateTime?
+  note                                      String?                    @db.VarChar(500)
+  createdAt                                 DateTime                   @default(now())
+  updatedAt                                 DateTime                   @default(now())
+  users_treatment_orders_cancelledByTousers users?                     @relation("treatment_orders_cancelledByTousers", fields: [cancelledBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_treatment_order_cancelled_by")
+  users_treatment_orders_executedByTousers  users?                     @relation("treatment_orders_executedByTousers", fields: [executedBy], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_treatment_order_executed_by")
+  users_treatment_orders_orderedByTousers   users                      @relation("treatment_orders_orderedByTousers", fields: [orderedBy], references: [id], onDelete: NoAction, map: "foreign_key_treatment_order_ordered_by")
+  medical_records                           medical_records            @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_treatment_order_record")
+  vital_sign_logs                           vital_sign_logs[]
+
+  @@index([cancelledBy], map: "foreign_key_treatment_order_cancelled_by")
+  @@index([executedBy], map: "foreign_key_treatment_order_executed_by")
+  @@index([orderedBy], map: "index_treatment_order_ordered_by")
+  @@index([recordId], map: "index_treatment_order_record")
+  @@index([status], map: "index_treatment_order_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model users {
+  id                                                       String                @id @db.VarChar(36)
+  username                                                 String                @unique(map: "unique_key_users_username") @db.VarChar(50)
+  password                                                 String                @db.VarChar(255)
+  fullName                                                 String                @db.VarChar(255)
+  gender                                                   users_gender
+  dateOfBirth                                              DateTime              @db.Date
+  phoneNumber                                              String                @db.VarChar(10)
+  identityCardNumber                                       String                @unique(map: "unique_key_users_identity_card") @db.VarChar(12)
+  departmentId                                             String                @db.VarChar(36)
+  isActive                                                 Boolean               @default(true)
+  lastLoginAt                                              DateTime?
+  createdAt                                                DateTime              @default(now())
+  updatedAt                                                DateTime              @default(now())
+  attachments                                              attachments[]
+  bed_assignments_bed_assignments_assignedByTousers        bed_assignments[]     @relation("bed_assignments_assignedByTousers")
+  bed_assignments_bed_assignments_releasedByTousers        bed_assignments[]     @relation("bed_assignments_releasedByTousers")
+  discharge_summaries                                      discharge_summaries[]
+  invoices_invoices_cancelledByTousers                     invoices[]            @relation("invoices_cancelledByTousers")
+  invoices_invoices_createdByTousers                       invoices[]            @relation("invoices_createdByTousers")
+  invoices_invoices_healthInsuranceCheckedByTousers        invoices[]            @relation("invoices_healthInsuranceCheckedByTousers")
+  invoices_invoices_statementSignedByTousers               invoices[]            @relation("invoices_statementSignedByTousers")
+  invoices_invoices_writeOffByTousers                      invoices[]            @relation("invoices_writeOffByTousers")
+  lab_tests_lab_tests_orderedByTousers                     lab_tests[]           @relation("lab_tests_orderedByTousers")
+  lab_tests_lab_tests_resultedByTousers                    lab_tests[]           @relation("lab_tests_resultedByTousers")
+  lab_tests_lab_tests_signedByTousers                      lab_tests[]           @relation("lab_tests_signedByTousers")
+  medical_records_medical_records_closedByTousers          medical_records[]     @relation("medical_records_closedByTousers")
+  medical_records_medical_records_diagnosedByTousers       medical_records[]     @relation("medical_records_diagnosedByTousers")
+  medical_records_medical_records_diagnosisSignedByTousers medical_records[]     @relation("medical_records_diagnosisSignedByTousers")
+  medical_records_medical_records_doctorIdTousers          medical_records[]     @relation("medical_records_doctorIdTousers")
+  medical_records_medical_records_vitalConfirmedByTousers  medical_records[]     @relation("medical_records_vitalConfirmedByTousers")
+  payment_advances                                         payment_advances[]
+  permissions_permissions_assignedByTousers                permissions[]         @relation("permissions_assignedByTousers")
+  permissions_permissions_userIdTousers                    permissions[]         @relation("permissions_userIdTousers")
+  prescriptions_prescriptions_allergyOverrideByTousers     prescriptions[]       @relation("prescriptions_allergyOverrideByTousers")
+  prescriptions_prescriptions_cancelledByTousers           prescriptions[]       @relation("prescriptions_cancelledByTousers")
+  prescriptions_prescriptions_dispensedByTousers           prescriptions[]       @relation("prescriptions_dispensedByTousers")
+  prescriptions_prescriptions_prescribedByTousers          prescriptions[]       @relation("prescriptions_prescribedByTousers")
+  prescriptions_prescriptions_signedByTousers              prescriptions[]       @relation("prescriptions_signedByTousers")
+  service_orders_service_orders_assignedByTousers          service_orders[]      @relation("service_orders_assignedByTousers")
+  service_orders_service_orders_doctorIdTousers            service_orders[]      @relation("service_orders_doctorIdTousers")
+  treatment_orders_treatment_orders_cancelledByTousers     treatment_orders[]    @relation("treatment_orders_cancelledByTousers")
+  treatment_orders_treatment_orders_executedByTousers      treatment_orders[]    @relation("treatment_orders_executedByTousers")
+  treatment_orders_treatment_orders_orderedByTousers       treatment_orders[]    @relation("treatment_orders_orderedByTousers")
+  departments                                              departments           @relation(fields: [departmentId], references: [id], map: "foreign_key_users_department")
+  vital_sign_logs                                          vital_sign_logs[]
+  xn_mo_benh_hoc                                           xn_mo_benh_hoc[]
+
+  @@index([departmentId], map: "foreign_key_users_department")
+  @@index([isActive], map: "index_users_active")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model vital_sign_logs {
+  id                     String            @id @db.VarChar(36)
+  recordId               String            @db.VarChar(36)
+  treatmentOrderId       String?           @db.VarChar(36)
+  measuredAt             DateTime          @default(now())
+  pulse                  Int
+  temperatureC           Decimal?          @db.Decimal(3, 1)
+  bloodPressureSystolic  Int
+  bloodPressureDiastolic Int
+  respiratoryRate        Int?
+  spo2                   Decimal           @db.Decimal(4, 1)
+  weightKg               Decimal?          @db.Decimal(5, 1)
+  note                   String?           @db.VarChar(500)
+  recordedBy             String            @db.VarChar(36)
+  createdAt              DateTime          @default(now())
+  treatment_orders       treatment_orders? @relation(fields: [treatmentOrderId], references: [id], map: "foreign_key_vital_sign_log_order")
+  medical_records        medical_records   @relation(fields: [recordId], references: [id], onDelete: NoAction, map: "foreign_key_vital_sign_log_record")
+  users                  users             @relation(fields: [recordedBy], references: [id], onDelete: NoAction, map: "foreign_key_vital_sign_log_recorded")
+
+  @@index([treatmentOrderId], map: "foreign_key_vital_sign_log_order")
+  @@index([recordedBy], map: "foreign_key_vital_sign_log_recorded")
+  @@index([recordId, measuredAt], map: "index_vital_sign_log_record_time")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model xn_cong_thuc_mau {
+  id           String    @id @db.VarChar(36)
+  labTestId    String    @unique(map: "unique_key_xn_cbc_lab_test") @db.VarChar(36)
+  mayXetNghiem String?   @db.VarChar(100)
+  mauBenhPham  String?   @db.VarChar(100)
+  wbc          Decimal?  @db.Decimal(6, 2)
+  neu          Decimal?  @db.Decimal(5, 2)
+  lym          Decimal?  @db.Decimal(5, 2)
+  mono         Decimal?  @db.Decimal(5, 2)
+  eos          Decimal?  @db.Decimal(5, 2)
+  baso         Decimal?  @db.Decimal(5, 2)
+  rbc          Decimal?  @db.Decimal(5, 2)
+  hgb          Decimal?  @db.Decimal(5, 1)
+  hct          Decimal?  @db.Decimal(5, 3)
+  mcv          Decimal?  @db.Decimal(6, 2)
+  mch          Decimal?  @db.Decimal(6, 2)
+  mchc         Decimal?  @db.Decimal(6, 2)
+  rdw          Decimal?  @db.Decimal(5, 2)
+  plt          Decimal?  @db.Decimal(6, 1)
+  mpv          Decimal?  @db.Decimal(5, 2)
+  pdw          Decimal?  @db.Decimal(5, 2)
+  pct          Decimal?  @db.Decimal(6, 4)
+  ghiChuChiSo  String?   @db.VarChar(1000)
+  createdAt    DateTime  @default(now())
+  lab_tests    lab_tests @relation(fields: [labTestId], references: [id], onDelete: Cascade, map: "foreign_key_xn_cbc_lab_test")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model xn_hoa_sinh_mau {
+  id               String    @id @db.VarChar(36)
+  labTestId        String    @unique(map: "unique_key_xn_hsm_lab_test") @db.VarChar(36)
+  mayXetNghiem     String?   @db.VarChar(100)
+  mauBenhPham      String?   @db.VarChar(100)
+  ure              Decimal?  @db.Decimal(5, 2)
+  glucose          Decimal?  @db.Decimal(5, 2)
+  creatinin        Decimal?  @db.Decimal(6, 2)
+  acidUric         Decimal?  @db.Decimal(6, 2)
+  bilirubinTP      Decimal?  @db.Decimal(5, 2)
+  bilirubinTT      Decimal?  @db.Decimal(5, 2)
+  bilirubinGT      Decimal?  @db.Decimal(5, 2)
+  proteinTP        Decimal?  @db.Decimal(5, 2)
+  albumin          Decimal?  @db.Decimal(5, 2)
+  globulin         Decimal?  @db.Decimal(5, 2)
+  tyLeAG           Decimal?  @db.Decimal(4, 2)
+  fibrinogen       Decimal?  @db.Decimal(5, 2)
+  cholesterol      Decimal?  @db.Decimal(5, 2)
+  triglycerid      Decimal?  @db.Decimal(5, 2)
+  hdlCho           Decimal?  @db.Decimal(5, 2)
+  ldlCho           Decimal?  @db.Decimal(5, 2)
+  natri            Decimal?  @db.Decimal(6, 2)
+  kali             Decimal?  @db.Decimal(5, 2)
+  clorua           Decimal?  @db.Decimal(6, 2)
+  calci            Decimal?  @db.Decimal(5, 2)
+  calciIon         Decimal?  @db.Decimal(5, 2)
+  phospho          Decimal?  @db.Decimal(5, 2)
+  sat              Decimal?  @db.Decimal(6, 2)
+  magie            Decimal?  @db.Decimal(5, 2)
+  ast              Decimal?  @db.Decimal(7, 2)
+  alt              Decimal?  @db.Decimal(7, 2)
+  amylase          Decimal?  @db.Decimal(8, 2)
+  ck               Decimal?  @db.Decimal(7, 2)
+  ckMb             Decimal?  @db.Decimal(7, 2)
+  ldh              Decimal?  @db.Decimal(7, 2)
+  ggt              Decimal?  @db.Decimal(7, 2)
+  cholinesterase   Decimal?  @db.Decimal(9, 2)
+  phosphataseKiem  Decimal?  @db.Decimal(8, 2)
+  phDongMach       Decimal?  @db.Decimal(4, 3)
+  pco2             Decimal?  @db.Decimal(5, 2)
+  po2DongMach      Decimal?  @db.Decimal(6, 2)
+  hco3Chuan        Decimal?  @db.Decimal(5, 2)
+  kiemDu           Decimal?  @db.Decimal(5, 2)
+  ghiChuChiSo      String?   @db.VarChar(1000)
+  createdAt        DateTime  @default(now())
+  lab_tests        lab_tests @relation(fields: [labTestId], references: [id], onDelete: Cascade, map: "foreign_key_xn_hsm_lab_test")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model xn_mo_benh_hoc {
+  id                      String                                @id @db.VarChar(36)
+  labTestId               String                                @unique(map: "unique_key_xn_mbh_lab_test") @db.VarChar(36)
+  phuongPhapSinhThiet     xn_mo_benh_hoc_phuongPhapSinhThiet?
+  viTriSinhThiet          String?                               @db.VarChar(255)
+  soManh                  Int?
+  chanDoanLamSang         String?                               @db.VarChar(1000)
+  tomTatLamSang           String?                               @db.Text
+  quaTrinhDieuTri         String?                               @db.Text
+  nhanXetDaiTheLayMau     String?                               @db.Text
+  ketQuaSinhThietLanTruoc String?                               @db.Text
+  dungDichCoDinh          String?                               @db.VarChar(100)
+  thoiGianCoDinh          DateTime?
+  nguoiPhaBenhPham        String?                               @db.VarChar(36)
+  ngayPha                 DateTime?                             @db.Date
+  phuongPhapNhuomHE       String?                               @default("HE") @db.VarChar(100)
+  ngayLamTieuBan          DateTime?                             @db.Date
+  nguoiLamTieuBan         String?                               @db.VarChar(36)
+  daiThe                  String?                               @db.Text
+  viThe                   String?                               @db.Text
+  nhuomDacBiet            String?                               @db.VarChar(500)
+  chanDoanMoHoc           String?                               @db.VarChar(1000)
+  phuHopChanDoanLamSang   xn_mo_benh_hoc_phuHopChanDoanLamSang?
+  icd10MoHoc              String?                               @db.VarChar(10)
+  trangThai               xn_mo_benh_hoc_trangThai              @default(cho_ket_qua)
+  bacSiGiaiPhauBenh       String?                               @db.VarChar(36)
+  ngayTraKetQua           DateTime?
+  createdAt               DateTime                              @default(now())
+  updatedAt               DateTime                              @default(now())
+  users                   users?                                @relation(fields: [bacSiGiaiPhauBenh], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "foreign_key_xn_mbh_bac_si")
+  lab_tests               lab_tests                             @relation(fields: [labTestId], references: [id], onDelete: Cascade, map: "foreign_key_xn_mbh_lab_test")
+
+  @@index([bacSiGiaiPhauBenh], map: "foreign_key_xn_mbh_bac_si")
+  @@index([trangThai], map: "index_xn_mbh_trang_thai")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model xn_nuoc_tieu {
+  id                  String                            @id @db.VarChar(36)
+  labTestId           String                            @unique(map: "unique_key_xn_nuoc_tieu_lab_test") @db.VarChar(36)
+  mayXetNghiem        String?                           @db.VarChar(100)
+  phuongPhap          String                            @default("Que thử 10 thông số") @db.VarChar(100)
+  mauSac              String?                           @db.VarChar(50)
+  doTrong             xn_nuoc_tieu_doTrong?
+  ph                  Decimal?                          @db.Decimal(3, 1)
+  tyTrong             Decimal?                          @db.Decimal(5, 3)
+  glucose             xn_nuoc_tieu_glucose?
+  protein             xn_nuoc_tieu_protein?
+  ketone              xn_nuoc_tieu_ketone?
+  bilirubin           xn_nuoc_tieu_bilirubin?
+  urobilinogen        xn_nuoc_tieu_urobilinogen?
+  blood               xn_nuoc_tieu_blood?
+  leukocyte           xn_nuoc_tieu_leukocyte?
+  nitrite             xn_nuoc_tieu_nitrite?
+  hongCauViTruong     String?                           @db.VarChar(100)
+  bachCauViTruong     String?                           @db.VarChar(100)
+  teBaoBieuMo         String?                           @db.VarChar(100)
+  viKhuan             String?                           @db.VarChar(100)
+  truNi               String?                           @db.VarChar(100)
+  tinhThe             String?                           @db.VarChar(100)
+  moTaCanLang         String?                           @db.VarChar(500)
+  duongChat           xn_nuoc_tieu_duongChat?
+  porphyrin           xn_nuoc_tieu_porphyrin?
+  proteinBenceJones   xn_nuoc_tieu_proteinBenceJones?
+  nt24TheTich         Decimal?                          @db.Decimal(5, 2)
+  nt24Protein         Decimal?                          @db.Decimal(7, 4)
+  nt24Glucose         Decimal?                          @db.Decimal(7, 3)
+  nt24Ure             Decimal?                          @db.Decimal(7, 2)
+  nt24Creatinin       Decimal?                          @db.Decimal(7, 3)
+  nt24AcidUric        Decimal?                          @db.Decimal(7, 3)
+  nt24Amylase         Decimal?                          @db.Decimal(8, 2)
+  nt24Na              Decimal?                          @db.Decimal(7, 2)
+  nt24K               Decimal?                          @db.Decimal(7, 2)
+  phanHuyetSacTo      xn_nuoc_tieu_phanHuyetSacTo?
+  phanStercobilin     xn_nuoc_tieu_phanStercobilin?
+  phanStercobilinogen xn_nuoc_tieu_phanStercobilinogen?
+  phanMauToanPhan     xn_nuoc_tieu_phanMauToanPhan?
+  phanGhiChu          String?                           @db.VarChar(500)
+  dntProtein          Decimal?                          @db.Decimal(6, 3)
+  dntGlucose          Decimal?                          @db.Decimal(5, 2)
+  dntClorua           Decimal?                          @db.Decimal(6, 2)
+  dntPandy            xn_nuoc_tieu_dntPandy?
+  dntGhiChu           String?                           @db.VarChar(500)
+  dichViHClTuDo       Decimal?                          @db.Decimal(5, 2)
+  dichViHClToanPhan   Decimal?                          @db.Decimal(5, 2)
+  dichViGhiChu        String?                           @db.VarChar(500)
+  dcdRivalta          xn_nuoc_tieu_dcdRivalta?
+  dcdProtein          Decimal?                          @db.Decimal(6, 2)
+  dcdGhiChu           String?                           @db.VarChar(500)
+  createdAt           DateTime                          @default(now())
+  lab_tests           lab_tests                         @relation(fields: [labTestId], references: [id], onDelete: Cascade, map: "foreign_key_xn_nuoc_tieu_lab_test")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model xn_vi_sinh {
+  id                 String                         @id @db.VarChar(36)
+  labTestId          String                         @unique(map: "unique_key_xn_vi_sinh_lab_test") @db.VarChar(36)
+  viTriLayMau        String?                        @db.VarChar(255)
+  phuongPhapSoi      String                         @default("Soi tươi KOH 10-20%") @db.VarChar(100)
+  trucTiep           String?                        @db.Text
+  soiNam             xn_vi_sinh_soiNam?
+  teBaoNamMen        xn_vi_sinh_teBaoNamMen?
+  baoTu              xn_vi_sinh_baoTu?
+  moTaHinhThaiNam    String?                        @db.VarChar(500)
+  nuoiCayAiKhi       String?                        @db.Text
+  nuoiCayKyKhi       String?                        @db.Text
+  phanUngHT          String?                        @db.Text
+  chungVkKsd         String?                        @db.VarChar(500)
+  ksdPenicilline     xn_vi_sinh_ksdPenicilline?
+  ksdAmpicilline     xn_vi_sinh_ksdAmpicilline?
+  ksdAmoAClavulanic  xn_vi_sinh_ksdAmoAClavulanic?
+  ksdAztreonam       xn_vi_sinh_ksdAztreonam?
+  ksdMezlocilline    xn_vi_sinh_ksdMezlocilline?
+  ksdOxacillinePhe   xn_vi_sinh_ksdOxacillinePhe?
+  ksdOxacillineTu    xn_vi_sinh_ksdOxacillineTu?
+  ksdCephalotine     xn_vi_sinh_ksdCephalotine?
+  ksdCefuroxime      xn_vi_sinh_ksdCefuroxime?
+  ksdCeftazidime     xn_vi_sinh_ksdCeftazidime?
+  ksdCefotaxime      xn_vi_sinh_ksdCefotaxime?
+  ksdCeftriaxone     xn_vi_sinh_ksdCeftriaxone?
+  ksdCefoperazone    xn_vi_sinh_ksdCefoperazone?
+  ksdCefepime        xn_vi_sinh_ksdCefepime?
+  ksdVancomycin      xn_vi_sinh_ksdVancomycin?
+  ksdClindamycin     xn_vi_sinh_ksdClindamycin?
+  ksdChloramphenicol xn_vi_sinh_ksdChloramphenicol?
+  ksdErythromycine   xn_vi_sinh_ksdErythromycine?
+  ksdTetracycline    xn_vi_sinh_ksdTetracycline?
+  ksdDoxycycline     xn_vi_sinh_ksdDoxycycline?
+  ksdNalidixicAcid   xn_vi_sinh_ksdNalidixicAcid?
+  ksdNofloxacine     xn_vi_sinh_ksdNofloxacine?
+  ksdCiprofloxacine  xn_vi_sinh_ksdCiprofloxacine?
+  ksdOfloxacine      xn_vi_sinh_ksdOfloxacine?
+  ksdGentamycine     xn_vi_sinh_ksdGentamycine?
+  ksdTobramycine     xn_vi_sinh_ksdTobramycine?
+  ksdAmikacine       xn_vi_sinh_ksdAmikacine?
+  ksdNetromycine     xn_vi_sinh_ksdNetromycine?
+  ksdCoTrimoxazol    xn_vi_sinh_ksdCoTrimoxazol?
+  ksdNitroxoline     xn_vi_sinh_ksdNitroxoline?
+  ksdKhacTenA        String?                        @db.VarChar(100)
+  ksdKhacKqA         xn_vi_sinh_ksdKhacKqA?
+  ksdKhacTenB        String?                        @db.VarChar(100)
+  ksdKhacKqB         xn_vi_sinh_ksdKhacKqB?
+  ksdKhacTenC        String?                        @db.VarChar(100)
+  ksdKhacKqC         xn_vi_sinh_ksdKhacKqC?
+  createdAt          DateTime                       @default(now())
+  lab_tests          lab_tests                      @relation(fields: [labTestId], references: [id], onDelete: Cascade, map: "foreign_key_xn_vi_sinh_lab_test")
+}
+
+enum attachments_ownerType {
+  medical_record
+  lab_test
+  prescription
+}
+
+enum payment_advances_type {
+  deposit
+  refund
+}
+
+enum xn_mo_benh_hoc_phuongPhapSinhThiet {
+  punch
+  shave
+  excision
+  incision
+  khac
+}
+
+enum departments_type {
+  clinical
+  paraclinical
+  administrative
+}
+
+enum invoice_items_category {
+  consultation
+  lab
+  medicine
+  bed
+  imaging
+  procedure
+  phototherapy
+  aesthetic
+  counseling
+}
+
+enum queue_tickets_status {
+  waiting
+  called
+  served
+  skipped
+}
+
+enum service_catalog_type {
+  consultation
+  lab
+  imaging
+  procedure
+  bed
+  phototherapy
+  aesthetic
+  counseling
+}
+
+enum treatment_orders_orderType {
+  medication
+  monitoring
+  care
+  diet
+  procedure
+}
+
+enum attachments_fileType {
+  pdf
+  png
+  jpeg
+  xml
+}
+
+enum audit_logs_action {
+  VIEW
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  RESET_PASSWORD
+  SIGN
+  PAY
+  CANCEL
+  EXPORT
+  OVERRIDE
+  SYNC
+  WRITE_OFF
+  DISPENSE
+}
+
+enum beds_status {
+  available
+  occupied
+  maintenance
+}
+
+enum patients_gender {
+  male
+  female
+}
+
+enum payment_advances_method {
+  cash
+  momo
+}
+
+enum prescriptions_prescriptionType {
+  C
+  N
+  H
+}
+
+enum rooms_roomType {
+  exam
+  lab
+  inpatient
+  procedure
+  storage
+  other
+}
+
+enum users_gender {
+  male
+  female
+}
+
+enum discharge_summaries_dischargeCondition {
+  recovered
+  improved
+  unchanged
+  worse
+  deceased
+}
+
+enum health_insurance_claims_status {
+  draft
+  exported_xml
+}
+
+enum medical_records_status {
+  open
+  waiting_results
+  diagnosed
+  closed
+}
+
+enum xn_nuoc_tieu_doTrong {
+  trong
+  hoi_duc
+  duc
+}
+
+enum xn_vi_sinh_soiNam {
+  am_tinh
+  duong_tinh
+}
+
+enum e_invoices_status {
+  draft
+  issued
+  signed
+  sent
+  cancelled
+  replaced
+}
+
+enum treatment_orders_status {
+  active
+  done
+  cancelled
+}
+
+enum xn_vi_sinh_teBaoNamMen {
+  am_tinh
+  duong_tinh
+}
+
+enum prescriptions_status {
+  draft
+  active
+  xml_exported
+  cancelled
+}
+
+enum xn_vi_sinh_baoTu {
+  am_tinh
+  duong_tinh
+}
+
+enum bed_assignments_releaseReason {
+  discharge
+  transfer
+  correction
+}
+
+enum invoice_items_healthInsuranceBenefitLevel {
+  NO_COVERAGE
+  RATE_80
+  RATE_95
+  RATE_100
+}
+
+enum xn_nuoc_tieu_glucose {
+  am_tinh
+  vet
+  cong    @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+  v_4_cong @map("4_cong")
+}
+
+enum lab_test_types_resultTableKey {
+  xn_vi_sinh
+  xn_cong_thuc_mau
+  xn_nuoc_tieu
+  xn_mo_benh_hoc
+  xn_hoa_sinh_mau
+}
+
+enum service_orders_status {
+  waiting
+  called
+  in_progress
+  completed
+  cancelled
+  rerouted
+}
+
+enum xn_nuoc_tieu_protein {
+  am_tinh
+  vet
+  cong    @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+  v_4_cong @map("4_cong")
+}
+
+enum discharge_summaries_signatureMethod {
+  dev_e_confirmation
+}
+
+enum xn_nuoc_tieu_ketone {
+  am_tinh
+  vet
+  cong    @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+  v_4_cong @map("4_cong")
+}
+
+enum prescriptions_signatureMethod {
+  dev_e_confirmation
+}
+
+enum xn_nuoc_tieu_bilirubin {
+  am_tinh
+  cong    @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+}
+
+enum invoices_healthInsuranceBenefitLevel {
+  NO_COVERAGE
+  RATE_80
+  RATE_95
+  RATE_100
+}
+
+enum xn_nuoc_tieu_urobilinogen {
+  binh_thuong
+  cong        @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+  v_4_cong @map("4_cong")
+}
+
+enum lab_tests_status {
+  ordered
+  in_progress
+  resulted
+}
+
+enum patients_bloodType {
+  A_  @map("A+")
+  v_A_ @map("A-")
+  B_  @map("B+")
+  v_B_ @map("B-")
+  AB_ @map("AB+")
+  v_AB_ @map("AB-")
+  O_  @map("O+")
+  v_O_ @map("O-")
+}
+
+enum xn_nuoc_tieu_blood {
+  am_tinh
+  vet
+  cong    @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+}
+
+enum xn_vi_sinh_ksdPenicilline {
+  S
+  I
+  R
+}
+
+enum invoices_healthInsuranceRouteType {
+  right_route
+  referral
+  emergency
+  wrong_route
+}
+
+enum xn_nuoc_tieu_leukocyte {
+  am_tinh
+  vet
+  cong    @map("1_cong")
+  v_2_cong @map("2_cong")
+  v_3_cong @map("3_cong")
+}
+
+enum xn_vi_sinh_ksdAmpicilline {
+  S
+  I
+  R
+}
+
+enum invoice_items_referenceType {
+  lab_test
+  prescription_item
+  bed
+  consultation
+  service
+}
+
+enum xn_nuoc_tieu_nitrite {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdAmoAClavulanic {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdAztreonam {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdMezlocilline {
+  S
+  I
+  R
+}
+
+enum lab_tests_signatureMethod {
+  dev_e_confirmation
+}
+
+enum medical_records_skinLesionDistribution {
+  localized
+  scattered
+  generalized
+  symmetric
+  dermatomal
+  flexural
+}
+
+enum xn_vi_sinh_ksdOxacillinePhe {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdOxacillineTu {
+  S
+  I
+  R
+}
+
+enum medical_records_itchSeverity {
+  none
+  mild
+  moderate
+  severe
+}
+
+enum xn_vi_sinh_ksdCephalotine {
+  S
+  I
+  R
+}
+
+enum invoices_status {
+  pending
+  paid
+  cancelled
+  write_off
+}
+
+enum xn_mo_benh_hoc_phuHopChanDoanLamSang {
+  phu_hop
+  khong_phu_hop
+  khong_du_thong_tin
+}
+
+enum xn_vi_sinh_ksdCefuroxime {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdCeftazidime {
+  S
+  I
+  R
+}
+
+enum invoices_paymentMethod {
+  cash
+  momo
+}
+
+enum xn_mo_benh_hoc_trangThai {
+  cho_ket_qua
+  da_co_ket_qua
+}
+
+enum xn_nuoc_tieu_duongChat {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdCefotaxime {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_porphyrin {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdCeftriaxone {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_proteinBenceJones {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdCefoperazone {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdCefepime {
+  S
+  I
+  R
+}
+
+enum medical_records_icdCodingSystem {
+  TT06_2026
+}
+
+enum xn_vi_sinh_ksdVancomycin {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdClindamycin {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdChloramphenicol {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdErythromycine {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdTetracycline {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdDoxycycline {
+  S
+  I
+  R
+}
+
+enum medical_records_diagnosisSignatureMethod {
+  dev_e_confirmation
+}
+
+enum xn_vi_sinh_ksdNalidixicAcid {
+  S
+  I
+  R
+}
+
+enum medical_records_treatmentType {
+  outpatient
+  inpatient
+}
+
+enum xn_vi_sinh_ksdNofloxacine {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_phanHuyetSacTo {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdCiprofloxacine {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_phanStercobilin {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdOfloxacine {
+  S
+  I
+  R
+}
+
+enum invoices_statementSignatureMethod {
+  dev_e_confirmation
+}
+
+enum xn_nuoc_tieu_phanStercobilinogen {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdGentamycine {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_phanMauToanPhan {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdTobramycine {
+  S
+  I
+  R
+}
+
+enum medical_records_closeSignatureMethod {
+  dev_e_confirmation
+}
+
+enum xn_vi_sinh_ksdAmikacine {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdNetromycine {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdCoTrimoxazol {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdNitroxoline {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_dntPandy {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdKhacKqA {
+  S
+  I
+  R
+}
+
+enum xn_vi_sinh_ksdKhacKqB {
+  S
+  I
+  R
+}
+
+enum xn_nuoc_tieu_dcdRivalta {
+  am_tinh
+  duong_tinh
+}
+
+enum xn_vi_sinh_ksdKhacKqC {
+  S
+  I
+  R
+}
