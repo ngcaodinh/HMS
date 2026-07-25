@@ -459,100 +459,736 @@ function getOrderStatusTone(status: LabOrderStatus): StatusTone {
   return 'waiting';
 }
 
-function QueuePageContent() {
-  return (
-    <div className="min-w-[1040px]">
-      <section className="border-b border-[#bfc7d2] bg-white px-6 py-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-bold uppercase text-[#006096]">Danh sách chỉ định xét nghiệm</h2>
-            <p className="mt-1 text-xs font-medium text-[#707882]">
-              Cập nhật lúc 07:42:18 - 3 ca cấp cứu đang chờ xử lý
-            </p>
-          </div>
-          <div className="flex flex-wrap justify-end gap-3">
-            <StatusPill status="5 Chờ mẫu" tone="waiting" />
-            <StatusPill status="3 Đang thực hiện" tone="running" />
-            <StatusPill status="3 Cấp cứu" tone="urgent" />
-          </div>
-        </div>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <SearchBox label="Tìm phiếu xét nghiệm" placeholder="Tìm theo tên, mã bệnh án hoặc quét barcode..." />
-          {['Tất cả', 'Chờ tiếp nhận', 'Đang thực hiện', 'Cấp cứu'].map((filter, index) => (
-            <button
-              className={cn(
-                'h-10 rounded-full px-4 text-[12.5px] font-semibold text-[#3f4851] focus:outline-none focus:ring-4 focus:ring-[#006096]/10',
-                index === 0 && 'bg-[#006096] font-bold text-white',
-              )}
-              key={filter}
-              type="button"
-            >
-              {filter}
-            </button>
-          ))}
-        </div>
-      </section>
+/**
+ * Hiển thị thông báo Toast góc dưới bên phải màn hình.
+ */
+function ToastContainer({ toasts }: { toasts: Array<{ id: number; message: string; type: 'success' | 'warning' | 'info' | 'error' }> }) {
+  if (toasts.length === 0) return null;
 
-      <section className="px-6 py-4">
-        <div className="overflow-hidden border border-[#eaeef2] bg-white">
-          <table className="w-full border-collapse text-left">
-            <thead className="bg-[#f2f3f8] text-[11px] font-bold uppercase tracking-[0.4px] text-[#707882]">
+  return (
+    <div className="fixed bottom-6 right-6 z-[999] flex flex-col gap-2">
+      {toasts.map((toast) => {
+        const bg = {
+          error: 'bg-[#ba1a1a]',
+          info: 'bg-[#004e8c]',
+          success: 'bg-[#1a7a4a]',
+          warning: 'bg-[#a05c00]',
+        }[toast.type];
+
+        return (
+          <div
+            className={cn(
+              'flex max-w-[420px] items-center gap-2 rounded-xl px-5 py-3 text-[13.5px] font-medium text-white shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-right-10',
+              bg,
+            )}
+            key={toast.id}
+          >
+            <Icon className="h-4 w-4 shrink-0" name="check" />
+            <span>{toast.message}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Modal xác nhận cấp phát thuốc và trừ kho FEFO.
+ */
+function DispenseModal({
+  onClose,
+  onConfirm,
+  patientId,
+  patientName,
+  rxCode,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+  patientId: string;
+  patientName: string;
+  rxCode: string;
+}) {
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div className={cn(styles.modalIcon, styles.modalIconPrimary)}>
+            <Icon className="h-5 w-5" name="check" />
+          </div>
+          <div>
+            <div className={styles.modalTitle}>Xác nhận cấp phát thuốc &amp; Trừ kho FEFO</div>
+            <div className={styles.modalSub}>
+              Đơn thuốc {rxCode} · Bệnh nhân: {patientName}
+            </div>
+          </div>
+        </div>
+        <div className={styles.modalBody}>
+          <ul className={styles.modalChecklist}>
+            <li className={styles.modalChecklistItem}>
+              <Icon className="h-4 w-4 shrink-0 text-[#1a7a4a]" name="check" />
+              <span>Đúng bệnh nhân: {patientName} (<span className="font-mono">{patientId}</span>)</span>
+            </li>
+            <li className={styles.modalChecklistItem}>
+              <Icon className="h-4 w-4 shrink-0 text-[#1a7a4a]" name="check" />
+              <span>Đúng đơn thuốc &amp; chữ ký bác sĩ (BS. Lê Thành Tâm — 「Đã ký」)</span>
+            </li>
+            <li className={styles.modalChecklistItem}>
+              <Icon className="h-4 w-4 shrink-0 text-[#1a7a4a]" name="check" />
+              <span>Đúng 2 khoản thuốc &amp; liều dùng</span>
+            </li>
+            <li className={styles.modalChecklistItem}>
+              <Icon className="h-4 w-4 shrink-0 text-[#1a7a4a]" name="check" />
+              <span>Đã gán trừ lô FEFO: <span className="font-mono">LOT-20260412</span> &amp; <span className="font-mono">LOT-20260301</span></span>
+            </li>
+          </ul>
+          <div className={cn(styles.alert, styles.alertInfo)}>
+            <Icon className="mt-0.5 h-4 w-4 shrink-0" name="shield" />
+            <div>
+              Hệ thống sẽ lưu vết <code className="rounded bg-white/60 px-1 font-mono">dispensedBy = DS. Phạm Thanh Hà</code> và thời điểm phát <code className="rounded bg-white/60 px-1 font-mono">dispensedAt</code>. Đơn thuốc sau khi phát sẽ không được chỉnh sửa.
+            </div>
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={cn(styles.btn, styles.btnGhost)} onClick={onClose} type="button">
+            Hủy bỏ
+          </button>
+          <button className={cn(styles.btn, styles.btnPrimary)} onClick={onConfirm} type="button">
+            Xác nhận phát thuốc
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Modal từ chối cấp phát đơn thuốc.
+ */
+function RejectModal({
+  onClose,
+  onConfirm,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [reason, setReason] = useState('');
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div className={cn(styles.modalIcon, styles.modalIconError)}>
+            <Icon className="h-5 w-5" name="logOut" />
+          </div>
+          <div>
+            <div className={styles.modalTitle}>Từ chối cấp phát đơn thuốc</div>
+            <div className={styles.modalSub}>Gửi yêu cầu điều chỉnh đơn thuốc cho Bác sĩ kê đơn</div>
+          </div>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={styles.formGroup}>
+            <label className={styles.formLabel}>Lý do từ chối cấp phát * (tối thiểu 10 ký tự)</label>
+            <textarea
+              className={cn(styles.formControl, 'h-24 resize-y')}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Nhập lý do chuyên môn: Tương tác thuốc nguy hiểm, Thuốc tạm hết hàng..."
+              value={reason}
+            />
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={cn(styles.btn, styles.btnGhost)} onClick={onClose} type="button">
+            Hủy bỏ
+          </button>
+          <button className={cn(styles.btn, styles.btnError)} onClick={onConfirm} type="button">
+            Gửi phản hồi cho Bác sĩ
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Modal xác nhận đăng xuất hệ thống.
+ */
+function LogoutModal({
+  onClose,
+  onConfirm,
+}: {
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={cn(styles.modal, 'max-w-[360px]')} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.modalHeader}>
+          <div className={cn(styles.modalIcon, styles.modalIconError)}>
+            <Icon className="h-5 w-5" name="logOut" />
+          </div>
+          <div>
+            <div className={styles.modalTitle}>Đăng xuất hệ thống</div>
+            <div className={styles.modalSub}>Bạn có chắc muốn kết thúc ca trực?</div>
+          </div>
+        </div>
+        <div className={styles.modalBody}>
+          <div className={cn(styles.alert, styles.alertWarning)}>
+            <Icon className="mt-0.5 h-4 w-4 shrink-0" name="shield" />
+            <div>Vui lòng đảm bảo đã hoàn tất các đơn thuốc cấp phát trong ca trước khi đăng xuất.</div>
+          </div>
+        </div>
+        <div className={styles.modalFooter}>
+          <button className={cn(styles.btn, styles.btnGhost)} onClick={onClose} type="button">
+            Ở lại
+          </button>
+          <button className={cn(styles.btn, styles.btnError)} onClick={onConfirm} type="button">
+            Đăng xuất
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Component hiển thị màn hình Hàng Đợi Chỉ Định Xét Nghiệm.
+ * Giao diện, các thành phần UI và popup tương tác được chuẩn hóa đồng bộ 100% theo doc/duoc_si copy.html.
+ *
+ * @returns React Element khung danh sách hàng đợi, thẻ chi tiết xử lý đơn thuốc và các popup modal.
+ */
+function QueuePageContent() {
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('kho-a');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeChip, setActiveChip] = useState<string>('pending');
+  const [selectedRx, setSelectedRx] = useState<string>('0891');
+  const [activeModal, setActiveModal] = useState<'none' | 'dispense' | 'reject' | 'logout'>('none');
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'warning' | 'info' | 'error' }>>([]);
+  const [dispensedMap, setDispensedMap] = useState<Record<string, boolean>>({});
+
+  // Tự động hiển thị toast notification
+  const addToast = (message: string, type: 'success' | 'warning' | 'info' | 'error') => {
+    const newToast = { id: Date.now(), message, type };
+    setToasts((prev) => [...prev, newToast]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== newToast.id));
+    }, 3800);
+  };
+
+  // Danh sách đơn thuốc hàng đợi chuẩn hóa từ doc/duoc_si copy.html
+  const queueItems = [
+    {
+      id: '0891',
+      code: '#RX-2026-0891',
+      patientName: 'Nguyễn Thị Lan',
+      patientId: 'BN-2026-0089',
+      patientMeta: 'Nữ (41T)',
+      patientType: 'ngoaitru',
+      typeBadge: 'Ngoại trú BHYT 80%',
+      department: 'Khoa Da Liễu — P.201',
+      doctor: 'BS. Lê Thành Tâm',
+      signer: '「Đã ký」 BS. Tâm',
+      warning: 'Cảnh báo Penicillin',
+      hasWarning: true,
+      status: dispensedMap['0891'] ? 'dispensed' : 'pending',
+      statusLabel: dispensedMap['0891'] ? 'Đã cấp phát' : 'Chờ phát',
+      isBgHighlight: true,
+    },
+    {
+      id: '0892',
+      code: '#RX-2026-0892',
+      patientName: 'Trần Minh Đức',
+      patientId: 'BN-2026-0091',
+      patientMeta: 'Nam (35T)',
+      patientType: 'noitru',
+      typeBadge: 'Nội trú',
+      department: 'Nội trú Da Liễu — Buồng 3',
+      doctor: 'BS. Nguyễn Văn B',
+      signer: '「Đã ký」 BS. B',
+      warning: '—',
+      hasWarning: false,
+      status: dispensedMap['0892'] ? 'dispensed' : 'pending',
+      statusLabel: dispensedMap['0892'] ? 'Đã cấp phát' : 'Chờ phát',
+      isBgHighlight: false,
+    },
+    {
+      id: '0885',
+      code: '#RX-2026-0885',
+      patientName: 'Lê Thị Hương',
+      patientId: 'BN-2026-0085',
+      patientMeta: 'Nữ (58T)',
+      patientType: 'ngoaitru',
+      typeBadge: 'Ngoại trú BHYT 100%',
+      department: 'Khoa Da Liễu — P.103',
+      doctor: 'BS. Lê Thành Tâm',
+      signer: '「Đã ký」 BS. Tâm',
+      warning: '—',
+      hasWarning: false,
+      status: 'dispensed',
+      statusLabel: 'Đã cấp phát',
+      isBgHighlight: false,
+    },
+  ];
+
+  // Lọc dữ liệu hàng đợi
+  const filteredQueue = queueItems.filter((item) => {
+    if (activeChip === 'pending' && item.status !== 'pending') return false;
+    if (activeChip === 'dispensed' && item.status !== 'dispensed') return false;
+    if (activeChip === 'outpatient' && item.patientType !== 'ngoaitru') return false;
+    if (activeChip === 'inpatient' && item.patientType !== 'noitru') return false;
+    if (activeChip === 'allergy' && !item.hasWarning) return false;
+
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      return (
+        item.code.toLowerCase().includes(q) ||
+        item.patientName.toLowerCase().includes(q) ||
+        item.patientId.toLowerCase().includes(q) ||
+        item.doctor.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
+
+  const handleWarehouseChange = (val: string) => {
+    setSelectedWarehouse(val);
+    const name = val === 'kho-a' ? 'Kho Ngoại Trú A' : val === 'kho-b' ? 'Kho Nội Trú B' : 'Tất cả kho';
+    addToast(`Đã lọc danh sách đơn thuốc theo: ${name}`, 'info');
+  };
+
+  const handleReload = () => {
+    addToast('Đã nạp lại danh sách đơn thuốc mới nhất', 'success');
+  };
+
+  const handlePrintLabel = () => {
+    addToast('Đã gửi lệnh in nhãn hướng dẫn sử dụng thuốc tới máy in nhiệt!', 'success');
+  };
+
+  const handleConfirmDispense = () => {
+    setDispensedMap((prev) => ({ ...prev, [selectedRx]: true }));
+    setActiveModal('none');
+    addToast(`Cấp phát thuốc thành công! Đã gán dispensedBy và trừ kho FEFO cho đơn #RX-2026-${selectedRx}`, 'success');
+  };
+
+  const handleConfirmReject = () => {
+    setActiveModal('none');
+    addToast('Đã gửi phản hồi từ chối đơn thuốc tới Bác sĩ kê đơn.', 'warning');
+  };
+
+  const handleConfirmLogout = () => {
+    setActiveModal('none');
+    addToast('Đang kết thúc ca trực và đăng xuất khỏi hệ thống...', 'warning');
+  };
+
+  const selectedItem = queueItems.find((i) => i.id === selectedRx) || queueItems[0];
+
+  return (
+    <div className="space-y-6 p-6">
+      {/* Screen Header */}
+      <div className={styles.screenHeader}>
+        <div>
+          <h2 className={styles.screenTitle}>Cấp phát thuốc theo đơn</h2>
+          <p className={styles.screenSubtitle}>
+            Danh sách đơn thuốc điện tử đã ký bác sĩ chờ phát — Ca trực 20/07/2026
+          </p>
+        </div>
+        <div className={styles.screenActions}>
+          <select
+            aria-label="Chọn kho xuất"
+            className={styles.selectField}
+            onChange={(e) => handleWarehouseChange(e.target.value)}
+            value={selectedWarehouse}
+          >
+            <option value="all">Tất cả kho xuất</option>
+            <option value="kho-a">Kho Ngoại Trú A</option>
+            <option value="kho-b">Kho Nội Trú B</option>
+          </select>
+          <button
+            aria-label="Tải danh sách đơn thuốc mới"
+            className={cn(styles.btn, styles.btnGhost, styles.btnSm)}
+            onClick={handleReload}
+            type="button"
+          >
+            <Icon className="h-4 w-4" name="activity" />
+            Tải đơn mới
+          </button>
+        </div>
+      </div>
+
+      {/* Queue Table Card */}
+      <div className={styles.card}>
+        <div className="border-b border-[#e4e9ed] px-6 py-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className={styles.searchInputWrap} style={{ maxWidth: '360px' }}>
+              <Icon className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]" name="search" />
+              <input
+                aria-label="Tìm kiếm đơn thuốc"
+                className={styles.searchInput}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Tìm theo Mã đơn, Mã BN, Họ tên, Bác sĩ..."
+                type="text"
+                value={searchQuery}
+              />
+            </div>
+            <div className={styles.chipBar}>
+              <button
+                className={cn(styles.chip, activeChip === 'pending' && styles.chipActive)}
+                onClick={() => setActiveChip('pending')}
+                type="button"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[#a05c00]" />
+                Chờ cấp phát (2)
+              </button>
+              <button
+                className={cn(styles.chip, activeChip === 'dispensed' && styles.chipActive)}
+                onClick={() => setActiveChip('dispensed')}
+                type="button"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[#1a7a4a]" />
+                Đã cấp phát
+              </button>
+              <button
+                className={cn(styles.chip, activeChip === 'outpatient' && styles.chipActive)}
+                onClick={() => setActiveChip('outpatient')}
+                type="button"
+              >
+                Ngoại trú
+              </button>
+              <button
+                className={cn(styles.chip, activeChip === 'inpatient' && styles.chipActive)}
+                onClick={() => setActiveChip('inpatient')}
+                type="button"
+              >
+                Nội trú
+              </button>
+              <button
+                className={cn(styles.chip, activeChip === 'allergy' && styles.chipActive)}
+                onClick={() => setActiveChip('allergy')}
+                type="button"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[#ba1a1a]" />
+                Cảnh báo dị ứng
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.dataTableWrap}>
+          <table className={styles.dataTable} id="rx-queue-table">
+            <thead>
               <tr>
-                {['STT / Mã phiếu', 'Barcode', 'Bệnh nhân', 'Loại xét nghiệm', 'Nguồn chỉ định', 'Thời gian', 'Trạng thái', 'Thao tác'].map((head) => (
-                  <th className="px-4 py-3" key={head}>{head}</th>
-                ))}
+                <th className={styles.th}>Mã đơn thuốc</th>
+                <th className={styles.th}>Bệnh nhân &amp; BHYT</th>
+                <th className={styles.th}>Khoa / Bác sĩ kê</th>
+                <th className={styles.th}>Cảnh báo chuyên môn</th>
+                <th className={cn(styles.th, 'text-center')}>Trạng thái</th>
+                <th className={cn(styles.th, 'text-center')}>Thao tác</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#eaeef2]">
-              {orders.map((order) => (
-                <tr className={order.isUrgent ? 'bg-[#fff1f1]' : 'bg-white'} key={order.id}>
-                  <td className="px-4 py-5">
-                    <p className="font-bold text-[#006096]">{order.id}</p>
-                    {order.isUrgent ? (
-                      <span className="mt-1 inline-flex items-center gap-1 rounded bg-[#ffdad6] px-1.5 py-0.5 text-[10px] font-bold text-[#ba1a1a]">
-                        <Icon className="h-2.5 w-2.5" name="shield" />
-                        CẤP CỨU
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-5">
-                    <span className="rounded bg-[#f2f3f8] px-2 py-1 text-[11.5px] text-[#3f4851]">
-                      {order.barcode}
-                    </span>
-                  </td>
-                  <td className="px-4 py-5">
-                    <p className="font-bold text-[#171c1f]">{order.patientName}</p>
-                    <p className="mt-1 text-xs font-medium text-[#707882]">{order.patientMeta}</p>
-                  </td>
-                  <td className="px-4 py-5">
-                    <span className="inline-flex max-w-28 rounded-md border border-[#bfc7d2] bg-[#f2f3f8] px-2 py-1 text-xs font-medium leading-4 text-[#3f4851]">
-                      {order.testType}
-                    </span>
-                  </td>
-                  <td className="max-w-[220px] px-4 py-5 text-xs font-medium leading-5 text-[#3f4851]">
-                    {order.source}
-                  </td>
-                  <td className="px-4 py-5 text-xs font-medium text-[#3f4851]">{order.requestedAt}</td>
-                  <td className="px-4 py-5">
-                    <StatusPill status={order.status} tone={getOrderStatusTone(order.status)} />
-                  </td>
-                  <td className="px-4 py-5">
-                    <div className="flex gap-1.5">
-                      <button className={styles.primaryButton} type="button">
-                        <Icon className="h-3.5 w-3.5" name="activity" />
-                        Nhập KQ
-                      </button>
-                      <button aria-label={`Xem chi tiết ${order.id}`} className={styles.iconButton} type="button">
-                        <Icon className="h-4 w-4" name="chevronRightSmall" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+            <tbody>
+              {filteredQueue.map((item) => {
+                const isSelected = selectedRx === item.id;
+
+                return (
+                  <tr
+                    className={cn(styles.tr, (isSelected || item.isBgHighlight) && 'bg-[#fff9e6]')}
+                    key={item.id}
+                  >
+                    <td className={styles.td}>
+                      <span className="font-mono text-[12.5px] font-bold text-[#006096]">{item.code}</span>
+                    </td>
+                    <td className={styles.td}>
+                      <div className="font-bold text-[#171c1f]">{item.patientName}</div>
+                      <div className="text-[12px] text-[#3f4851]">
+                        <span className="font-mono">{item.patientId}</span> · {item.patientMeta}
+                      </div>
+                      <div className="mt-0.5">
+                        <span className={cn(styles.badge, item.patientType === 'ngoaitru' ? styles.badgeNgoaitru : styles.badgeNoitru)}>
+                          {item.typeBadge}
+                        </span>
+                      </div>
+                    </td>
+                    <td className={styles.td}>
+                      <div className="text-[11.5px] text-[#3f4851]">{item.department}</div>
+                      <div className="mt-0.5 font-bold text-[#171c1f]">{item.doctor}</div>
+                      <div className="mt-0.5">
+                        <span className={styles.signStampBadge}>{item.signer}</span>
+                      </div>
+                    </td>
+                    <td className={styles.td}>
+                      {item.hasWarning ? (
+                        <span className={cn(styles.badge, styles.badgeWriteoff)}>
+                          <Icon className="h-3 w-3" name="shield" />
+                          {item.warning}
+                        </span>
+                      ) : (
+                        <span className="text-[#3f4851]">—</span>
+                      )}
+                    </td>
+                    <td className={cn(styles.td, 'text-center')}>
+                      {item.status === 'pending' ? (
+                        <span className={cn(styles.badge, styles.badgePending)}>
+                          <span className={styles.badgeDot} />
+                          {item.statusLabel}
+                        </span>
+                      ) : (
+                        <span className={cn(styles.badge, styles.badgePaid)}>
+                          <span className={styles.badgeDot} />
+                          {item.statusLabel}
+                        </span>
+                      )}
+                    </td>
+                    <td className={cn(styles.td, 'text-center')}>
+                      {item.status === 'pending' ? (
+                        <button
+                          aria-label={`Xử lý phát thuốc đơn ${item.id}`}
+                          className={cn(styles.btn, styles.btnPrimary, styles.btnSm)}
+                          onClick={() => {
+                            setSelectedRx(item.id);
+                            addToast(`Đã nạp thông tin chi tiết đơn thuốc #${item.code}`, 'info');
+                          }}
+                          type="button"
+                        >
+                          <Icon className="h-3.5 w-3.5" name="activity" />
+                          Xử lý phát thuốc
+                        </button>
+                      ) : (
+                        <button
+                          aria-label={`Xem đơn thuốc ${item.id}`}
+                          className={cn(styles.btn, styles.btnGhost, styles.btnSm)}
+                          onClick={() => {
+                            setSelectedRx(item.id);
+                            addToast(`Đã nạp thông tin chi tiết đơn thuốc #${item.code}`, 'info');
+                          }}
+                          type="button"
+                        >
+                          <Icon className="h-3.5 w-3.5" name="search" />
+                          Xem đơn
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
+
+      {/* DISPENSING WORKAREA FOR SELECTED RX (#RX-2026-0891) */}
+      <div className={styles.card} id="rx-dispense-workarea">
+        <div className={styles.cardHeader}>
+          <div className={styles.cardTitle}>
+            <Icon className="h-4 w-4 text-[#006096]" name="file" />
+            Chi tiết đơn thuốc điện tử: <span className="font-mono text-[#006096]">{selectedItem.code}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={styles.signStampBadge}>{selectedItem.signer}</span>
+            <span className={cn(styles.badge, selectedItem.status === 'pending' ? styles.badgePending : styles.badgePaid)}>
+              <span className={styles.badgeDot} />
+              {selectedItem.statusLabel}
+            </span>
+          </div>
+        </div>
+        <div className={styles.cardBody}>
+          {/* Patient Summary Grid */}
+          <div className="mb-6 grid grid-cols-1 border-b border-[#e4e9ed] pb-4 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851]">
+                Bệnh nhân
+              </label>
+              <span className="text-[13.5px] font-bold text-[#171c1f]">
+                {selectedItem.patientName} <span className="font-normal">({selectedItem.patientMeta})</span>
+              </span>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851]">
+                Mã BN / BHYT
+              </label>
+              <span className="text-[13.5px] font-medium text-[#171c1f]">
+                <span className="font-mono text-[#006096]">{selectedItem.patientId}</span> · <span className="font-mono">HS4-0100-3500-2026</span>
+              </span>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851]">
+                Chẩn đoán (ICD-10)
+              </label>
+              <span className="text-[13.5px] font-medium text-[#171c1f]">
+                Viêm da tiếp xúc dị ứng (<span className="font-mono">L23.9</span>)
+              </span>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851]">
+                Bác sĩ kê đơn
+              </label>
+              <span className="text-[13.5px] font-medium text-[#171c1f]">{selectedItem.doctor} ({selectedItem.department})</span>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851]">
+                Thời điểm ký đơn
+              </label>
+              <span className="font-mono text-[13.5px] text-[#171c1f]">20/07/2026 07:32</span>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851]">
+                Trạng thái hóa đơn
+              </label>
+              <span className={cn(styles.badge, styles.badgePaid)}>
+                Đã thanh toán viện phí (<span className="font-mono">#INV-2026-0312</span>)
+              </span>
+            </div>
+          </div>
+
+          {/* Allergy Override Warning Alert */}
+          {selectedItem.hasWarning && (
+            <div className={cn(styles.alert, styles.alertError, 'mb-6')} id="rx-allergy-alert">
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" name="shield" />
+              <div>
+                <strong className="mb-0.5 block">
+                  CẢNH BÁO DỊ ỨNG &amp; GHI ĐÈ CHUYÊN MÔN (ALLERGY OVERRIDE):
+                </strong>
+                Bệnh nhân có tiền sử dị ứng nhóm Penicillin. Bác sĩ kê đơn đã xác nhận ghi đè (Override):{' '}
+                <em>&ldquo;Đã kiểm tra hoạt chất Cetirizine &amp; Clobetasol không thuộc nhóm B-lactam, an toàn sử dụng cho bệnh nhân&rdquo;</em>{' '}
+                <span className="font-mono text-[12px] text-[#3f4851]">
+                  (Bác sĩ: {selectedItem.doctor} · 20/07/2026 07:32 · Override ID: #ALR-8812)
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Prescription Items & FEFO Allocation Table */}
+          <h4 className="mb-2 text-[13px] font-bold uppercase tracking-[0.5px] text-[#3f4851]">
+            Danh mục thuốc kê &amp; Đề xuất trừ lô FEFO
+          </h4>
+          <div className={cn(styles.dataTableWrap, 'mb-6')}>
+            <table className={styles.dataTable}>
+              <thead>
+                <tr>
+                  <th className={styles.th}>Tên thuốc / Hoạt chất / Dạng</th>
+                  <th className={cn(styles.th, 'text-center')}>SL kê</th>
+                  <th className={styles.th}>Liều dùng &amp; Hướng dẫn bác sĩ</th>
+                  <th className={styles.th}>Lô xuất FEFO đề xuất</th>
+                  <th className={cn(styles.th, 'text-center')}>Hạn sử dụng</th>
+                  <th className={cn(styles.th, 'text-center')}>Kiểm tra tồn kho</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className={styles.tr}>
+                  <td className={styles.td}>
+                    <div className="text-[13.5px] font-bold text-[#171c1f]">Clobetasol Propionate 0.05%</div>
+                    <div className="text-[12px] text-[#3f4851]">Tuýp 30g · Thuốc bôi ngoài da</div>
+                  </td>
+                  <td className={cn(styles.td, 'text-center')}>
+                    <span className="font-mono text-[15px] font-bold">2</span> tuýp
+                  </td>
+                  <td className={styles.td}>
+                    <span className="font-bold">Bôi mỏng vùng da tổn thương 2 lần/ngày</span> (Sáng - Tối)
+                  </td>
+                  <td className={styles.td}>
+                    <span className="font-mono font-bold text-[#006096]">LOT-20260412</span>
+                    <div className="text-[12px] text-[#3f4851]">
+                      Vị trí: Kệ A-02 · Tồn: <span className="font-mono">1.450</span> tuýp
+                    </div>
+                  </td>
+                  <td className={cn(styles.td, 'text-center')}>
+                    <span className="font-mono">15/10/2027</span>
+                  </td>
+                  <td className={cn(styles.td, 'text-center')}>
+                    <span className={cn(styles.badge, styles.badgePaid)}>Đủ tồn FEFO</span>
+                  </td>
+                </tr>
+                <tr className={styles.tr}>
+                  <td className={styles.td}>
+                    <div className="text-[13.5px] font-bold text-[#171c1f]">Cetirizin 10mg</div>
+                    <div className="text-[12px] text-[#3f4851]">Hộp 30 viên · Thuốc kháng histamin</div>
+                  </td>
+                  <td className={cn(styles.td, 'text-center')}>
+                    <span className="font-mono text-[15px] font-bold">1</span> hộp
+                  </td>
+                  <td className={styles.td}>
+                    <span className="font-bold">Uống 1 viên vào buổi tối sau khi ăn</span>
+                  </td>
+                  <td className={styles.td}>
+                    <span className="font-mono font-bold text-[#006096]">LOT-20260301</span>
+                    <div className="text-[12px] text-[#3f4851]">
+                      Vị trí: Kệ B-05 · Tồn: <span className="font-mono">820</span> hộp
+                    </div>
+                  </td>
+                  <td className={cn(styles.td, 'text-center')}>
+                    <span className="font-mono">20/05/2027</span>
+                  </td>
+                  <td className={cn(styles.td, 'text-center')}>
+                    <span className={cn(styles.badge, styles.badgePaid)}>Đủ tồn FEFO</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Bottom Actions & 5-Right Banner */}
+          <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#e4e9ed] pt-4">
+            <div className="flex items-center gap-1.5 text-[12px] text-[#004e8c]">
+              <Icon className="h-4 w-4 shrink-0" name="shield" />
+              Quy tắc 5 đúng Dược phẩm: Đúng bệnh nhân · Đúng thuốc · Đúng liều · Đúng đường dùng · Đúng thời gian
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                aria-label="Từ chối hoặc trả đơn thuốc cho bác sĩ"
+                className={cn(styles.btn, styles.btnErrorOutline)}
+                onClick={() => setActiveModal('reject')}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="logOut" />
+                Từ chối / Trả đơn
+              </button>
+              <button
+                aria-label="In nhãn hướng dẫn dùng thuốc"
+                className={cn(styles.btn, styles.btnGhost)}
+                onClick={handlePrintLabel}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="printer" />
+                In nhãn hướng dẫn
+              </button>
+              <button
+                aria-label="Xác nhận cấp phát thuốc và trừ kho FEFO"
+                className={cn(styles.btn, styles.btnPrimary, styles.btnLg)}
+                onClick={() => setActiveModal('dispense')}
+                type="button"
+              >
+                <Icon className="h-4 w-4" name="check" />
+                Xác nhận cấp phát &amp; Trừ kho FEFO
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Popups & Toast Components */}
+      {activeModal === 'dispense' && (
+        <DispenseModal
+          onClose={() => setActiveModal('none')}
+          onConfirm={handleConfirmDispense}
+          patientId={selectedItem.patientId}
+          patientName={selectedItem.patientName}
+          rxCode={selectedItem.code}
+        />
+      )}
+
+      {activeModal === 'reject' && (
+        <RejectModal
+          onClose={() => setActiveModal('none')}
+          onConfirm={handleConfirmReject}
+        />
+      )}
+
+      {activeModal === 'logout' && (
+        <LogoutModal
+          onClose={() => setActiveModal('none')}
+          onConfirm={handleConfirmLogout}
+        />
+      )}
+
+      <ToastContainer toasts={toasts} />
     </div>
   );
 }
