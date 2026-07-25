@@ -1,5 +1,7 @@
 import Image from 'next/image';
 
+import { LogoutButton } from '@/shared/auth/logout-button';
+
 import {
   BriefcaseMedicalIcon,
   ClockRefreshIcon,
@@ -171,10 +173,10 @@ export function DermatologyQueueDisplayPage() {
         </nav>
 
         <div className={styles.sidebarFoot}>
-          <button className={styles.logout} type="button">
+          <LogoutButton className={styles.logout}>
             <span aria-hidden="true">↪</span>
             Đăng xuất
-          </button>
+          </LogoutButton>
           <p className="py-0.5 text-center text-[10px] text-[#bfc7d2]">
             HMS-VN v3.1.0 · Da liễu edition
           </p>

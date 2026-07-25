@@ -15,7 +15,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:identity": "tsx prisma/seedIdentity.ts",
-    "test": "vitest run",
+    "test": "vitest run --cache=false",
     "test:watch": "vitest"
   },
   "dependencies": {

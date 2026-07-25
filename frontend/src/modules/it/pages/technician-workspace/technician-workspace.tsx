@@ -2,11 +2,21 @@
 
 import Image from 'next/image';
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { LogoutButton } from '@/shared/auth/logout-button';
 
 import { itTechnicianWorkspaceStyles as styles } from './technician-workspace.styles';
+import {
+  useCreateStaffUser,
+  useResetStaffPassword,
+  useStaffUsers,
+  useUpdateStaffUser,
+} from '../../hooks/use-staff-users';
+import type { StaffUser as ApiStaffUser } from '../../types/staff.schema';
 
 type PageKind = 'monitoring' | 'audit' | 'users' | 'rbac' | 'backup';
+type NotificationTone = 'error' | 'success';
 type Tone = 'green' | 'sky' | 'amber' | 'red' | 'slate' | 'teal';
 type IconName =
   | 'activity'
@@ -97,6 +107,26 @@ type StaffUser = {
   phone: string;
   lastLogin: string;
   status: 'active' | 'locked' | 'current';
+};
+
+type PopupNotification = {
+  message: string;
+  title: string;
+  tone: NotificationTone;
+};
+
+type ItPrincipal = {
+  roleCodes: string[];
+};
+
+type RoleOption = {
+  code: string;
+  label: string;
+  value: string;
+};
+
+type ItTechnicianWorkspaceProps = {
+  principal: ItPrincipal;
 };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -472,6 +502,67 @@ function ToneBadge({ children, tone }: { children: ReactNode; tone: Tone }) {
   );
 }
 
+/**
+ * Chọn nhóm class theo trạng thái thông báo.
+ * Nhận tone của popup, trả về class màu cho border, icon và text.
+ */
+function getNotificationClasses(tone: NotificationTone) {
+  if (tone === 'success') {
+    return {
+      border: 'border-emerald-200',
+      icon: 'bg-emerald-50 text-emerald-700',
+      text: 'text-emerald-700',
+    };
+  }
+
+  return {
+    border: 'border-red-200',
+    icon: 'bg-red-50 text-red-700',
+    text: 'text-red-700',
+  };
+}
+
+/**
+ * Hiển thị popup thông báo thao tác quản trị, thay thế alert native của trình duyệt.
+ * Nhận nội dung thông báo và callback đóng, không gọi API và không tự thay đổi server state.
+ */
+function NotificationPopup({
+  notification,
+  onClose,
+}: {
+  notification: PopupNotification;
+  onClose: () => void;
+}) {
+  const toneClass = getNotificationClasses(notification.tone);
+
+  return (
+    <div
+      className="fixed right-5 top-5 z-50 w-[min(360px,calc(100vw-40px))]"
+      role={notification.tone === 'error' ? 'alert' : 'status'}
+    >
+      <div className={cn('rounded-xl border bg-white p-4 shadow-2xl', toneClass.border)}>
+        <div className="flex items-start gap-3">
+          <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', toneClass.icon)}>
+            <Icon className="h-5 w-5" name={notification.tone === 'success' ? 'check' : 'alert'} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={cn('text-sm font-bold leading-5', toneClass.text)}>{notification.title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">{notification.message}</p>
+          </div>
+          <button
+            aria-label="Đóng thông báo"
+            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-700/20"
+            onClick={onClose}
+            type="button"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ItSidebar({
   activePage,
   onChangePage,
@@ -533,9 +624,9 @@ function ItSidebar({
             <p className="truncate text-xs font-bold text-white/90">Nguyễn Đức Hùng</p>
             <p className="mt-0.5 text-[10px] text-white/50">Kỹ thuật viên IT</p>
           </div>
-          <button aria-label="Đăng xuất" className="rounded-md border border-white/10 p-2 text-white/90" type="button">
+          <LogoutButton className="rounded-md border border-white/10 p-2 text-white/90">
             <Icon className="h-4 w-4" name="logOut" />
-          </button>
+          </LogoutButton>
         </div>
       </div>
     </aside>
@@ -950,76 +1041,168 @@ function RbacContent() {
 
 interface StaffUserItem {
   id: string;
+  apiId?: string;
   username: string;
   name: string;
   role: string;
+  roleCode?: string;
   phone: string;
   cccd?: string;
   dept?: string;
+  deptCode?: string;
   lastLogin: string;
   status: 'active' | 'locked' | 'current';
   chipClass: string;
+  updatedAt?: string;
 }
 
-const initialStaffUsers: StaffUserItem[] = [
-  {
-    id: 'NV-0041',
-    lastLogin: '18/07/2026 07:30',
-    name: 'Trần Minh Khoa',
-    phone: '0912 345 678',
-    role: 'Bác sĩ',
-    status: 'active',
-    username: 'khoa.tran',
-    chipClass: 'ktv-chip-blue',
-  },
-  {
-    id: 'NV-0027',
-    lastLogin: '18/07/2026 06:55',
-    name: 'Lê Thị Thu Hương',
-    phone: '0987 654 321',
-    role: 'Điều dưỡng',
-    status: 'active',
-    username: 'huong.le',
-    chipClass: 'ktv-chip-teal',
-  },
-  {
-    id: 'NV-0035',
-    lastLogin: '17/07/2026 20:11',
-    name: 'Phạm Văn Dũng',
-    phone: '0903 111 222',
-    role: 'Dược sĩ',
-    status: 'active',
-    username: 'dung.pham',
-    chipClass: 'ktv-chip-amber',
-  },
-  {
-    id: 'NV-0012',
-    lastLogin: '10/06/2026 14:22',
-    name: 'Ngô Thị Bảo Châu',
-    phone: '0967 888 999',
-    role: 'Kế toán',
-    status: 'locked',
-    username: 'chau.ngo',
-    chipClass: 'ktv-chip-purple',
-  },
-  {
-    id: 'NV-0003',
-    lastLogin: '18/07/2026 08:00',
-    name: 'Nguyễn Đức Hùng',
-    phone: '0978 000 001',
-    role: 'KTV IT',
-    status: 'current',
-    username: 'hung.nguyen',
-    chipClass: 'ktv-chip-indigo',
-  },
+const roleLabelByCode: Record<string, string> = {
+  admin: 'Quản trị viên',
+  accountant: 'Kế toán',
+  director: 'Giám đốc',
+  doctor: 'Bác sĩ',
+  it_tech: 'KTV IT',
+  lab_tech: 'KTV xét nghiệm',
+  nurse: 'Điều dưỡng',
+  pharmacist: 'Dược sĩ',
+  receptionist: 'Tiếp tân',
+};
+
+const roleCodeByLegacyValue: Record<string, string> = {
+  'Quản trị viên': 'admin',
+  'Quản trị viên (admin)': 'admin',
+  'Bác sĩ': 'doctor',
+  'Bác sĩ (doctor)': 'doctor',
+  'Dược sĩ': 'pharmacist',
+  'Dược sĩ (pharmacist)': 'pharmacist',
+  'Điều dưỡng': 'nurse',
+  'Điều dưỡng (nurse)': 'nurse',
+  'Kế toán': 'accountant',
+  'Kế toán (accountant)': 'accountant',
+  'KTV xét nghiệm': 'lab_tech',
+  'KTV xét nghiệm (lab_tech)': 'lab_tech',
+  'Tiếp tân': 'receptionist',
+  'Tiếp tân (receptionist)': 'receptionist',
+  'KTV IT': 'it_tech',
+  'KTV IT (it_tech)': 'it_tech',
+  'Giám đốc': 'director',
+  'Giám đốc (director)': 'director',
+};
+
+const departmentCodeByLegacyValue: Record<string, string> = {
+  'Khoa Da liễu': 'dermatology',
+  'Khoa Nội': 'clinical',
+  'Khoa Ngoại': 'clinical',
+  'Khoa Xét nghiệm': 'laboratory',
+  'Phòng Dược': 'pharmacy',
+  'Phòng Kế toán': 'accounting',
+  'Phòng IT': 'it',
+};
+
+const chipClassByRoleCode: Record<string, string> = {
+  admin: 'ktv-chip-red',
+  accountant: 'ktv-chip-purple',
+  director: 'ktv-chip-slate',
+  doctor: 'ktv-chip-blue',
+  it_tech: 'ktv-chip-indigo',
+  lab_tech: 'ktv-chip-indigo',
+  nurse: 'ktv-chip-teal',
+  pharmacist: 'ktv-chip-amber',
+  receptionist: 'ktv-chip-green',
+};
+
+const managedRoleOptions: RoleOption[] = [
+  { code: 'doctor', label: 'Bác sĩ (doctor)', value: 'Bác sĩ (doctor)' },
+  { code: 'nurse', label: 'Điều dưỡng (nurse)', value: 'Điều dưỡng (nurse)' },
+  { code: 'pharmacist', label: 'Dược sĩ (pharmacist)', value: 'Dược sĩ (pharmacist)' },
+  { code: 'accountant', label: 'Kế toán (accountant)', value: 'Kế toán (accountant)' },
+  { code: 'receptionist', label: 'Tiếp tân (receptionist)', value: 'Tiếp tân (receptionist)' },
+  { code: 'lab_tech', label: 'KTV xét nghiệm (lab_tech)', value: 'KTV xét nghiệm' },
 ];
 
-function UsersContent() {
-  const [users, setUsers] = useState<StaffUserItem[]>(initialStaffUsers);
+const adminRoleOptions: RoleOption[] = [
+  { code: 'admin', label: 'Quản trị viên (admin)', value: 'Quản trị viên (admin)' },
+  ...managedRoleOptions,
+  { code: 'it_tech', label: 'KTV IT (it_tech)', value: 'KTV IT (it_tech)' },
+  { code: 'director', label: 'Giám đốc (director)', value: 'Giám đốc (director)' },
+];
+
+/**
+ * Xác định danh sách role actor được phép gán trên UI.
+ * Nhận principal từ server guard, trả role đầy đủ cho admin hoặc subset nghiệp vụ cho it_tech.
+ */
+const getManageableRoleOptions = (principal: ItPrincipal) =>
+  principal.roleCodes.includes('admin') ? adminRoleOptions : managedRoleOptions;
+
+/**
+ * Định dạng thời điểm đăng nhập cuối cho bảng nhân viên.
+ * Nhận ISO string hoặc null từ API, trả chuỗi tiếng Việt dễ đọc cho UI.
+ */
+const formatLastLogin = (value: string | null) =>
+  value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đăng nhập';
+
+/**
+ * Sinh mã phiếu hỗ trợ mặc định cho thao tác IT trong ngày hiện tại.
+ * Trả chuỗi REQ theo ISO date để backend audit có reference ổn định.
+ */
+const createSupportReference = () => `REQ-${new Date().toISOString().slice(0, 10)}`;
+
+/**
+ * Chuyển nhãn role đang hiển thị trong form sang roleCode backend.
+ * Nhận value từ select, trả role mặc định doctor khi form chưa chọn được giá trị hợp lệ.
+ */
+const getRoleCode = (value: string | undefined) =>
+  (value ? roleCodeByLegacyValue[value] : undefined) ?? 'doctor';
+
+/**
+ * Chuyển nhãn khoa/phòng trong form sang departmentId backend.
+ * Nhận value từ select, trả dermatology làm fallback UI khi người dùng chưa chọn.
+ */
+const getDepartmentCode = (value: string | undefined) =>
+  (value ? departmentCodeByLegacyValue[value] : undefined) ?? 'dermatology';
+
+/**
+ * Map StaffUser từ API sang model trình bày của workspace IT.
+ * Nhận payload đã parse bằng Zod, trả item không chứa password và có metadata chỉnh sửa.
+ */
+const mapApiStaffUserToItem = (user: ApiStaffUser): StaffUserItem => {
+  const roleCode = user.roleCodes[0] ?? 'doctor';
+
+  return {
+    apiId: user.id,
+    cccd: user.identityCardNumber,
+    chipClass: chipClassByRoleCode[roleCode] ?? 'ktv-chip-blue',
+    dept: user.departmentId,
+    deptCode: user.departmentId,
+    id: user.id.slice(0, 8).toUpperCase(),
+    lastLogin: formatLastLogin(user.lastLoginAt),
+    name: user.fullName,
+    phone: user.phoneNumber,
+    role: roleLabelByCode[roleCode] ?? roleCode,
+    roleCode,
+    status: user.isActive ? 'active' : 'locked',
+    updatedAt: user.updatedAt,
+    username: user.username,
+  };
+};
+
+/**
+ * Điều phối màn hình quản lý tài khoản nhân viên cho IT/admin.
+ * Nhận principal đã xác thực từ server page, gọi API qua React Query và giữ secret tạm trong state ngắn hạn.
+ */
+function UsersContent({ principal }: { principal: ItPrincipal }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [passResetTarget, setPassResetTarget] = useState<string | null>(null);
   const [editUser, setEditUser] = useState<StaffUserItem | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const staffQuery = useStaffUsers({ page: 1, q: searchQuery });
+  const createMutation = useCreateStaffUser();
+  const updateMutation = useUpdateStaffUser();
+  const resetMutation = useResetStaffPassword();
+  const users = staffQuery.data?.items.map(mapApiStaffUserToItem) ?? [];
+  const totalStaffUsers = staffQuery.data?.totalItems ?? users.length;
+  const roleOptions = getManageableRoleOptions(principal);
 
   // Form states for Add User
   const [addForm, setAddForm] = useState({
@@ -1029,10 +1212,40 @@ function UsersContent() {
     cccd: '',
     role: '',
     dept: '',
-    password: 'Temp@2026!',
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [copiedPass, setCopiedPass] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [notification, setNotification] = useState<PopupNotification | null>(null);
+  const notificationTimer = useRef<number | null>(null);
+
+  /** Mở popup thông báo ngắn và tự ẩn để không chặn luồng nhập liệu của kỹ thuật IT. */
+  const showNotification = (nextNotification: PopupNotification) => {
+    if (notificationTimer.current) {
+      window.clearTimeout(notificationTimer.current);
+    }
+
+    setNotification(nextNotification);
+    notificationTimer.current = window.setTimeout(() => {
+      setNotification(null);
+      notificationTimer.current = null;
+    }, 3600);
+  };
+
+  useEffect(() => () => {
+    if (notificationTimer.current) {
+      window.clearTimeout(notificationTimer.current);
+    }
+  }, []);
+
+  /**
+   * Đóng dialog bàn giao mật khẩu và xóa secret tạm khỏi React state.
+   * Không gửi request mới, chỉ dọn trạng thái UI sau khi IT đã bàn giao mật khẩu.
+   */
+  const closeTemporaryPasswordDialog = () => {
+    setTemporaryPassword('');
+    setPassResetTarget(null);
+    setCopiedPass(false);
+  };
 
   const activeCount = users.filter((u) => u.status === 'active' || u.status === 'current').length;
   const lockedCount = users.filter((u) => u.status === 'locked').length;
@@ -1048,69 +1261,124 @@ function UsersContent() {
     );
   });
 
-  const handleToggleLock = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId && u.status !== 'current') {
-          const newStatus = u.status === 'locked' ? 'active' : 'locked';
-          return { ...u, status: newStatus };
-        }
-        return u;
-      }),
-    );
+  /**
+   * Khóa hoặc mở khóa tài khoản nhân viên bằng optimistic lock từ updatedAt.
+   * Nhận row đang hiển thị, gọi mutation PATCH và báo lỗi nếu backend từ chối.
+   */
+  const handleToggleLock = async (user: StaffUserItem) => {
+    if (!user.apiId || !user.updatedAt || user.status === 'current') return;
+
+    try {
+      await updateMutation.mutateAsync({
+        ifUnmodifiedSince: user.updatedAt,
+        input: {
+          isActive: user.status === 'locked',
+          supportRequestReference: createSupportReference(),
+        },
+        userId: user.apiId,
+      });
+    } catch (caught) {
+      showNotification({
+        message: caught instanceof Error ? caught.message : 'Không thể cập nhật trạng thái tài khoản',
+        title: 'Thao tác chưa thành công',
+        tone: 'error',
+      });
+    }
   };
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  /**
+   * Tạo tài khoản nhân viên từ form IT và hiển thị mật khẩu tạm một lần.
+   * Nhận submit event, gọi API create staff và chỉ lưu temporaryPassword tới khi dialog đóng.
+   */
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     if (!addForm.fullname || !addForm.username || !addForm.phone || !addForm.role) {
-      alert('Vui lòng điền đầy đủ các thông tin bắt buộc (*)');
+      showNotification({
+        message: 'Vui lòng điền đầy đủ các thông tin bắt buộc (*).',
+        title: 'Thiếu thông tin',
+        tone: 'error',
+      });
       return;
     }
 
-    const nextIdNumber = users.length + 10;
-    const newId = `NV-00${nextIdNumber}`;
+    try {
+      const result = await createMutation.mutateAsync({
+        dateOfBirth: '1990-01-01',
+        departmentId: getDepartmentCode(addForm.dept),
+        fullName: addForm.fullname,
+        gender: 'male',
+        identityCardNumber: addForm.cccd || '001199000001',
+        phoneNumber: addForm.phone.replace(/\s+/g, ''),
+        roleCodes: [getRoleCode(addForm.role)],
+        supportRequestReference: createSupportReference(),
+        username: addForm.username.trim(),
+      });
 
-    let chipClass = 'ktv-chip-blue';
-    if (addForm.role.includes('Điều dưỡng')) chipClass = 'ktv-chip-teal';
-    else if (addForm.role.includes('Dược sĩ')) chipClass = 'ktv-chip-amber';
-    else if (addForm.role.includes('Kế toán')) chipClass = 'ktv-chip-purple';
-    else if (addForm.role.includes('KTV IT')) chipClass = 'ktv-chip-indigo';
-
-    const newUser: StaffUserItem = {
-      chipClass,
-      id: newId,
-      lastLogin: 'Vừa khởi tạo',
-      name: addForm.fullname,
-      phone: addForm.phone,
-      role: addForm.role.split(' ')[0],
-      status: 'active',
-      username: addForm.username,
-    };
-
-    setUsers((prev) => [newUser, ...prev]);
-    setIsAddModalOpen(false);
-    setAddForm({
-      cccd: '',
-      dept: '',
-      fullname: '',
-      password: 'Temp@2026!',
-      phone: '',
-      role: '',
-      username: '',
-    });
-    alert(`Đã tạo thành công tài khoản cho ${newUser.name} (${newUser.username})`);
+      setTemporaryPassword(result.temporaryPassword);
+      setPassResetTarget(result.user.fullName);
+      showNotification({
+        message: `Đã tạo thành công tài khoản cho ${result.user.fullName}.`,
+        title: 'Tạo tài khoản thành công',
+        tone: 'success',
+      });
+      setIsAddModalOpen(false);
+      setAddForm({
+        cccd: '',
+        dept: '',
+         fullname: '',
+        phone: '',
+        role: '',
+        username: '',
+      });
+      return;
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : 'Không thể tạo tài khoản nhân viên');
+      return;
+    }
   };
 
+  /**
+   * Lưu thay đổi hồ sơ/role nhân viên đang edit bằng updatedAt làm khóa lạc quan.
+   * Nhận submit event, gọi API update và giữ lỗi validation trong form hiện tại.
+   */
   const handleSaveEditUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editUser) return;
-    setUsers((prev) => prev.map((u) => (u.id === editUser.id ? editUser : u)));
-    setEditUser(null);
-    alert(`Đã cập nhật thông tin tài khoản ${editUser.username}`);
+    setFormError('');
+
+    if (editUser.apiId && editUser.updatedAt) {
+      void updateMutation
+        .mutateAsync({
+          ifUnmodifiedSince: editUser.updatedAt,
+          input: {
+            fullName: editUser.name,
+            phoneNumber: editUser.phone.replace(/\s+/g, ''),
+            roleCodes: [getRoleCode(editUser.role)],
+            supportRequestReference: createSupportReference(),
+          },
+          userId: editUser.apiId,
+        })
+        .then(() => setEditUser(null))
+        .catch((caught: unknown) => {
+          setFormError(caught instanceof Error ? caught.message : 'Không thể cập nhật tài khoản');
+        });
+      return;
+    }
+
+    showNotification({
+      message: 'Tài khoản chưa có định danh API, vui lòng tải lại dữ liệu từ backend.',
+      title: 'Không thể cập nhật',
+      tone: 'error',
+    });
   };
 
   return (
     <div className="min-w-[1080px] space-y-5 p-6 font-sans text-slate-800">
+      {notification ? (
+        <NotificationPopup notification={notification} onClose={() => setNotification(null)} />
+      ) : null}
+
       <style>{`
         .ktv-stat-mini {
           background: #ffffff;
@@ -1393,7 +1661,33 @@ function UsersContent() {
                         <button
                           className="ktv-btn-action ktv-btn-action-key"
                           disabled={isLocked}
-                          onClick={() => setPassResetTarget(user.name)}
+                          onClick={() => {
+                            if (!user.apiId) {
+                              showNotification({
+                                message: 'Tài khoản chưa có định danh API, vui lòng tải lại dữ liệu từ backend.',
+                                title: 'Không thể cấp lại mật khẩu',
+                                tone: 'error',
+                              });
+                              return;
+                            }
+
+                            void resetMutation
+                              .mutateAsync({
+                                reason: `${createSupportReference()} reset mật khẩu theo yêu cầu hỗ trợ`,
+                                userId: user.apiId,
+                              })
+                              .then((result) => {
+                                setTemporaryPassword(result.temporaryPassword);
+                                setPassResetTarget(result.user.fullName);
+                              })
+                              .catch((caught: unknown) => {
+                                showNotification({
+                                  message: caught instanceof Error ? caught.message : 'Không thể cấp lại mật khẩu',
+                                  title: 'Cấp lại mật khẩu thất bại',
+                                  tone: 'error',
+                                });
+                              });
+                          }}
                           style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
                           title={isLocked ? 'Tài khoản đang bị khóa' : 'Cấp lại mật khẩu'}
                           type="button"
@@ -1456,7 +1750,7 @@ function UsersContent() {
                         ) : isLocked ? (
                           <button
                             className="ktv-btn-action ktv-btn-action-unlock"
-                            onClick={() => handleToggleLock(user.id)}
+                            onClick={() => void handleToggleLock(user)}
                             title={`Mở khóa tài khoản ${user.username}`}
                             type="button"
                           >
@@ -1477,7 +1771,7 @@ function UsersContent() {
                         ) : (
                           <button
                             className="ktv-btn-action ktv-btn-action-lock"
-                            onClick={() => handleToggleLock(user.id)}
+                            onClick={() => void handleToggleLock(user)}
                             title={`Khóa tài khoản ${user.username}`}
                             type="button"
                           >
@@ -1507,7 +1801,7 @@ function UsersContent() {
 
         {/* Table Footer Pagination */}
         <div className="mt-3.5 flex items-center justify-between flex-wrap gap-2 text-xs text-[#707882]">
-          <span>Hiển thị {filteredUsers.length} / 48 nhân viên</span>
+          <span>Hiển thị {filteredUsers.length} / {totalStaffUsers} nhân viên</span>
           <div className="flex gap-1.5">
             <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
               ‹ Trước
@@ -1618,12 +1912,11 @@ function UsersContent() {
                     value={addForm.role}
                   >
                     <option value="">-- Chọn vai trò --</option>
-                    <option value="Bác sĩ (doctor)">Bác sĩ (doctor)</option>
-                    <option value="Điều dưỡng (nurse)">Điều dưỡng (nurse)</option>
-                    <option value="Dược sĩ (pharmacist)">Dược sĩ (pharmacist)</option>
-                    <option value="Kế toán (accountant)">Kế toán (accountant)</option>
-                    <option value="Tiếp tân (receptionist)">Tiếp tân (receptionist)</option>
-                    <option value="KTV IT (it_tech)">KTV IT (it_tech)</option>
+                    {roleOptions.map((option) => (
+                      <option key={option.code} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1648,48 +1941,11 @@ function UsersContent() {
                 </div>
               </div>
 
-              <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Mật khẩu khởi tạo
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    className="w-full pl-3 pr-10 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                    type={showPassword ? 'text' : 'password'}
-                    value={addForm.password}
-                  />
-                  <button
-                    className="absolute right-2.5 p-1 text-[#707882] hover:text-[#006096]"
-                    onClick={() => setShowPassword(!showPassword)}
-                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
-                    type="button"
-                  >
-                    <svg
-                      fill="none"
-                      height="18"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      width="18"
-                    >
-                      {showPassword ? (
-                        <>
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                          <line x1="1" x2="23" y1="1" y2="23" />
-                        </>
-                      ) : (
-                        <>
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </>
-                      )}
-                    </svg>
-                  </button>
-                </div>
-              </div>
+              {formError ? (
+                <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {formError}
+                </p>
+              ) : null}
 
               <div className="flex gap-2.5 justify-end pt-2">
                 <button
@@ -1712,15 +1968,12 @@ function UsersContent() {
       ) : null}
 
       {/* Modal: Cấp lại mật khẩu */}
-      {passResetTarget ? (
+      {passResetTarget && temporaryPassword ? (
         <div className="ktv-modal-overlay">
           <div className="ktv-modal max-w-[420px] text-center">
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
-              onClick={() => {
-                setPassResetTarget(null);
-                setCopiedPass(false);
-              }}
+              onClick={closeTemporaryPasswordDialog}
               type="button"
             >
               ✕
@@ -1762,7 +2015,7 @@ function UsersContent() {
                 </svg>
                 Mật khẩu mới — chỉ hiển thị 1 lần
               </div>
-              <div className="ktv-pass-reveal-value">Hm#7kP$2</div>
+              <div className="ktv-pass-reveal-value">{temporaryPassword}</div>
               <div className="ktv-pass-reveal-note">
                 Ghi chép mật khẩu này trước khi đóng hộp thoại.
                 <br />
@@ -1774,7 +2027,7 @@ function UsersContent() {
               <button
                 className="px-3.5 py-2 bg-[#e8f4ff] text-[#006096] border border-[#cee5ff] hover:bg-[#cee5ff] rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
                 onClick={() => {
-                  navigator.clipboard.writeText('Hm#7kP$2');
+                  navigator.clipboard.writeText(temporaryPassword);
                   setCopiedPass(true);
                   setTimeout(() => setCopiedPass(false), 3000);
                 }}
@@ -1797,7 +2050,7 @@ function UsersContent() {
               </button>
               <button
                 className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
-                onClick={() => setPassResetTarget(null)}
+                onClick={closeTemporaryPasswordDialog}
                 type="button"
               >
                 ✓ Đã bàn giao — Đóng
@@ -1865,13 +2118,19 @@ function UsersContent() {
                   onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
                   value={editUser.role}
                 >
-                  <option value="Bác sĩ">Bác sĩ</option>
-                  <option value="Điều dưỡng">Điều dưỡng</option>
-                  <option value="Dược sĩ">Dược sĩ</option>
-                  <option value="Kế toán">Kế toán</option>
-                  <option value="KTV IT">KTV IT</option>
+                  {roleOptions.map((option) => (
+                    <option key={option.code} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
+
+              {formError ? (
+                <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {formError}
+                </p>
+              ) : null}
 
               <div className="flex gap-2.5 justify-end">
                 <button
@@ -1953,21 +2212,27 @@ function BackupContent() {
   );
 }
 
-function ItTechnicianContent({ activePage }: { activePage: PageKind }) {
+function ItTechnicianContent({
+  activePage,
+  principal,
+}: {
+  activePage: PageKind;
+  principal: ItPrincipal;
+}) {
   if (activePage === 'audit') return <AuditContent />;
-  if (activePage === 'users') return <UsersContent />;
+  if (activePage === 'users') return <UsersContent principal={principal} />;
   if (activePage === 'rbac') return <RbacContent />;
   if (activePage === 'backup') return <BackupContent />;
 
   return <MonitoringContent />;
 }
 
-export function ItTechnicianWorkspace() {
+export function ItTechnicianWorkspace({ principal }: ItTechnicianWorkspaceProps) {
   const [activePage, setActivePage] = useState<PageKind>('monitoring');
 
   return (
     <ItShell activePage={activePage} onChangePage={setActivePage}>
-      <ItTechnicianContent activePage={activePage} />
+      <ItTechnicianContent activePage={activePage} principal={principal} />
     </ItShell>
   );
 }

@@ -10,6 +10,7 @@ import { config } from './config/unifiedConfig';
 import { checkPrismaReadiness } from './core/database/prismaClient';
 import { logger } from './core/logger/logger';
 import { AppError, isAppError } from './core/http/AppError';
+import { asyncHandler } from './core/http/asyncHandler';
 import { requestContext } from './core/http/requestContext';
 import { identityRoutes } from './modules/identity/identityRoutes';
 
@@ -32,7 +33,7 @@ export const createApp = () => {
     });
   });
 
-  app.get('/ready', async (_req, res) => {
+  app.get('/ready', asyncHandler(async (_req, res) => {
     try {
       await checkPrismaReadiness();
       res.status(200).json({ status: 'ready' });
@@ -44,7 +45,7 @@ export const createApp = () => {
         },
       });
     }
-  });
+  }));
 
   app.use('/api/v1', identityRoutes);
 
@@ -55,6 +56,7 @@ export const createApp = () => {
       res: express.Response,
       _next: express.NextFunction,
     ) => {
+      void _next;
       const appError = isAppError(error)
         ? error
         : new AppError({
@@ -63,12 +65,14 @@ export const createApp = () => {
             status: 500,
           });
 
+      const requestId = res.locals.requestId as string | undefined;
+
       res.status(appError.status).json({
         error: {
           code: appError.code,
           details: appError.details,
           message: appError.message,
-          requestId: res.locals.requestId,
+          requestId,
         },
       });
     },

@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 
 import { assertSameOrigin, backendBaseUrl, forbiddenOrigin, setSessionCookie } from '@/shared/auth/backend';
 
+/**
+ * @route   POST /api/auth/login
+ * @desc    Proxy đăng nhập, giữ JWT trong cookie httpOnly thay vì trả về client.
+ * @access  Public cùng origin
+ */
 export async function POST(request: Request) {
   if (!assertSameOrigin()) return forbiddenOrigin();
 

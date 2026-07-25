@@ -9,6 +9,12 @@ type IconProps = {
   className?: string;
 };
 
+type ChangePasswordResponse = {
+  principal: {
+    roleCodes: string[];
+  };
+};
+
 /**
  * Icon con mắt mở - hiển thị khi mật khẩu đang ở dạng ẩn (password)
  */
@@ -158,13 +164,22 @@ export function ChangePasswordForm() {
     setIsSubmitting(true);
 
     try {
-      await apiClient('/api/auth/password', {
+      const result = await apiClient<ChangePasswordResponse>('/api/auth/password', {
         body: {
           newPassword,
         },
         method: 'PUT',
       });
-      router.replace('/login');
+
+      if (
+        result.principal.roleCodes.includes('it_tech') ||
+        result.principal.roleCodes.includes('admin')
+      ) {
+        router.replace('/it-technician');
+        return;
+      }
+
+      router.replace('/');
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -362,6 +377,5 @@ export function ChangePasswordForm() {
     </form>
   );
 }
-
 
 

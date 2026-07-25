@@ -15,6 +15,9 @@ type UserWithRoles = Prisma.UserGetPayload<{
   };
 }>;
 
+/**
+ * Chuyển Prisma model sang domain record để service không phụ thuộc shape DB.
+ */
 const mapUser = (user: UserWithRoles): StaffUserRecord => ({
   authVersion: user.authVersion,
   createdAt: user.createdAt,
@@ -34,6 +37,9 @@ const mapUser = (user: UserWithRoles): StaffUserRecord => ({
   username: user.username,
 });
 
+/**
+ * Repository Prisma cho Identity, gom toàn bộ truy vấn User/Permission/RBAC.
+ */
 export class PrismaIdentityRepository implements IdentityRepository {
   constructor(private readonly client: PrismaClient) {}
 
@@ -117,16 +123,55 @@ export class PrismaIdentityRepository implements IdentityRepository {
     return user ? mapUser(user) : null;
   }
 
-  async listStaffUsers(input: { page: number; pageSize: number; q?: string }) {
-    const where: Prisma.UserWhereInput = input.q
-      ? {
-          OR: [
-            { username: { contains: input.q } },
-            { fullName: { contains: input.q } },
-            { phoneNumber: { contains: input.q } },
-          ],
-        }
-      : {};
+  /**
+   * Truy vấn danh sách nhân viên theo phân trang, từ khóa và phạm vi role được phép nhìn thấy.
+   * Nhận filter đã chuẩn hóa từ service, trả items và totalItems cùng một điều kiện where trong transaction.
+   */
+  async listStaffUsers(input: {
+    departmentId?: string;
+    excludedRoleCodes?: RoleCode[];
+    isActive?: boolean;
+    page: number;
+    pageSize: number;
+    q?: string;
+  }) {
+    const filters: Prisma.UserWhereInput[] = [];
+
+    if (input.q) {
+      filters.push({
+        OR: [
+          { username: { contains: input.q } },
+          { fullName: { contains: input.q } },
+          { phoneNumber: { contains: input.q } },
+        ],
+      });
+    }
+
+    if (input.departmentId) {
+      filters.push({
+        departmentId: input.departmentId,
+      });
+    }
+
+    if (input.isActive !== undefined) {
+      filters.push({
+        isActive: input.isActive,
+      });
+    }
+
+    if (input.excludedRoleCodes?.length) {
+      filters.push({
+        permissions: {
+          none: {
+            roleCode: {
+              in: input.excludedRoleCodes,
+            },
+          },
+        },
+      });
+    }
+
+    const where: Prisma.UserWhereInput = filters.length ? { AND: filters } : {};
 
     const [items, totalItems] = await this.client.$transaction([
       this.client.user.findMany({
@@ -219,6 +264,56 @@ export class PrismaIdentityRepository implements IdentityRepository {
     });
 
     return mapUser(user);
+  }
+
+  /**
+   * Cập nhật hồ sơ user và thay toàn bộ role trong cùng transaction Prisma.
+   * Nhận dữ liệu update, actor gán quyền và role mới; trả user sau cập nhật để service phát response an toàn.
+   */
+  async updateStaffUserWithRoles(input: {
+    assignedBy: string;
+    data: Prisma.UserUpdateInput;
+    roleCodes: RoleCode[];
+    userId: string;
+  }) {
+    const user = await this.client.$transaction(async (transaction) => {
+      await transaction.user.update({
+        data: input.data,
+        where: {
+          id: input.userId,
+        },
+      });
+
+      await transaction.permission.deleteMany({
+        where: {
+          userId: input.userId,
+        },
+      });
+
+      await Promise.all(
+        input.roleCodes.map((roleCode) =>
+          transaction.permission.create({
+            data: {
+              assignedBy: input.assignedBy,
+              id: randomUUID(),
+              roleCode,
+              userId: input.userId,
+            },
+          }),
+        ),
+      );
+
+      return transaction.user.findUnique({
+        include: {
+          permissions: true,
+        },
+        where: {
+          id: input.userId,
+        },
+      });
+    });
+
+    return user ? mapUser(user) : null;
   }
 
   async userHasAction(userId: string, actionCode: string) {

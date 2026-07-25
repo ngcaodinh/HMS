@@ -5,8 +5,16 @@ const sessionCookieName = 'hms_session';
 
 export const backendBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:4000/api/v1';
 
+/**
+ * Đọc JWT từ cookie httpOnly ở server side, không đưa token xuống client JS.
+ * Trả undefined khi request chưa có phiên hợp lệ.
+ */
 export const getSessionToken = () => cookies().get(sessionCookieName)?.value;
 
+/**
+ * Lưu JWT vào cookie bảo mật để BFF tự gắn Authorization khi gọi backend.
+ * Nhận response Next.js và access token, side effect là set cookie httpOnly trên response.
+ */
 export const setSessionCookie = (response: NextResponse, token: string) => {
   response.cookies.set(sessionCookieName, token, {
     httpOnly: true,
@@ -17,6 +25,10 @@ export const setSessionCookie = (response: NextResponse, token: string) => {
   });
 };
 
+/**
+ * Xóa session cookie khi logout, đổi mật khẩu hoặc backend trả 401.
+ * Nhận response Next.js, side effect là ghi cookie hết hạn để trình duyệt bỏ phiên cũ.
+ */
 export const clearSessionCookie = (response: NextResponse) => {
   response.cookies.set(sessionCookieName, '', {
     httpOnly: true,
@@ -27,6 +39,10 @@ export const clearSessionCookie = (response: NextResponse) => {
   });
 };
 
+/**
+ * Chặn request đổi trạng thái từ origin khác để giảm rủi ro CSRF cho BFF route.
+ * Đọc Origin/Host từ headers server-side và trả true khi request cùng origin hoặc không có Origin.
+ */
 export const assertSameOrigin = () => {
   const origin = headers().get('origin');
   const host = headers().get('host');
@@ -36,6 +52,10 @@ export const assertSameOrigin = () => {
   return new URL(origin).host === host;
 };
 
+/**
+ * Gọi backend API từ server route/page và tự đính kèm Bearer token nếu có.
+ * Nhận path tương đối của API v1 và RequestInit, trả Response gốc để caller quyết định parse.
+ */
 export const backendFetch = async (path: string, init: RequestInit = {}) => {
   const token = getSessionToken();
 
@@ -50,10 +70,15 @@ export const backendFetch = async (path: string, init: RequestInit = {}) => {
   });
 };
 
+/**
+ * Chuyển nguyên envelope backend về frontend, đồng thời clear cookie khi token hết hạn.
+ * Nhận Response backend, trả NextResponse có no-store để không cache dữ liệu nhạy cảm.
+ */
 export const passthroughJson = async (response: Response) => {
   const body = await response.text();
   const nextResponse = new NextResponse(body, {
     headers: {
+      'Cache-Control': response.headers.get('cache-control') ?? 'no-store',
       'Content-Type': response.headers.get('content-type') ?? 'application/json',
     },
     status: response.status,
@@ -64,6 +89,10 @@ export const passthroughJson = async (response: Response) => {
   return nextResponse;
 };
 
+/**
+ * Response dùng chung khi BFF phát hiện request không cùng origin.
+ * Trả envelope lỗi 403 ổn định cho client-side apiClient.
+ */
 export const forbiddenOrigin = () =>
   NextResponse.json(
     {

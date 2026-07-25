@@ -4,6 +4,8 @@ import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 
+import { LogoutButton } from '@/shared/auth/logout-button';
+
 import { doctorWorkspaceStyles as styles } from './doctor-workspace.styles';
 
 type DoctorScreen = 'empty' | 'vitals' | 'orders' | 'results' | 'diagnosis';
@@ -243,9 +245,9 @@ function Sidebar({
           <p className={styles.userName}>BS. Trần Minh Khoa</p>
           <p className={styles.userRole}>Bác sĩ</p>
         </div>
-        <button aria-label="Đăng xuất" className={styles.iconButton} type="button">
+        <LogoutButton className={styles.iconButton}>
           <AssetIcon className="h-4 w-4 invert" name="icon-logout.svg" />
-        </button>
+        </LogoutButton>
       </div>
     </aside>
   );

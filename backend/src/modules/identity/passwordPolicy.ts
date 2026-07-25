@@ -2,6 +2,9 @@ import { randomInt } from 'node:crypto';
 
 const symbols = '!@#$%';
 
+/**
+ * Sinh mật khẩu tạm thời đủ mạnh để bàn giao một lần khi tạo/reset tài khoản.
+ */
 export const generateTemporaryPassword = () => {
   const parts = [
     'Hms',

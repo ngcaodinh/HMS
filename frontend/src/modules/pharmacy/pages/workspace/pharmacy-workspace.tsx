@@ -7,6 +7,9 @@
 'use client';
 
 import React, { useState } from 'react';
+
+import { performLogout } from '@/shared/auth/logout';
+
 import type {
   InventoryItem,
   PharmacyKpiSummary,
@@ -270,7 +273,7 @@ export function PharmacyWorkspace() {
         onConfirmXmlImport={handleConfirmXmlImport}
         onConfirmLogout={() => {
           setActiveModal(null);
-          showToast('Đã đăng xuất khỏi ca trực kho dược.', 'info');
+          void performLogout();
         }}
       />
 

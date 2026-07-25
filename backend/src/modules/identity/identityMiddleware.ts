@@ -5,6 +5,9 @@ import { identityRepository } from './identityComposition';
 import { jwtPort } from './jwtPort';
 import type { AuthenticatedRequest } from './identityTypes';
 
+/**
+ * Xác thực Bearer JWT, kiểm tra authVersion để phát hiện token đã bị thu hồi.
+ */
 export const authenticate = async (
   req: AuthenticatedRequest,
   _res: Response,
@@ -33,7 +36,8 @@ export const authenticate = async (
       });
     }
 
-    const { password: _password, ...principal } = user;
+    const { password, ...principal } = user;
+    void password;
     req.principal = principal;
     next();
   } catch (error) {
@@ -41,6 +45,9 @@ export const authenticate = async (
   }
 };
 
+/**
+ * Bảo đảm handler chỉ chạy khi request đã có principal hợp lệ.
+ */
 export const requirePrincipal = (req: AuthenticatedRequest) => {
   if (req.principal) return req.principal;
 

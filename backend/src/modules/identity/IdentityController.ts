@@ -11,19 +11,26 @@ import {
 } from './identitySchemas';
 import { requirePrincipal } from './identityMiddleware';
 import type { AuthenticatedRequest } from './identityTypes';
-import { IdentityService } from './identityService';
+import type { IdentityService } from './identityService';
 
+/**
+ * Controller chuyển HTTP input thành lệnh service và chuẩn hóa response envelope.
+ */
 export class IdentityController extends BaseController {
   constructor(private readonly service: IdentityService) {
     super();
   }
 
+  /**
+   * Xử lý đăng nhập nhân viên từ body đã validate bằng schema.
+   */
   async createSession(req: Request, res: Response) {
     try {
       const input = createSessionSchema.parse(req.body);
+      const requestId = res.locals.requestId as string;
       const result = await this.service.createSession({
         ...input,
-        requestId: res.locals.requestId,
+        requestId,
       });
 
       this.handleSuccess(res, result);
@@ -32,6 +39,9 @@ export class IdentityController extends BaseController {
     }
   }
 
+  /**
+   * Trả thông tin principal hiện tại từ request đã được authenticate.
+   */
   async getCurrentPrincipal(req: AuthenticatedRequest, res: Response) {
     try {
       this.handleSuccess(res, await this.service.getCurrentPrincipal(requirePrincipal(req)));
@@ -40,14 +50,18 @@ export class IdentityController extends BaseController {
     }
   }
 
+  /**
+   * Đổi mật khẩu bằng currentPassword để tránh chiếm phiên trái phép.
+   */
   async changePassword(req: AuthenticatedRequest, res: Response) {
     try {
       const input = changePasswordSchema.parse(req.body);
+      const requestId = res.locals.requestId as string;
       const result = await this.service.changePassword({
         actor: requirePrincipal(req),
         currentPassword: input.currentPassword,
         newPassword: input.newPassword,
-        requestId: res.locals.requestId,
+        requestId,
       });
 
       this.handleSuccess(res, result);
@@ -56,15 +70,21 @@ export class IdentityController extends BaseController {
     }
   }
 
+  /**
+   * Liệt kê tài khoản nhân viên theo query phân trang và từ khóa tìm kiếm.
+   */
   async listStaffUsers(req: AuthenticatedRequest, res: Response) {
     try {
       const input = listStaffSchema.parse(req.query);
+      const requestId = res.locals.requestId as string;
       const result = await this.service.listStaffUsers({
         actor: requirePrincipal(req),
+        departmentId: input.departmentId,
+        isActive: input.isActive,
         page: input.page,
         pageSize: input.pageSize,
         q: input.q,
-        requestId: res.locals.requestId,
+        requestId,
       });
 
       this.handleSuccess(res, result);
@@ -73,13 +93,17 @@ export class IdentityController extends BaseController {
     }
   }
 
+  /**
+   * Tạo tài khoản nhân viên; response không cache vì chứa mật khẩu tạm thời.
+   */
   async createStaffAccount(req: AuthenticatedRequest, res: Response) {
     try {
       const input = createStaffSchema.parse(req.body);
+      const requestId = res.locals.requestId as string;
       const result = await this.service.createStaffAccount({
         actor: requirePrincipal(req),
         input,
-        requestId: res.locals.requestId,
+        requestId,
       });
 
       res.setHeader('Cache-Control', 'no-store');
@@ -89,14 +113,18 @@ export class IdentityController extends BaseController {
     }
   }
 
+  /**
+   * Cập nhật tài khoản nhân viên với header If-Unmodified-Since từ client.
+   */
   async updateStaffAccount(req: AuthenticatedRequest, res: Response) {
     try {
       const input = updateStaffSchema.parse(req.body);
+      const requestId = res.locals.requestId as string;
       const result = await this.service.updateStaffAccount({
         actor: requirePrincipal(req),
         ifUnmodifiedSince: req.header('if-unmodified-since') ?? undefined,
         input,
-        requestId: res.locals.requestId,
+        requestId,
         userId: req.params.userId ?? '',
       });
 
@@ -106,13 +134,17 @@ export class IdentityController extends BaseController {
     }
   }
 
+  /**
+   * Reset mật khẩu; response không cache vì chứa secret chỉ hiển thị một lần.
+   */
   async resetStaffPassword(req: AuthenticatedRequest, res: Response) {
     try {
       const input = resetPasswordSchema.parse(req.body);
+      const requestId = res.locals.requestId as string;
       const result = await this.service.resetStaffPassword({
         actor: requirePrincipal(req),
         reason: input.reason,
-        requestId: res.locals.requestId,
+        requestId,
         userId: req.params.userId ?? '',
       });
 

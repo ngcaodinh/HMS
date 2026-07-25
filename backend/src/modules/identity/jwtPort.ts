@@ -5,6 +5,9 @@ import { config } from '../../config/unifiedConfig';
 import { AppError } from '../../core/http/AppError';
 import type { JwtPort } from './identityTypes';
 
+/**
+ * Adapter JWT ký và xác thực access token theo issuer/audience cấu hình.
+ */
 export const jwtPort: JwtPort = {
   sign(payload) {
     const options: SignOptions = {
@@ -33,6 +36,7 @@ export const jwtPort: JwtPort = {
         };
       }
     } catch {
+      // Không lộ chi tiết lỗi JWT để tránh hỗ trợ dò token.
       throw new AppError({
         code: 'INVALID_TOKEN',
         message: 'Phiên đăng nhập không hợp lệ',

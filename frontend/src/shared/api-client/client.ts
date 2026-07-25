@@ -7,6 +7,9 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+/**
+ * Fetch boundary duy nhất phía client: gửi credential, parse envelope và chuẩn hóa lỗi.
+ */
 export const apiClient = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   const response = await fetch(path, {
     body: options.body ? JSON.stringify(options.body) : undefined,

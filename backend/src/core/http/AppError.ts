@@ -3,6 +3,9 @@ export type ErrorDetail = {
   rule: string;
 };
 
+/**
+ * Lỗi nghiệp vụ có mã lỗi ổn định để controller trả response nhất quán.
+ */
 export class AppError extends Error {
   readonly code: string;
   readonly details?: ErrorDetail[];
@@ -26,4 +29,7 @@ export class AppError extends Error {
   }
 }
 
+/**
+ * Type guard giúp tách lỗi nghiệp vụ khỏi lỗi hệ thống không dự đoán trước.
+ */
 export const isAppError = (error: unknown): error is AppError => error instanceof AppError;

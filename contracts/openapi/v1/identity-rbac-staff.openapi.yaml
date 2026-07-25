@@ -14,6 +14,8 @@ paths:
           description: Session created
         '401':
           description: Invalid credentials
+        '429':
+          description: Login attempt limit exceeded for the IP and username pair
   /auth/me:
     get:
       operationId: getCurrentPrincipal
@@ -38,9 +40,39 @@ paths:
       summary: List staff users without credential fields
       security:
         - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+        - in: query
+          name: pageSize
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+        - in: query
+          name: q
+          schema:
+            maxLength: 100
+            type: string
+        - in: query
+          name: departmentId
+          schema:
+            maxLength: 36
+            type: string
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
       responses:
         '200':
           description: Staff page
+        '403':
+          description: Missing staff.read permission
     post:
       operationId: createStaffAccount
       summary: Create a staff account and return one-time temporary password
@@ -49,6 +81,14 @@ paths:
       responses:
         '201':
           description: Staff account created
+          headers:
+            Cache-Control:
+              description: Always no-store because response includes a one-time temporary password
+              schema:
+                example: no-store
+                type: string
+        '403':
+          description: Target role is outside the actor management scope
   /staff-users/{userId}:
     patch:
       operationId: updateStaffAccount
@@ -71,8 +111,12 @@ paths:
       responses:
         '200':
           description: Staff account updated
+        '403':
+          description: Target role is outside the actor management scope
         '409':
           description: Staff record was modified since read
+        '428':
+          description: If-Unmodified-Since header is required
   /staff-users/{userId}/password-resets:
     post:
       operationId: resetStaffPassword
@@ -89,6 +133,14 @@ paths:
       responses:
         '200':
           description: Password reset
+          headers:
+            Cache-Control:
+              description: Always no-store because response includes a one-time temporary password
+              schema:
+                example: no-store
+                type: string
+        '403':
+          description: Target role is outside the actor management scope
 components:
   securitySchemes:
     bearerAuth:

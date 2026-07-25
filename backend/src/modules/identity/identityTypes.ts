@@ -70,6 +70,9 @@ export type IdentityRepository = {
   findUserById(userId: string): Promise<StaffUserRecord | null>;
   findUserByUsername(username: string): Promise<StaffUserRecord | null>;
   listStaffUsers(input: {
+    departmentId?: string;
+    excludedRoleCodes?: RoleCode[];
+    isActive?: boolean;
     page: number;
     pageSize: number;
     q?: string;
@@ -91,6 +94,16 @@ export type IdentityRepository = {
         authVersion?: { increment: number };
       }
     >;
+    userId: string;
+  }): Promise<StaffUserRecord | null>;
+  updateStaffUserWithRoles(input: {
+    assignedBy: string;
+    data: Partial<
+      Omit<UpdateStaffData, 'roleCodes'> & {
+        authVersion?: { increment: number };
+      }
+    >;
+    roleCodes: RoleCode[];
     userId: string;
   }): Promise<StaffUserRecord | null>;
   userHasAction(userId: string, actionCode: string): Promise<boolean>;

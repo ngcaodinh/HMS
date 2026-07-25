@@ -39,6 +39,9 @@ const roleActions: Record<RoleCode, string[]> = {
 
 const revision = 'identity-rbac-staff-v1';
 
+/**
+ * Seed role, action permission và checksum phiên bản RBAC cho Lane 1.
+ */
 const seedRbacPolicy = async () => {
   for (const role of roles) {
     await prisma.role.upsert({
@@ -95,6 +98,9 @@ const seedRbacPolicy = async () => {
   });
 };
 
+/**
+ * Tạo tài khoản IT dev cục bộ để kiểm thử flow /it-technician ngoài production.
+ */
 const seedDevelopmentItUser = async () => {
   if (config.app.env === 'production') return;
   if (!config.auth.itDevPassword) {

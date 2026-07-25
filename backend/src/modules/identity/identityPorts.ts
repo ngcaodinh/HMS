@@ -12,20 +12,26 @@ const developmentDepartments = new Set([
   'it',
 ]);
 
+/**
+ * Port danh mục khoa/phòng tạm thời cho Lane 1 trước khi có module danh mục riêng.
+ */
 export const departmentDirectoryPort: DepartmentDirectoryPort = {
-  async assertDepartmentExists(departmentId) {
-    if (developmentDepartments.has(departmentId)) return;
+  assertDepartmentExists(departmentId) {
+    if (developmentDepartments.has(departmentId)) return Promise.resolve();
 
-    throw new AppError({
+    return Promise.reject(new AppError({
       code: 'DEPARTMENT_NOT_FOUND',
       message: 'Khoa/phòng không tồn tại trong danh mục phát triển',
       status: 422,
-    });
+    }));
   },
 };
 
+/**
+ * Port audit hiện ghi log có cấu trúc; có thể thay bằng audit store ở sprint sau.
+ */
 export const auditPort: AuditPort = {
-  async record(input) {
+  record(input) {
     logger.info(
       {
         action: input.action,
@@ -38,5 +44,6 @@ export const auditPort: AuditPort = {
       },
       'Identity audit event',
     );
+    return Promise.resolve();
   },
 };

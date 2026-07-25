@@ -73,6 +73,11 @@ export const resetPasswordSchema = z.object({
  * Query liệt kê nhân viên có phân trang và tìm kiếm nhẹ.
  */
 export const listStaffSchema = z.object({
+  departmentId: z.string().trim().min(1).max(36).optional(),
+  isActive: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(),

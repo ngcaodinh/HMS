@@ -1,5 +1,8 @@
 export type FieldErrors = Record<string, string[]>;
 
+/**
+ * Lỗi API đã được chuẩn hóa để component không phụ thuộc trực tiếp response wire.
+ */
 export class ApiError extends Error {
   readonly code: string;
   readonly fields?: FieldErrors;

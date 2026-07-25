@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto';
+
 import { AppError } from '../../core/http/AppError';
-import { assertCanManageTargetRoles, assertSupportReference } from './identityPolicy';
+import {
+  assertCanManageTargetRoles,
+  assertSupportReference,
+  privilegedRoleCodes,
+} from './identityPolicy';
 import type {
   AuditPort,
   BcryptPort,
@@ -12,7 +18,17 @@ import type {
   StaffUserRecord,
 } from './identityTypes';
 
+/**
+ * Chuyển ngày dạng YYYY-MM-DD từ API sang Date tại đầu ngày UTC để lưu đúng cột DATE.
+ */
 const toDateOnly = (value: string) => new Date(`${value}T00:00:00.000Z`);
+
+/**
+ * Băm dữ liệu kiểm toán nhạy cảm trước khi ghi log.
+ * Nhận chuỗi thô từ input hợp lệ, trả về fingerprint SHA-256 không thể đọc lại nội dung gốc.
+ */
+const createAuditHash = (value: string) =>
+  `sha256:${createHash('sha256').update(value.trim()).digest('hex')}`;
 
 /**
  * Loại bỏ password hash trước khi dữ liệu người dùng rời khỏi service layer.
@@ -41,7 +57,8 @@ export class IdentityService {
   constructor(private readonly dependencies: IdentityServiceDependencies) {}
 
   /**
-   * Xác thực username/password, ghi nhận audit và phát JWT theo authVersion hiện tại.
+   * Xác thực username/password, ghi nhận audit đăng nhập và phát JWT theo authVersion hiện tại.
+   * Nhận thông tin đăng nhập đã validate ở controller, trả principal đã loại bỏ password hash.
    */
   async createSession(input: { password: string; requestId: string; username: string }) {
     const user = await this.dependencies.repository.findUserByUsername(input.username);
@@ -76,6 +93,7 @@ export class IdentityService {
 
   /**
    * Trả principal đã được middleware xác thực để frontend dựng session hiện tại.
+   * Không đọc DB và không phát sinh side effect.
    */
   getCurrentPrincipal(actor: Principal) {
     return Promise.resolve(actor);
@@ -83,6 +101,7 @@ export class IdentityService {
 
   /**
    * Đổi mật khẩu của chính actor và tăng authVersion để thu hồi token cũ.
+   * Nhận mật khẩu mới và mật khẩu hiện tại khi không ở first-login flow, trả JWT mới cho phiên hiện tại.
    */
   async changePassword(input: {
     actor: Principal;
@@ -97,6 +116,14 @@ export class IdentityService {
         code: 'USER_NOT_FOUND',
         message: 'Không tìm thấy nhân viên',
         status: 404,
+      });
+    }
+
+    if (!input.currentPassword && !user.mustChangePassword) {
+      throw new AppError({
+        code: 'CURRENT_PASSWORD_REQUIRED',
+        message: 'Cần nhập mật khẩu hiện tại để đổi mật khẩu',
+        status: 400,
       });
     }
 
@@ -138,11 +165,18 @@ export class IdentityService {
       resourceId: user.id,
     });
 
-    return sanitizeUser(updated);
+    return {
+      accessToken: this.dependencies.jwt.sign({
+        authVersion: updated.authVersion,
+        userId: updated.id,
+      }),
+      principal: sanitizeUser(updated),
+    };
   }
 
   /**
-   * Kiểm tra quyền hành động RBAC và ghi audit khi actor bị từ chối.
+   * Kiểm tra quyền hành động RBAC cho actor trước khi chạy nghiệp vụ nhạy cảm.
+   * Nhận mã hành động ổn định, ghi audit khi bị từ chối và ném lỗi 403.
    */
   async assertAction(actor: Principal, actionCode: string) {
     const allowed = await this.dependencies.repository.userHasAction(actor.id, actionCode);
@@ -165,10 +199,13 @@ export class IdentityService {
   }
 
   /**
-   * Liệt kê tài khoản nhân viên theo quyền staff.read và ẩn vai trò đặc quyền khỏi IT.
+   * Liệt kê tài khoản nhân viên theo quyền staff.read, filter truy vấn và phạm vi vai trò của actor.
+   * Nhận phân trang/từ khóa/filter từ API, trả danh sách đã loại password hash và ghi audit đọc.
    */
   async listStaffUsers(input: {
     actor: Principal;
+    departmentId?: string;
+    isActive?: boolean;
     page: number;
     pageSize: number;
     q?: string;
@@ -176,10 +213,16 @@ export class IdentityService {
   }) {
     await this.assertAction(input.actor, 'staff.read');
 
-    const result = await this.dependencies.repository.listStaffUsers(input);
-    const items = input.actor.roleCodes.includes('it_tech')
-      ? result.items.filter((user) => user.roleCodes.every((roleCode) => !this.isPrivileged(roleCode)))
-      : result.items;
+    const shouldHidePrivilegedStaff =
+      input.actor.roleCodes.includes('it_tech') && !input.actor.roleCodes.includes('admin');
+    const result = await this.dependencies.repository.listStaffUsers({
+      departmentId: input.departmentId,
+      excludedRoleCodes: shouldHidePrivilegedStaff ? [...privilegedRoleCodes] : undefined,
+      isActive: input.isActive,
+      page: input.page,
+      pageSize: input.pageSize,
+      q: input.q,
+    });
 
     await this.dependencies.auditPort.record({
       action: 'staff.read',
@@ -189,16 +232,17 @@ export class IdentityService {
     });
 
     return {
-      items: items.map(sanitizeUser),
+      items: result.items.map(sanitizeUser),
       page: input.page,
       pageSize: input.pageSize,
-      totalItems: input.actor.roleCodes.includes('it_tech') ? items.length : result.totalItems,
+      totalItems: result.totalItems,
       totalPages: Math.max(1, Math.ceil(result.totalItems / input.pageSize)),
     };
   }
 
   /**
-   * Tạo tài khoản nhân viên, gán role hợp lệ và chỉ trả mật khẩu tạm thời một lần.
+   * Tạo tài khoản nhân viên với role hợp lệ trong phạm vi RBAC của actor.
+   * Nhận hồ sơ nhân viên đã validate, trả mật khẩu tạm thời một lần và ghi audit không chứa secret.
    */
   async createStaffAccount(input: {
     actor: Principal;
@@ -262,7 +306,8 @@ export class IdentityService {
   }
 
   /**
-   * Cập nhật tài khoản nhân viên với optimistic lock và rule bảo vệ admin cuối cùng.
+   * Cập nhật tài khoản nhân viên với optimistic lock và các rule bảo vệ role đặc quyền.
+   * Nhận header If-Unmodified-Since từ client, trả user đã cập nhật và tăng authVersion khi đổi role/trạng thái.
    */
   async updateStaffAccount(input: {
     actor: Principal;
@@ -287,6 +332,14 @@ export class IdentityService {
         code: 'STAFF_NOT_FOUND',
         message: 'Không tìm thấy nhân viên',
         status: 404,
+      });
+    }
+
+    if (!input.ifUnmodifiedSince) {
+      throw new AppError({
+        code: 'IF_UNMODIFIED_SINCE_REQUIRED',
+        message: 'Cần gửi If-Unmodified-Since để tránh ghi đè dữ liệu cũ',
+        status: 428,
       });
     }
 
@@ -323,7 +376,7 @@ export class IdentityService {
 
     const shouldRevokeTokens =
       input.input.isActive !== undefined || input.input.roleCodes !== undefined;
-    const updated = await this.dependencies.repository.updateStaffUser({
+    const updateInput = {
       data: {
         departmentId: input.input.departmentId,
         fullName: input.input.fullName,
@@ -332,7 +385,14 @@ export class IdentityService {
         ...(shouldRevokeTokens ? { authVersion: { increment: 1 } } : {}),
       },
       userId: target.id,
-    });
+    };
+    const updated = input.input.roleCodes
+      ? await this.dependencies.repository.updateStaffUserWithRoles({
+          ...updateInput,
+          assignedBy: input.actor.id,
+          roleCodes: input.input.roleCodes,
+        })
+      : await this.dependencies.repository.updateStaffUser(updateInput);
 
     if (!updated) {
       throw new AppError({
@@ -340,15 +400,6 @@ export class IdentityService {
         message: 'Không tìm thấy nhân viên',
         status: 404,
       });
-    }
-
-    if (input.input.roleCodes) {
-      await this.dependencies.repository.replaceUserRoles({
-        assignedBy: input.actor.id,
-        roleCodes: input.input.roleCodes,
-        userId: target.id,
-      });
-      updated.roleCodes = input.input.roleCodes;
     }
 
     await this.dependencies.auditPort.record({
@@ -365,7 +416,8 @@ export class IdentityService {
   }
 
   /**
-   * Reset mật khẩu nhân viên, bật mustChangePassword và thu hồi token hiện có.
+   * Reset mật khẩu nhân viên, bật mustChangePassword và thu hồi toàn bộ token hiện có.
+   * Nhận lý do reset để kiểm toán, chỉ ghi hash của lý do và trả mật khẩu tạm thời một lần.
    */
   async resetStaffPassword(input: {
     actor: Principal;
@@ -405,8 +457,8 @@ export class IdentityService {
     await this.dependencies.auditPort.record({
       action: 'staff.password.reset',
       actorId: input.actor.id,
-      changedFields: ['password', 'mustChangePassword', 'authVersion'],
-      reference: input.reason,
+      changedFields: ['password', 'mustChangePassword', 'authVersion', 'reasonHash'],
+      reference: createAuditHash(input.reason),
       requestId: input.requestId,
       resource: 'staff-user',
       resourceId: target.id,
@@ -416,12 +468,5 @@ export class IdentityService {
       temporaryPassword,
       user: sanitizeUser(updated),
     };
-  }
-
-  /**
-   * Xác định role đặc quyền mà IT technician không được tự quản lý trực tiếp.
-   */
-  private isPrivileged(roleCode: RoleCode) {
-    return roleCode === 'admin' || roleCode === 'it_tech' || roleCode === 'director';
   }
 }

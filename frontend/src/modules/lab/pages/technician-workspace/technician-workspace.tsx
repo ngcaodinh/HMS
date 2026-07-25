@@ -4,6 +4,8 @@ import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 
+import { LogoutButton } from '@/shared/auth/logout-button';
+
 import { technicianWorkspaceStyles as styles } from './technician-workspace.styles';
 
 type PageKind = 'queue' | 'result-entry' | 'history' | 'config';
@@ -399,9 +401,9 @@ function LabSidebar({
           <p className="truncate text-[13px] font-semibold leading-5">KTV. Nguyễn Thảo</p>
           <p className="text-[11px] leading-4 text-white/50">Kỹ thuật viên - Xét nghiệm</p>
         </div>
-        <button aria-label="Đăng xuất" className="rounded-md border border-white/10 p-2.5 text-white/70" type="button">
+        <LogoutButton className="rounded-md border border-white/10 p-2.5 text-white/70">
           <Icon className="h-4 w-4" name="logOut" />
-        </button>
+        </LogoutButton>
       </div>
     </aside>
   );
