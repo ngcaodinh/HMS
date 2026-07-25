@@ -11,6 +11,7 @@ import { checkPrismaReadiness } from './core/database/prismaClient';
 import { isAppError, mapErrorDetailsToFields } from './core/http/AppError';
 import { asyncHandler } from './core/http/asyncHandler';
 import { logger } from './core/logger/logger';
+import { notFoundHandler } from './middlewares/error-handler';
 import { errorHandler } from './middlewares/errorHandler';
 import { requestContext } from './middlewares/requestContext';
 import { identityRoutes } from './modules/identity/identityRoutes';
@@ -51,6 +52,7 @@ export const createApp = () => {
 
   app.use('/api/v1', identityRoutes);
   app.use('/api/v1', apiV1Router);
+  app.use('/api/v1', notFoundHandler);
 
   app.use(
     (
