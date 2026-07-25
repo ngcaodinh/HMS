@@ -3,7 +3,6 @@ import { createHash } from 'node:crypto';
 import { AppError } from '../../core/http/AppError';
 import {
   assertCanManageTargetRoles,
-  assertSupportReference,
   privilegedRoleCodes,
 } from './identityPolicy';
 import type {
@@ -254,14 +253,12 @@ export class IdentityService {
       identityCardNumber: string;
       phoneNumber: string;
       roleCodes: RoleCode[];
-      supportRequestReference?: string;
       username: string;
     };
     requestId: string;
   }) {
     await this.assertAction(input.actor, 'staff.create');
     assertCanManageTargetRoles(input.actor, input.input.roleCodes);
-    assertSupportReference(input.actor, input.input.supportRequestReference);
     await this.dependencies.departmentDirectory.assertDepartmentExists(input.input.departmentId);
 
     const temporaryPassword = this.dependencies.randomPassword();
@@ -293,7 +290,6 @@ export class IdentityService {
         'departmentId',
         'roleCodes',
       ],
-      reference: input.input.supportRequestReference,
       requestId: input.requestId,
       resource: 'staff-user',
       resourceId: user.id,
@@ -318,7 +314,6 @@ export class IdentityService {
       isActive?: boolean;
       phoneNumber?: string;
       roleCodes?: RoleCode[];
-      supportRequestReference?: string;
     };
     requestId: string;
     userId: string;
@@ -352,10 +347,6 @@ export class IdentityService {
     }
 
     assertCanManageTargetRoles(input.actor, input.input.roleCodes ?? target.roleCodes);
-
-    if (input.input.isActive !== undefined || input.input.roleCodes) {
-      assertSupportReference(input.actor, input.input.supportRequestReference);
-    }
 
     if (input.input.departmentId) {
       await this.dependencies.departmentDirectory.assertDepartmentExists(input.input.departmentId);
@@ -405,8 +396,7 @@ export class IdentityService {
     await this.dependencies.auditPort.record({
       action: 'staff.update',
       actorId: input.actor.id,
-      changedFields: Object.keys(input.input).filter((field) => field !== 'supportRequestReference'),
-      reference: input.input.supportRequestReference,
+      changedFields: Object.keys(input.input),
       requestId: input.requestId,
       resource: 'staff-user',
       resourceId: target.id,

@@ -1,6 +1,18 @@
 import { z } from 'zod';
 
 export const roleCodeSchema = z.enum([
+  'admin',
+  'receptionist',
+  'accountant',
+  'doctor',
+  'nurse',
+  'lab_tech',
+  'pharmacist',
+  'it_tech',
+  'director',
+]);
+
+export const managedRoleCodeSchema = z.enum([
   'receptionist',
   'accountant',
   'doctor',
@@ -32,7 +44,7 @@ export const staffUserSchema = z.object({
   lastLoginAt: z.string().nullable(),
   mustChangePassword: z.boolean(),
   phoneNumber: z.string(),
-  roleCodes: z.array(z.string()),
+  roleCodes: z.array(roleCodeSchema).min(1),
   updatedAt: z.string(),
   username: z.string(),
 });
@@ -50,8 +62,20 @@ export const createStaffResultSchema = z.object({
   user: staffUserSchema,
 });
 
+export type CreateStaffInput = {
+  dateOfBirth: string;
+  departmentId: DepartmentCode;
+  fullName: string;
+  gender: 'male' | 'female';
+  identityCardNumber: string;
+  phoneNumber: string;
+  roleCodes: RoleCode[];
+  username: string;
+};
+
 export type StaffUser = z.infer<typeof staffUserSchema>;
 export type StaffList = z.infer<typeof staffListSchema>;
 export type CreateStaffResult = z.infer<typeof createStaffResultSchema>;
 export type DepartmentCode = z.infer<typeof departmentSchema>;
-export type ManagedRoleCode = z.infer<typeof roleCodeSchema>;
+export type RoleCode = z.infer<typeof roleCodeSchema>;
+export type ManagedRoleCode = z.infer<typeof managedRoleCodeSchema>;

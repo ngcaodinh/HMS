@@ -10,6 +10,26 @@ const identityCardSchema = z.string().regex(/^[0-9]{12}$/);
 const usernameSchema = z.string().trim().min(3).max(50).regex(/^[A-Za-z0-9._]+$/);
 const roleCodeSchema = z.enum(roleCodes);
 
+const getTodayDateValue = () => {
+  const now = new Date();
+  const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+
+  return localTime.toISOString().slice(0, 10);
+};
+
+/**
+ * Kiểm tra chuỗi ngày dạng DATE có thật và không vượt quá ngày hiện tại.
+ */
+const dateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Ngày sinh phải theo định dạng YYYY-MM-DD')
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  }, 'Ngày sinh không hợp lệ')
+  .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai');
+
 /**
  * Body đăng nhập nhân viên.
  */
@@ -36,17 +56,18 @@ export const changePasswordSchema = z.object({
 /**
  * Body tạo tài khoản nhân viên do IT/admin thực hiện.
  */
-export const createStaffSchema = z.object({
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  departmentId: z.string().min(1).max(36),
-  fullName: z.string().trim().min(2).max(255),
-  gender: z.enum(['male', 'female']),
-  identityCardNumber: identityCardSchema,
-  phoneNumber: phoneSchema,
-  roleCodes: z.array(roleCodeSchema).min(1).max(1),
-  supportRequestReference: z.string().trim().min(3).max(100).optional(),
-  username: usernameSchema,
-});
+export const createStaffSchema = z
+  .object({
+    dateOfBirth: dateOnlySchema,
+    departmentId: z.string().min(1).max(36),
+    fullName: z.string().trim().min(2).max(255),
+    gender: z.enum(['male', 'female']),
+    identityCardNumber: identityCardSchema,
+    phoneNumber: phoneSchema,
+    roleCodes: z.array(roleCodeSchema).min(1).max(1),
+    username: usernameSchema,
+  })
+  .strict();
 
 /**
  * Body cập nhật tài khoản; strict để chặn field ngoài hợp đồng API.
@@ -58,7 +79,6 @@ export const updateStaffSchema = z
     isActive: z.boolean().optional(),
     phoneNumber: phoneSchema.optional(),
     roleCodes: z.array(roleCodeSchema).min(1).max(1).optional(),
-    supportRequestReference: z.string().trim().min(3).max(100).optional(),
   })
   .strict();
 

@@ -71,13 +71,29 @@ paths:
       responses:
         '200':
           description: Staff page
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StaffListResponse'
         '403':
-          description: Missing staff.read permission
+          $ref: '#/components/responses/Forbidden'
     post:
       operationId: createStaffAccount
       summary: Create a staff account and return one-time temporary password
+      description: Request body must not include supportRequestReference; audit context comes from the authenticated request.
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStaffAccountRequest'
       responses:
         '201':
           description: Staff account created
@@ -87,8 +103,44 @@ paths:
               schema:
                 example: no-store
                 type: string
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CreateStaffAccountResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
-          description: Target role is outside the actor management scope
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Username or identity card number already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              examples:
+                duplicateUsername:
+                  value:
+                    error:
+                      code: STAFF_USERNAME_EXISTS
+                      message: Tên đăng nhập đã tồn tại
+                      fields:
+                        username:
+                          - Tên đăng nhập đã tồn tại
+                      requestId: req_01
+                duplicateIdentityCard:
+                  value:
+                    error:
+                      code: STAFF_IDENTITY_CARD_EXISTS
+                      message: CCCD đã tồn tại
+                      fields:
+                        identityCardNumber:
+                          - CCCD đã tồn tại
+                      requestId: req_01
   /staff-users/{userId}:
     patch:
       operationId: updateStaffAccount
@@ -108,11 +160,28 @@ paths:
           schema:
             type: string
             format: date-time
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStaffAccountRequest'
       responses:
         '200':
           description: Staff account updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/StaffUser'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
-          description: Target role is outside the actor management scope
+          $ref: '#/components/responses/Forbidden'
         '409':
           description: Staff record was modified since read
         '428':
@@ -130,6 +199,12 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetStaffPasswordRequest'
       responses:
         '200':
           description: Password reset
@@ -139,9 +214,265 @@ paths:
               schema:
                 example: no-store
                 type: string
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CreateStaffAccountResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
         '403':
-          description: Target role is outside the actor management scope
+          $ref: '#/components/responses/Forbidden'
 components:
+  responses:
+    Forbidden:
+      description: Missing permission or target role is outside the actor management scope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ValidationError:
+      description: Request failed validation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    CreateStaffAccountRequest:
+      additionalProperties: false
+      required:
+        - username
+        - fullName
+        - gender
+        - dateOfBirth
+        - phoneNumber
+        - identityCardNumber
+        - departmentId
+        - roleCodes
+      type: object
+      properties:
+        username:
+          maxLength: 50
+          minLength: 3
+          pattern: '^[A-Za-z0-9._]+$'
+          type: string
+        fullName:
+          maxLength: 255
+          minLength: 2
+          type: string
+        gender:
+          $ref: '#/components/schemas/Gender'
+        dateOfBirth:
+          format: date
+          type: string
+        phoneNumber:
+          pattern: '^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$'
+          type: string
+        identityCardNumber:
+          pattern: '^[0-9]{12}$'
+          type: string
+        departmentId:
+          description: Existing departments.id; current development directory accepts the configured department ids.
+          example: it
+          maxLength: 36
+          minLength: 1
+          type: string
+        roleCodes:
+          items:
+            $ref: '#/components/schemas/RoleCode'
+          maxItems: 1
+          minItems: 1
+          type: array
+    UpdateStaffAccountRequest:
+      additionalProperties: false
+      minProperties: 1
+      type: object
+      properties:
+        fullName:
+          maxLength: 255
+          minLength: 2
+          type: string
+        phoneNumber:
+          pattern: '^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$'
+          type: string
+        departmentId:
+          maxLength: 36
+          minLength: 1
+          type: string
+        roleCodes:
+          items:
+            $ref: '#/components/schemas/RoleCode'
+          maxItems: 1
+          minItems: 1
+          type: array
+        isActive:
+          type: boolean
+    ResetStaffPasswordRequest:
+      additionalProperties: false
+      required:
+        - reason
+      type: object
+      properties:
+        reason:
+          maxLength: 500
+          minLength: 10
+          type: string
+    CreateStaffAccountResponse:
+      required:
+        - temporaryPassword
+        - user
+      type: object
+      properties:
+        temporaryPassword:
+          description: One-time plaintext temporary password. Never cache or log this value.
+          type: string
+        user:
+          $ref: '#/components/schemas/StaffUser'
+    StaffListResponse:
+      required:
+        - items
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+      type: object
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/StaffUser'
+          type: array
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+    StaffUser:
+      required:
+        - id
+        - username
+        - fullName
+        - gender
+        - dateOfBirth
+        - phoneNumber
+        - identityCardNumber
+        - departmentId
+        - roleCodes
+        - isActive
+        - mustChangePassword
+        - authVersion
+        - createdAt
+        - updatedAt
+      type: object
+      properties:
+        id:
+          format: uuid
+          type: string
+        username:
+          type: string
+        fullName:
+          type: string
+        gender:
+          $ref: '#/components/schemas/Gender'
+        dateOfBirth:
+          format: date-time
+          type: string
+        phoneNumber:
+          type: string
+        identityCardNumber:
+          type: string
+        departmentId:
+          type: string
+        roleCodes:
+          items:
+            $ref: '#/components/schemas/RoleCode'
+          minItems: 1
+          type: array
+        isActive:
+          type: boolean
+        mustChangePassword:
+          type: boolean
+        authVersion:
+          type: integer
+        lastLoginAt:
+          nullable: true
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    SuccessEnvelope:
+      required:
+        - data
+        - meta
+      type: object
+      properties:
+        data: {}
+        meta:
+          required:
+            - requestId
+          type: object
+          properties:
+            requestId:
+              type: string
+    ErrorEnvelope:
+      required:
+        - error
+      type: object
+      properties:
+        error:
+          required:
+            - code
+            - message
+            - requestId
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            requestId:
+              type: string
+            details:
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+                  rule:
+                    type: string
+              type: array
+            fields:
+              additionalProperties:
+                items:
+                  type: string
+                type: array
+              type: object
+    Gender:
+      enum:
+        - male
+        - female
+      type: string
+    RoleCode:
+      enum:
+        - admin
+        - receptionist
+        - accountant
+        - doctor
+        - nurse
+        - lab_tech
+        - pharmacist
+        - it_tech
+        - director
+      type: string
   securitySchemes:
     bearerAuth:
       type: http

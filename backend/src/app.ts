@@ -9,7 +9,7 @@ import pinoHttp from 'pino-http';
 import { config } from './config/unifiedConfig';
 import { checkPrismaReadiness } from './core/database/prismaClient';
 import { logger } from './core/logger/logger';
-import { AppError, isAppError } from './core/http/AppError';
+import { AppError, isAppError, mapErrorDetailsToFields } from './core/http/AppError';
 import { asyncHandler } from './core/http/asyncHandler';
 import { requestContext } from './core/http/requestContext';
 import { identityRoutes } from './modules/identity/identityRoutes';
@@ -71,6 +71,7 @@ export const createApp = () => {
         error: {
           code: appError.code,
           details: appError.details,
+          fields: mapErrorDetailsToFields(appError.details),
           message: appError.message,
           requestId,
         },

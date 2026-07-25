@@ -294,7 +294,6 @@ describe('IdentityService staff policy', () => {
             identityCardNumber: '001199200002',
             phoneNumber: '0901234568',
             roleCodes: [privilegedRoleCode],
-            supportRequestReference: 'REQ-20260724-001',
             username: `${privilegedRoleCode}.new`,
           },
           requestId: `req-create-${privilegedRoleCode}`,
@@ -307,7 +306,7 @@ describe('IdentityService staff policy', () => {
   });
 
   it.each(['receptionist', 'accountant', 'doctor', 'nurse', 'lab_tech', 'pharmacist'] as const)(
-    'allows IT technician to create managed %s accounts with a support reference',
+    'allows IT technician to create managed %s accounts without a support reference',
     async (managedRoleCode) => {
       const service = createService([createUser()]);
 
@@ -321,7 +320,6 @@ describe('IdentityService staff policy', () => {
           identityCardNumber: '001199200003',
           phoneNumber: '0901234569',
           roleCodes: [managedRoleCode],
-          supportRequestReference: 'REQ-20260725-MANAGED',
           username: `${managedRoleCode}.managed`,
         },
         requestId: `req-create-${managedRoleCode}`,
@@ -357,30 +355,6 @@ describe('IdentityService staff policy', () => {
     expect(result.user.roleCodes).toEqual(['director']);
   });
 
-  it('requires a support reference when IT creates a managed staff account', async () => {
-    const service = createService([createUser()]);
-
-    await expect(
-      service.createStaffAccount({
-        actor: createUser(),
-        input: {
-          dateOfBirth: '1992-02-02',
-          departmentId: 'it',
-          fullName: 'Support Doctor',
-          gender: 'female',
-          identityCardNumber: '001199200003',
-          phoneNumber: '0901234569',
-          roleCodes: ['doctor'],
-          username: 'doctor.support',
-        },
-        requestId: 'req-create-no-ref',
-      }),
-    ).rejects.toMatchObject({
-      code: 'SUPPORT_REFERENCE_REQUIRED',
-      status: 422,
-    });
-  });
-
   it('returns a one-time temporary password without leaking the stored password hash', async () => {
     const service = createService([createUser()], {
       randomPassword: () => 'Tmp#OneTime2026',
@@ -396,7 +370,6 @@ describe('IdentityService staff policy', () => {
         identityCardNumber: '001199200004',
         phoneNumber: '0901234570',
         roleCodes: ['nurse'],
-        supportRequestReference: 'REQ-20260724-003',
         username: 'nurse.support',
       },
       requestId: 'req-create-success',
@@ -421,7 +394,6 @@ describe('IdentityService staff policy', () => {
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         isActive: false,
-        supportRequestReference: 'REQ-20260724-002',
       },
       requestId: 'req-2',
       userId: target.id,
@@ -492,7 +464,6 @@ describe('IdentityService staff policy', () => {
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         roleCodes: ['nurse', 'pharmacist'],
-        supportRequestReference: 'REQ-20260724-004',
       },
       requestId: 'req-role-update',
       userId: target.id,
@@ -500,30 +471,6 @@ describe('IdentityService staff policy', () => {
 
     expect(result.authVersion).toBe(2);
     expect(result.roleCodes).toEqual(['nurse', 'pharmacist']);
-  });
-
-  it('requires a support reference when IT changes staff status or roles', async () => {
-    const target = createUser({
-      id: '22222222-2222-4222-8222-222222222222',
-      roleCodes: ['doctor'],
-      username: 'doctor.one',
-    });
-    const service = createService([createUser(), target]);
-
-    await expect(
-      service.updateStaffAccount({
-        actor: createUser(),
-        ifUnmodifiedSince: target.updatedAt.toISOString(),
-        input: {
-          isActive: false,
-        },
-        requestId: 'req-status-no-ref',
-        userId: target.id,
-      }),
-    ).rejects.toMatchObject({
-      code: 'SUPPORT_REFERENCE_REQUIRED',
-      status: 422,
-    });
   });
 
   it('prevents locking the last active admin account', async () => {
@@ -796,5 +743,216 @@ describe('IdentityService staff policy', () => {
       'authVersion',
       'reasonHash',
     ]);
+  });
+
+  it('hashes generated temporary passwords and audits create without support references', async () => {
+    const actor = createUser();
+    const auditEvents: Array<Parameters<AuditPort['record']>[0]> = [];
+    let plainPasswordForHash = '';
+    let createPayload: Parameters<IdentityRepository['createStaffUser']>[0] | undefined;
+    const service = createService([actor], {
+      auditPort: {
+        record: (input) => {
+          auditEvents.push(input);
+          return Promise.resolve();
+        },
+      },
+      bcrypt: {
+        hash: (plainText) => {
+          plainPasswordForHash = plainText;
+          return Promise.resolve('$2a$12$hashed-temp-password');
+        },
+      },
+      randomPassword: () => 'Tmp#Create2026',
+      repository: {
+        createStaffUser: (input) => {
+          createPayload = input;
+
+          return Promise.resolve(createUser({
+            ...input.data,
+            id: '33333333-3333-4333-8333-333333333333',
+            password: input.passwordHash,
+            roleCodes: input.data.roleCodes,
+          }));
+        },
+      },
+    });
+
+    const result = await service.createStaffAccount({
+      actor,
+      input: {
+        dateOfBirth: '1992-02-02',
+        departmentId: 'it',
+        fullName: 'Managed Doctor',
+        gender: 'female',
+        identityCardNumber: '001199200006',
+        phoneNumber: '0901234572',
+        roleCodes: ['doctor'],
+        username: 'doctor.created.audit',
+      },
+      requestId: 'req-create-audit',
+    });
+
+    expect(plainPasswordForHash).toBe('Tmp#Create2026');
+    expect(createPayload?.passwordHash).toBe('$2a$12$hashed-temp-password');
+    expect(createPayload?.data.dateOfBirth.toISOString()).toBe('1992-02-02T00:00:00.000Z');
+    expect(result.user).not.toHaveProperty('password');
+    expect(auditEvents.at(-1)).toMatchObject({
+      action: 'staff.create',
+      changedFields: [
+        'username',
+        'fullName',
+        'gender',
+        'dateOfBirth',
+        'phoneNumber',
+        'identityCardNumber',
+        'departmentId',
+        'roleCodes',
+      ],
+      requestId: 'req-create-audit',
+      resource: 'staff-user',
+      resourceId: '33333333-3333-4333-8333-333333333333',
+    });
+    expect(auditEvents.at(-1)?.reference).toBeUndefined();
+  });
+
+  it('checks department existence before creating a staff account', async () => {
+    const service = createService([createUser()], {
+      departmentDirectory: {
+        assertDepartmentExists: () =>
+          Promise.reject(new Error('department lookup failed')),
+      },
+    });
+
+    await expect(
+      service.createStaffAccount({
+        actor: createUser(),
+        input: {
+          dateOfBirth: '1992-02-02',
+          departmentId: 'unknown',
+          fullName: 'Unknown Department',
+          gender: 'female',
+          identityCardNumber: '001199200007',
+          phoneNumber: '0901234573',
+          roleCodes: ['doctor'],
+          username: 'doctor.unknown.department',
+        },
+        requestId: 'req-create-missing-department',
+      }),
+    ).rejects.toThrow('department lookup failed');
+  });
+
+  it('blocks IT technicians from updating privileged staff profiles', async () => {
+    const privilegedUser = createUser({
+      id: '44444444-4444-4444-8444-444444444444',
+      roleCodes: ['director'],
+      username: 'director.target',
+    });
+    const service = createService([createUser(), privilegedUser]);
+
+    await expect(
+      service.updateStaffAccount({
+        actor: createUser(),
+        ifUnmodifiedSince: privilegedUser.updatedAt.toISOString(),
+        input: {
+          fullName: 'Director Updated',
+        },
+        requestId: 'req-update-privileged',
+        userId: privilegedUser.id,
+      }),
+    ).rejects.toMatchObject({
+      code: 'TARGET_ROLE_FORBIDDEN',
+      status: 403,
+    });
+  });
+
+  it('checks department existence before updating departmentId', async () => {
+    const target = createUser({
+      id: '22222222-2222-4222-8222-222222222222',
+      roleCodes: ['doctor'],
+      username: 'doctor.department',
+    });
+    const service = createService([createUser(), target], {
+      departmentDirectory: {
+        assertDepartmentExists: () =>
+          Promise.reject(new Error('department update failed')),
+      },
+    });
+
+    await expect(
+      service.updateStaffAccount({
+        actor: createUser(),
+        ifUnmodifiedSince: target.updatedAt.toISOString(),
+        input: {
+          departmentId: 'missing',
+        },
+        requestId: 'req-update-missing-department',
+        userId: target.id,
+      }),
+    ).rejects.toThrow('department update failed');
+  });
+
+  it('returns STAFF_NOT_FOUND when an update target disappears after optimistic locking', async () => {
+    const target = createUser({
+      id: '22222222-2222-4222-8222-222222222222',
+      roleCodes: ['doctor'],
+      username: 'doctor.disappears',
+    });
+    const service = createService([createUser(), target], {
+      repository: {
+        updateStaffUser: () => Promise.resolve(null),
+      },
+    });
+
+    await expect(
+      service.updateStaffAccount({
+        actor: createUser(),
+        ifUnmodifiedSince: target.updatedAt.toISOString(),
+        input: {
+          fullName: 'Doctor Missing',
+        },
+        requestId: 'req-update-disappears',
+        userId: target.id,
+      }),
+    ).rejects.toMatchObject({
+      code: 'STAFF_NOT_FOUND',
+      status: 404,
+    });
+  });
+
+  it('returns STAFF_NOT_FOUND when reset password target does not exist', async () => {
+    const service = createService([createUser()]);
+
+    await expect(
+      service.resetStaffPassword({
+        actor: createUser(),
+        reason: 'Người dùng yêu cầu cấp lại mật khẩu qua IT',
+        requestId: 'req-reset-missing',
+        userId: '22222222-2222-4222-8222-222222222222',
+      }),
+    ).rejects.toMatchObject({
+      code: 'STAFF_NOT_FOUND',
+      status: 404,
+    });
+  });
+
+  it('returns USER_NOT_FOUND when password change actor no longer exists', async () => {
+    const service = createService([], {
+      repository: {
+        findUserById: () => Promise.resolve(null),
+      },
+    });
+
+    await expect(
+      service.changePassword({
+        actor: createUser(),
+        currentPassword: 'Current#2026',
+        newPassword: 'HmsNew#2026Local',
+        requestId: 'req-change-missing',
+      }),
+    ).rejects.toMatchObject({
+      code: 'USER_NOT_FOUND',
+      status: 404,
+    });
   });
 });

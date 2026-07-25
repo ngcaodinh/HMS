@@ -24,4 +24,8 @@ export class ApiError extends Error {
     this.fields = fields;
     this.status = status;
   }
+
+  get hasFieldErrors() {
+    return Boolean(this.fields && Object.keys(this.fields).length > 0);
+  }
 }

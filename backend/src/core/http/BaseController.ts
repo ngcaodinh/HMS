@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/node';
 import type { Response } from 'express';
 import { ZodError } from 'zod';
 
-import { AppError, isAppError } from './AppError';
+import { AppError, isAppError, mapErrorDetailsToFields } from './AppError';
 
 /**
  * Chuẩn hóa success/error envelope cho các controller Express trong HMS.
@@ -37,6 +37,7 @@ export class BaseController {
       error: {
         code: appError.code,
         details: appError.details,
+        fields: mapErrorDetailsToFields(appError.details),
         message: appError.message,
         requestId,
       },
@@ -53,7 +54,8 @@ export class BaseController {
       return new AppError({
         code: 'VALIDATION_ERROR',
         details: error.issues.map((issue) => ({
-          field: issue.path.join('.'),
+          field: issue.path.join('.') || undefined,
+          message: issue.message,
           rule: issue.code,
         })),
         message: 'Dữ liệu đầu vào không hợp lệ',

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
+import { AppError } from '../../core/http/AppError';
 import type {
   CreateStaffData,
   IdentityRepository,
@@ -38,6 +39,48 @@ const mapUser = (user: UserWithRoles): StaffUserRecord => ({
 });
 
 /**
+ * Chuyển lỗi unique constraint của Prisma thành lỗi nghiệp vụ không lộ chi tiết DB.
+ * Nhận lỗi thô từ Prisma, ném AppError có field cụ thể hoặc trả lại lỗi gốc cho nhánh khác xử lý.
+ */
+const mapUniqueCreateStaffError = (error: unknown): never => {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    const rawTarget = error.meta?.target;
+    const target = Array.isArray(rawTarget)
+      ? rawTarget.filter((field): field is string => typeof field === 'string').join('|')
+      : typeof rawTarget === 'string'
+        ? rawTarget
+        : '';
+    const normalizedTarget = target.toLowerCase();
+
+    if (normalizedTarget.includes('username')) {
+      throw new AppError({
+        code: 'STAFF_USERNAME_EXISTS',
+        details: [{ field: 'username', message: 'Tên đăng nhập đã tồn tại', rule: 'unique' }],
+        message: 'Tên đăng nhập đã tồn tại',
+        status: 409,
+      });
+    }
+
+    if (
+      normalizedTarget.includes('identitycardnumber') ||
+      normalizedTarget.includes('identity_card')
+    ) {
+      throw new AppError({
+        code: 'STAFF_IDENTITY_CARD_EXISTS',
+        details: [{ field: 'identityCardNumber', message: 'CCCD đã tồn tại', rule: 'unique' }],
+        message: 'CCCD đã tồn tại',
+        status: 409,
+      });
+    }
+  }
+
+  throw error;
+};
+
+/**
  * Repository Prisma cho Identity, gom toàn bộ truy vấn User/Permission/RBAC.
  */
 export class PrismaIdentityRepository implements IdentityRepository {
@@ -62,26 +105,32 @@ export class PrismaIdentityRepository implements IdentityRepository {
     data: CreateStaffData;
     passwordHash: string;
   }) {
-    const user = await this.client.user.create({
-      data: {
-        ...input.data,
-        dateOfBirth: input.data.dateOfBirth,
-        id: randomUUID(),
-        password: input.passwordHash,
-        permissions: {
-          create: input.data.roleCodes.map((roleCode) => ({
-            assignedBy: input.assignedBy,
-            id: randomUUID(),
-            roleCode,
-          })),
-        },
-      },
-      include: {
-        permissions: true,
-      },
-    });
+    const { roleCodes, ...userData } = input.data;
 
-    return mapUser(user);
+    try {
+      const user = await this.client.user.create({
+        data: {
+          ...userData,
+          dateOfBirth: userData.dateOfBirth,
+          id: randomUUID(),
+          password: input.passwordHash,
+          permissions: {
+            create: roleCodes.map((roleCode) => ({
+              assignedBy: input.assignedBy,
+              id: randomUUID(),
+              roleCode,
+            })),
+          },
+        },
+        include: {
+          permissions: true,
+        },
+      });
+
+      return mapUser(user);
+    } catch (error) {
+      return mapUniqueCreateStaffError(error);
+    }
   }
 
   async findRoleCodesForUser(userId: string) {

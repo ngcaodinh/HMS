@@ -1,9 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import type { ReactNode } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { ApiError } from '@/shared/api-client';
 import { LogoutButton } from '@/shared/auth/logout-button';
 
 import { itTechnicianWorkspaceStyles as styles } from './technician-workspace.styles';
@@ -13,7 +14,16 @@ import {
   useStaffUsers,
   useUpdateStaffUser,
 } from '../../hooks/use-staff-users';
-import type { StaffUser as ApiStaffUser } from '../../types/staff.schema';
+import {
+  createStaffFormSchema,
+  getCreateStaffValidationFieldErrors,
+  normalizeCreateStaffFieldErrors,
+  toCreateStaffInput,
+  type CreateStaffFormField,
+  type CreateStaffFormFieldErrors,
+  type CreateStaffFormValues,
+} from '../../types/staff-form.schema';
+import type { DepartmentCode, RoleCode, StaffUser as ApiStaffUser } from '../../types/staff.schema';
 
 type PageKind = 'monitoring' | 'audit' | 'users' | 'rbac' | 'backup';
 type NotificationTone = 'error' | 'success';
@@ -120,9 +130,20 @@ type ItPrincipal = {
 };
 
 type RoleOption = {
-  code: string;
+  code: RoleCode;
   label: string;
-  value: string;
+  value: RoleCode;
+};
+
+type DepartmentOption = {
+  label: string;
+  value: DepartmentCode;
+};
+
+type TemporaryPasswordDialog = {
+  source: 'create' | 'reset';
+  targetName: string;
+  temporaryPassword: string;
 };
 
 type ItTechnicianWorkspaceProps = {
@@ -1045,7 +1066,7 @@ interface StaffUserItem {
   username: string;
   name: string;
   role: string;
-  roleCode?: string;
+  roleCode: RoleCode;
   phone: string;
   cccd?: string;
   dept?: string;
@@ -1068,37 +1089,6 @@ const roleLabelByCode: Record<string, string> = {
   receptionist: 'Tiếp tân',
 };
 
-const roleCodeByLegacyValue: Record<string, string> = {
-  'Quản trị viên': 'admin',
-  'Quản trị viên (admin)': 'admin',
-  'Bác sĩ': 'doctor',
-  'Bác sĩ (doctor)': 'doctor',
-  'Dược sĩ': 'pharmacist',
-  'Dược sĩ (pharmacist)': 'pharmacist',
-  'Điều dưỡng': 'nurse',
-  'Điều dưỡng (nurse)': 'nurse',
-  'Kế toán': 'accountant',
-  'Kế toán (accountant)': 'accountant',
-  'KTV xét nghiệm': 'lab_tech',
-  'KTV xét nghiệm (lab_tech)': 'lab_tech',
-  'Tiếp tân': 'receptionist',
-  'Tiếp tân (receptionist)': 'receptionist',
-  'KTV IT': 'it_tech',
-  'KTV IT (it_tech)': 'it_tech',
-  'Giám đốc': 'director',
-  'Giám đốc (director)': 'director',
-};
-
-const departmentCodeByLegacyValue: Record<string, string> = {
-  'Khoa Da liễu': 'dermatology',
-  'Khoa Nội': 'clinical',
-  'Khoa Ngoại': 'clinical',
-  'Khoa Xét nghiệm': 'laboratory',
-  'Phòng Dược': 'pharmacy',
-  'Phòng Kế toán': 'accounting',
-  'Phòng IT': 'it',
-};
-
 const chipClassByRoleCode: Record<string, string> = {
   admin: 'ktv-chip-red',
   accountant: 'ktv-chip-purple',
@@ -1112,20 +1102,52 @@ const chipClassByRoleCode: Record<string, string> = {
 };
 
 const managedRoleOptions: RoleOption[] = [
-  { code: 'doctor', label: 'Bác sĩ (doctor)', value: 'Bác sĩ (doctor)' },
-  { code: 'nurse', label: 'Điều dưỡng (nurse)', value: 'Điều dưỡng (nurse)' },
-  { code: 'pharmacist', label: 'Dược sĩ (pharmacist)', value: 'Dược sĩ (pharmacist)' },
-  { code: 'accountant', label: 'Kế toán (accountant)', value: 'Kế toán (accountant)' },
-  { code: 'receptionist', label: 'Tiếp tân (receptionist)', value: 'Tiếp tân (receptionist)' },
-  { code: 'lab_tech', label: 'KTV xét nghiệm (lab_tech)', value: 'KTV xét nghiệm' },
+  { code: 'doctor', label: 'Bác sĩ (doctor)', value: 'doctor' },
+  { code: 'nurse', label: 'Điều dưỡng (nurse)', value: 'nurse' },
+  { code: 'pharmacist', label: 'Dược sĩ (pharmacist)', value: 'pharmacist' },
+  { code: 'accountant', label: 'Kế toán (accountant)', value: 'accountant' },
+  { code: 'receptionist', label: 'Tiếp tân (receptionist)', value: 'receptionist' },
+  { code: 'lab_tech', label: 'KTV xét nghiệm (lab_tech)', value: 'lab_tech' },
 ];
 
 const adminRoleOptions: RoleOption[] = [
-  { code: 'admin', label: 'Quản trị viên (admin)', value: 'Quản trị viên (admin)' },
+  { code: 'admin', label: 'Quản trị viên (admin)', value: 'admin' },
   ...managedRoleOptions,
-  { code: 'it_tech', label: 'KTV IT (it_tech)', value: 'KTV IT (it_tech)' },
-  { code: 'director', label: 'Giám đốc (director)', value: 'Giám đốc (director)' },
+  { code: 'it_tech', label: 'KTV IT (it_tech)', value: 'it_tech' },
+  { code: 'director', label: 'Giám đốc (director)', value: 'director' },
 ];
+
+const departmentOptions: DepartmentOption[] = [
+  { label: 'Khoa Da liễu', value: 'dermatology' },
+  { label: 'Khoa Lâm sàng', value: 'clinical' },
+  { label: 'Khoa Xét nghiệm', value: 'laboratory' },
+  { label: 'Phòng Dược', value: 'pharmacy' },
+  { label: 'Phòng Kế toán', value: 'accounting' },
+  { label: 'Quầy Tiếp tân', value: 'reception' },
+  { label: 'Phòng IT', value: 'it' },
+];
+
+const defaultCreateStaffForm: CreateStaffFormValues = {
+  dateOfBirth: '',
+  departmentId: '',
+  fullName: '',
+  gender: '',
+  identityCardNumber: '',
+  phoneNumber: '',
+  roleCode: '',
+  username: '',
+};
+
+const createStaffFieldIds: Record<CreateStaffFormField, string> = {
+  dateOfBirth: 'create-staff-date-of-birth',
+  departmentId: 'create-staff-department-id',
+  fullName: 'create-staff-full-name',
+  gender: 'create-staff-gender',
+  identityCardNumber: 'create-staff-identity-card-number',
+  phoneNumber: 'create-staff-phone-number',
+  roleCode: 'create-staff-role-code',
+  username: 'create-staff-username',
+};
 
 /**
  * Xác định danh sách role actor được phép gán trên UI.
@@ -1141,32 +1163,35 @@ const getManageableRoleOptions = (principal: ItPrincipal) =>
 const formatLastLogin = (value: string | null) =>
   value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đăng nhập';
 
-/**
- * Sinh mã phiếu hỗ trợ mặc định cho thao tác IT trong ngày hiện tại.
- * Trả chuỗi REQ theo ISO date để backend audit có reference ổn định.
- */
-const createSupportReference = () => `REQ-${new Date().toISOString().slice(0, 10)}`;
+const getResetPasswordReason = (username: string) =>
+  `Cấp lại mật khẩu tài khoản ${username} theo yêu cầu hỗ trợ hợp lệ`;
 
-/**
- * Chuyển nhãn role đang hiển thị trong form sang roleCode backend.
- * Nhận value từ select, trả role mặc định doctor khi form chưa chọn được giá trị hợp lệ.
- */
-const getRoleCode = (value: string | undefined) =>
-  (value ? roleCodeByLegacyValue[value] : undefined) ?? 'doctor';
+const getFirstFieldError = (
+  fieldErrors: CreateStaffFormFieldErrors,
+  field: CreateStaffFormField,
+) => fieldErrors[field]?.[0];
 
-/**
- * Chuyển nhãn khoa/phòng trong form sang departmentId backend.
- * Nhận value từ select, trả dermatology làm fallback UI khi người dùng chưa chọn.
- */
-const getDepartmentCode = (value: string | undefined) =>
-  (value ? departmentCodeByLegacyValue[value] : undefined) ?? 'dermatology';
+const getFieldErrorId = (field: CreateStaffFormField) => `${createStaffFieldIds[field]}-error`;
+
+const getFieldDescriptionId = (field: CreateStaffFormField) =>
+  `${createStaffFieldIds[field]}-description`;
+
+const getFieldDescribedBy = (
+  fieldErrors: CreateStaffFormFieldErrors,
+  field: CreateStaffFormField,
+  hasDescription = false,
+) =>
+  [
+    hasDescription ? getFieldDescriptionId(field) : undefined,
+    getFirstFieldError(fieldErrors, field) ? getFieldErrorId(field) : undefined,
+  ].filter(Boolean).join(' ') || undefined;
 
 /**
  * Map StaffUser từ API sang model trình bày của workspace IT.
  * Nhận payload đã parse bằng Zod, trả item không chứa password và có metadata chỉnh sửa.
  */
 const mapApiStaffUserToItem = (user: ApiStaffUser): StaffUserItem => {
-  const roleCode = user.roleCodes[0] ?? 'doctor';
+  const roleCode = user.roleCodes[0];
 
   return {
     apiId: user.id,
@@ -1193,9 +1218,19 @@ const mapApiStaffUserToItem = (user: ApiStaffUser): StaffUserItem => {
 function UsersContent({ principal }: { principal: ItPrincipal }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [passResetTarget, setPassResetTarget] = useState<string | null>(null);
+  const [temporaryPasswordDialog, setTemporaryPasswordDialog] =
+    useState<TemporaryPasswordDialog | null>(null);
   const [editUser, setEditUser] = useState<StaffUserItem | null>(null);
-  const [temporaryPassword, setTemporaryPassword] = useState('');
+  const [addForm, setAddForm] = useState<CreateStaffFormValues>(defaultCreateStaffForm);
+  const [addFieldErrors, setAddFieldErrors] = useState<CreateStaffFormFieldErrors>({});
+  const [addFormError, setAddFormError] = useState('');
+  const [editFormError, setEditFormError] = useState('');
+  const [copiedPass, setCopiedPass] = useState(false);
+  const [notification, setNotification] = useState<PopupNotification | null>(null);
+  const addAccountButtonRef = useRef<HTMLButtonElement>(null);
+  const firstAddFieldRef = useRef<HTMLInputElement>(null);
+  const notificationTimer = useRef<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
   const staffQuery = useStaffUsers({ page: 1, q: searchQuery });
   const createMutation = useCreateStaffUser();
   const updateMutation = useUpdateStaffUser();
@@ -1203,20 +1238,6 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
   const users = staffQuery.data?.items.map(mapApiStaffUserToItem) ?? [];
   const totalStaffUsers = staffQuery.data?.totalItems ?? users.length;
   const roleOptions = getManageableRoleOptions(principal);
-
-  // Form states for Add User
-  const [addForm, setAddForm] = useState({
-    fullname: '',
-    username: '',
-    phone: '',
-    cccd: '',
-    role: '',
-    dept: '',
-  });
-  const [copiedPass, setCopiedPass] = useState(false);
-  const [formError, setFormError] = useState('');
-  const [notification, setNotification] = useState<PopupNotification | null>(null);
-  const notificationTimer = useRef<number | null>(null);
 
   /** Mở popup thông báo ngắn và tự ẩn để không chặn luồng nhập liệu của kỹ thuật IT. */
   const showNotification = (nextNotification: PopupNotification) => {
@@ -1235,6 +1256,10 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
     if (notificationTimer.current) {
       window.clearTimeout(notificationTimer.current);
     }
+
+    if (copyTimer.current) {
+      window.clearTimeout(copyTimer.current);
+    }
   }, []);
 
   /**
@@ -1242,10 +1267,130 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
    * Không gửi request mới, chỉ dọn trạng thái UI sau khi IT đã bàn giao mật khẩu.
    */
   const closeTemporaryPasswordDialog = () => {
-    setTemporaryPassword('');
-    setPassResetTarget(null);
+    if (copyTimer.current) {
+      window.clearTimeout(copyTimer.current);
+      copyTimer.current = null;
+    }
+
+    setTemporaryPasswordDialog(null);
     setCopiedPass(false);
   };
+
+  const resetAddFormState = () => {
+    setAddForm(defaultCreateStaffForm);
+    setAddFieldErrors({});
+    setAddFormError('');
+  };
+
+  const openAddModal = () => {
+    resetAddFormState();
+    setIsAddModalOpen(true);
+  };
+
+  const closeAddModal = () => {
+    if (createMutation.isPending) return;
+
+    setIsAddModalOpen(false);
+    resetAddFormState();
+    addAccountButtonRef.current?.focus();
+  };
+
+  const updateAddFormField = (field: CreateStaffFormField, value: string) => {
+    setAddForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
+    }));
+    setAddFormError('');
+    setAddFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) return currentErrors;
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[field];
+
+      return nextErrors;
+    });
+  };
+
+  const renderCreateStaffFieldError = (field: CreateStaffFormField) => {
+    const error = getFirstFieldError(addFieldErrors, field);
+
+    return error ? (
+      <p className="mt-1 text-[10px] font-semibold text-red-700" id={getFieldErrorId(field)}>
+        {error}
+      </p>
+    ) : null;
+  };
+
+  const handleCopyTemporaryPassword = async () => {
+    if (!temporaryPasswordDialog) return;
+
+    try {
+      await navigator.clipboard.writeText(temporaryPasswordDialog.temporaryPassword);
+      setCopiedPass(true);
+
+      if (copyTimer.current) {
+        window.clearTimeout(copyTimer.current);
+      }
+
+      copyTimer.current = window.setTimeout(() => {
+        setCopiedPass(false);
+        copyTimer.current = null;
+      }, 3000);
+    } catch {
+      showNotification({
+        message: 'Trình duyệt chưa cho phép sao chép tự động, vui lòng sao chép thủ công.',
+        title: 'Chưa thể sao chép',
+        tone: 'error',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isAddModalOpen) return;
+
+    firstAddFieldRef.current?.focus();
+  }, [isAddModalOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+
+      if (temporaryPasswordDialog) {
+        if (copyTimer.current) {
+          window.clearTimeout(copyTimer.current);
+          copyTimer.current = null;
+        }
+
+        setTemporaryPasswordDialog(null);
+        setCopiedPass(false);
+        return;
+      }
+
+      if (isAddModalOpen && !createMutation.isPending) {
+        setIsAddModalOpen(false);
+        setAddForm(defaultCreateStaffForm);
+        setAddFieldErrors({});
+        setAddFormError('');
+        addAccountButtonRef.current?.focus();
+        return;
+      }
+
+      if (editUser && !updateMutation.isPending) {
+        setEditUser(null);
+        setEditFormError('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    createMutation.isPending,
+    editUser,
+    isAddModalOpen,
+    temporaryPasswordDialog,
+    updateMutation.isPending,
+  ]);
 
   const activeCount = users.filter((u) => u.status === 'active' || u.status === 'current').length;
   const lockedCount = users.filter((u) => u.status === 'locked').length;
@@ -1273,7 +1418,6 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
         ifUnmodifiedSince: user.updatedAt,
         input: {
           isActive: user.status === 'locked',
-          supportRequestReference: createSupportReference(),
         },
         userId: user.apiId,
       });
@@ -1290,50 +1434,58 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
    * Tạo tài khoản nhân viên từ form IT và hiển thị mật khẩu tạm một lần.
    * Nhận submit event, gọi API create staff và chỉ lưu temporaryPassword tới khi dialog đóng.
    */
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError('');
-    if (!addForm.fullname || !addForm.username || !addForm.phone || !addForm.role) {
+  const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (createMutation.isPending) return;
+
+    setAddFormError('');
+    setAddFieldErrors({});
+
+    const parsedForm = createStaffFormSchema.safeParse(addForm);
+    if (!parsedForm.success) {
+      const fieldErrors = getCreateStaffValidationFieldErrors(parsedForm.error);
+
+      setAddFieldErrors(fieldErrors);
+      setAddFormError('Vui lòng kiểm tra lại các trường đang báo lỗi.');
       showNotification({
-        message: 'Vui lòng điền đầy đủ các thông tin bắt buộc (*).',
-        title: 'Thiếu thông tin',
+        message: 'Vui lòng điền đầy đủ và đúng định dạng các thông tin bắt buộc (*).',
+        title: 'Thông tin chưa hợp lệ',
         tone: 'error',
       });
       return;
     }
 
-    try {
-      const result = await createMutation.mutateAsync({
-        dateOfBirth: '1990-01-01',
-        departmentId: getDepartmentCode(addForm.dept),
-        fullName: addForm.fullname,
-        gender: 'male',
-        identityCardNumber: addForm.cccd || '001199000001',
-        phoneNumber: addForm.phone.replace(/\s+/g, ''),
-        roleCodes: [getRoleCode(addForm.role)],
-        supportRequestReference: createSupportReference(),
-        username: addForm.username.trim(),
+    const selectedRole = roleOptions.some((option) => option.value === parsedForm.data.roleCode);
+    if (!selectedRole) {
+      setAddFieldErrors({
+        roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
       });
+      setAddFormError('Tài khoản hiện tại không đủ quyền gán vai trò đã chọn.');
+      return;
+    }
 
-      setTemporaryPassword(result.temporaryPassword);
-      setPassResetTarget(result.user.fullName);
+    try {
+      const result = await createMutation.mutateAsync(toCreateStaffInput(parsedForm.data));
+
+      setTemporaryPasswordDialog({
+        source: 'create',
+        targetName: result.user.fullName,
+        temporaryPassword: result.temporaryPassword,
+      });
       showNotification({
         message: `Đã tạo thành công tài khoản cho ${result.user.fullName}.`,
         title: 'Tạo tài khoản thành công',
         tone: 'success',
       });
       setIsAddModalOpen(false);
-      setAddForm({
-        cccd: '',
-        dept: '',
-         fullname: '',
-        phone: '',
-        role: '',
-        username: '',
-      });
+      resetAddFormState();
       return;
     } catch (caught) {
-      setFormError(caught instanceof Error ? caught.message : 'Không thể tạo tài khoản nhân viên');
+      if (caught instanceof ApiError && caught.hasFieldErrors) {
+        setAddFieldErrors(normalizeCreateStaffFieldErrors(caught.fields ?? {}));
+      }
+
+      setAddFormError(caught instanceof Error ? caught.message : 'Không thể tạo tài khoản nhân viên');
       return;
     }
   };
@@ -1342,10 +1494,10 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
    * Lưu thay đổi hồ sơ/role nhân viên đang edit bằng updatedAt làm khóa lạc quan.
    * Nhận submit event, gọi API update và giữ lỗi validation trong form hiện tại.
    */
-  const handleSaveEditUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editUser) return;
-    setFormError('');
+  const handleSaveEditUser = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editUser || updateMutation.isPending) return;
+    setEditFormError('');
 
     if (editUser.apiId && editUser.updatedAt) {
       void updateMutation
@@ -1354,14 +1506,13 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
           input: {
             fullName: editUser.name,
             phoneNumber: editUser.phone.replace(/\s+/g, ''),
-            roleCodes: [getRoleCode(editUser.role)],
-            supportRequestReference: createSupportReference(),
+            roleCodes: [editUser.roleCode],
           },
           userId: editUser.apiId,
         })
         .then(() => setEditUser(null))
         .catch((caught: unknown) => {
-          setFormError(caught instanceof Error ? caught.message : 'Không thể cập nhật tài khoản');
+          setEditFormError(caught instanceof Error ? caught.message : 'Không thể cập nhật tài khoản');
         });
       return;
     }
@@ -1537,7 +1688,8 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
           </div>
           <button
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white text-xs font-semibold rounded-lg shadow-sm transition whitespace-nowrap"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={openAddModal}
+            ref={addAccountButtonRef}
             type="button"
           >
             <svg
@@ -1637,7 +1789,10 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                         <button
                           className="ktv-btn-action ktv-btn-action-edit"
                           disabled={isLocked}
-                          onClick={() => setEditUser(user)}
+                          onClick={() => {
+                            setEditFormError('');
+                            setEditUser(user);
+                          }}
                           style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
                           title={isLocked ? 'Tài khoản đang bị khóa' : 'Chỉnh sửa tài khoản'}
                           type="button"
@@ -1673,12 +1828,15 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
 
                             void resetMutation
                               .mutateAsync({
-                                reason: `${createSupportReference()} reset mật khẩu theo yêu cầu hỗ trợ`,
+                                reason: getResetPasswordReason(user.username),
                                 userId: user.apiId,
                               })
                               .then((result) => {
-                                setTemporaryPassword(result.temporaryPassword);
-                                setPassResetTarget(result.user.fullName);
+                                setTemporaryPasswordDialog({
+                                  source: 'reset',
+                                  targetName: result.user.fullName,
+                                  temporaryPassword: result.temporaryPassword,
+                                });
                               })
                               .catch((caught: unknown) => {
                                 showNotification({
@@ -1825,91 +1983,216 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
       {/* Modal: Thêm tài khoản */}
       {isAddModalOpen ? (
         <div className="ktv-modal-overlay">
-          <div className="ktv-modal max-w-[520px]">
+          <div
+            aria-describedby="create-staff-dialog-description"
+            aria-labelledby="create-staff-dialog-title"
+            aria-modal="true"
+            className="ktv-modal max-h-[calc(100vh-40px)] max-w-[520px] overflow-y-auto"
+            role="dialog"
+          >
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
-              onClick={() => setIsAddModalOpen(false)}
+              aria-label="Đóng form thêm tài khoản"
+              disabled={createMutation.isPending}
+              onClick={closeAddModal}
               type="button"
             >
               ✕
             </button>
-            <div className="text-base font-bold text-[#171c1f] mb-1">
+            <div className="text-base font-bold text-[#171c1f] mb-1" id="create-staff-dialog-title">
               Thêm tài khoản nhân viên mới
             </div>
-            <div className="text-xs text-[#707882] mb-5">
+            <div className="text-xs text-[#707882] mb-5" id="create-staff-dialog-description">
               Điền đầy đủ thông tin. Nhân viên bắt buộc đổi mật khẩu khi đăng nhập lần đầu.
             </div>
 
-            <form onSubmit={handleCreateUser}>
-              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+            <form noValidate onSubmit={handleCreateUser}>
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.fullName}
+                  >
                     Họ và tên <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, fullname: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'fullName')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'fullName'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'fullName') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.fullName}
+                    name="fullName"
+                    onChange={(event) => updateAddFormField('fullName', event.target.value)}
                     placeholder="Nguyễn Văn A"
+                    ref={firstAddFieldRef}
                     required
                     type="text"
-                    value={addForm.fullname}
+                    value={addForm.fullName}
                   />
+                  {renderCreateStaffFieldError('fullName')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.username}
+                  >
                     Tên đăng nhập (Username) <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'username')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'username'))}
+                    autoComplete="username"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'username') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.username}
+                    name="username"
+                    onChange={(event) => updateAddFormField('username', event.target.value)}
                     placeholder="a.nguyen"
                     required
                     type="text"
                     value={addForm.username}
                   />
+                  {renderCreateStaffFieldError('username')}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.phoneNumber}
+                  >
                     Số điện thoại <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'phoneNumber', true)}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'phoneNumber'))}
+                    autoComplete="tel"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'phoneNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.phoneNumber}
+                    inputMode="tel"
+                    name="phoneNumber"
+                    onChange={(event) => updateAddFormField('phoneNumber', event.target.value)}
                     placeholder="09xx xxx xxx"
                     required
                     type="text"
-                    value={addForm.phone}
+                    value={addForm.phoneNumber}
                   />
-                  <div className="text-[10px] text-[#707882] mt-1">10 số di động Việt Nam</div>
+                  <div
+                    className="text-[10px] text-[#707882] mt-1"
+                    id={getFieldDescriptionId('phoneNumber')}
+                  >
+                    10 số di động Việt Nam
+                  </div>
+                  {renderCreateStaffFieldError('phoneNumber')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.identityCardNumber}
+                  >
                     Số CCCD (12 số) <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'identityCardNumber')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'identityCardNumber'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'identityCardNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.identityCardNumber}
+                    inputMode="numeric"
                     maxLength={12}
-                    onChange={(e) => setAddForm({ ...addForm, cccd: e.target.value })}
+                    name="identityCardNumber"
+                    onChange={(event) => updateAddFormField('identityCardNumber', event.target.value)}
                     placeholder="012345678901"
+                    required
                     type="text"
-                    value={addForm.cccd}
+                    value={addForm.identityCardNumber}
                   />
+                  {renderCreateStaffFieldError('identityCardNumber')}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.dateOfBirth}
+                  >
+                    Ngày sinh <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'dateOfBirth')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'dateOfBirth'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'dateOfBirth') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.dateOfBirth}
+                    name="dateOfBirth"
+                    onChange={(event) => updateAddFormField('dateOfBirth', event.target.value)}
+                    required
+                    type="date"
+                    value={addForm.dateOfBirth}
+                  />
+                  {renderCreateStaffFieldError('dateOfBirth')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.gender}
+                  >
+                    Giới tính <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'gender')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'gender'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstFieldError(addFieldErrors, 'gender') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.gender}
+                    name="gender"
+                    onChange={(event) => updateAddFormField('gender', event.target.value)}
+                    required
+                    value={addForm.gender}
+                  >
+                    <option value="">-- Chọn giới tính --</option>
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                  </select>
+                  {renderCreateStaffFieldError('gender')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.roleCode}
+                  >
                     Vai trò <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <select
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'roleCode')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'roleCode'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstFieldError(addFieldErrors, 'roleCode') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.roleCode}
+                    name="roleCode"
+                    onChange={(event) => updateAddFormField('roleCode', event.target.value)}
                     required
-                    value={addForm.role}
+                    value={addForm.roleCode}
                   >
                     <option value="">-- Chọn vai trò --</option>
                     {roleOptions.map((option) => (
@@ -1918,48 +2201,60 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                       </option>
                     ))}
                   </select>
+                  {renderCreateStaffFieldError('roleCode')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.departmentId}
+                  >
                     Khoa / Phòng <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <select
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                    onChange={(e) => setAddForm({ ...addForm, dept: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'departmentId')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'departmentId'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstFieldError(addFieldErrors, 'departmentId') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.departmentId}
+                    name="departmentId"
+                    onChange={(event) => updateAddFormField('departmentId', event.target.value)}
                     required
-                    value={addForm.dept}
+                    value={addForm.departmentId}
                   >
                     <option value="">-- Chọn khoa/phòng --</option>
-                    <option value="Khoa Da liễu">Khoa Da liễu</option>
-                    <option value="Khoa Nội">Khoa Nội</option>
-                    <option value="Khoa Ngoại">Khoa Ngoại</option>
-                    <option value="Khoa Xét nghiệm">Khoa Xét nghiệm</option>
-                    <option value="Phòng Dược">Phòng Dược</option>
-                    <option value="Phòng Kế toán">Phòng Kế toán</option>
-                    <option value="Phòng IT">Phòng IT</option>
+                    {departmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  {renderCreateStaffFieldError('departmentId')}
                 </div>
               </div>
 
-              {formError ? (
+              {addFormError ? (
                 <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                  {formError}
+                  {addFormError}
                 </p>
               ) : null}
 
               <div className="flex gap-2.5 justify-end pt-2">
                 <button
                   className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
-                  onClick={() => setIsAddModalOpen(false)}
+                  disabled={createMutation.isPending}
+                  onClick={closeAddModal}
                   type="button"
                 >
                   Hủy
                 </button>
                 <button
-                  className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  className="min-w-[132px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={createMutation.isPending}
                   type="submit"
                 >
-                  ✓ Tạo tài khoản
+                  {createMutation.isPending ? 'Đang tạo...' : '✓ Tạo tài khoản'}
                 </button>
               </div>
             </form>
@@ -1968,11 +2263,18 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
       ) : null}
 
       {/* Modal: Cấp lại mật khẩu */}
-      {passResetTarget && temporaryPassword ? (
+      {temporaryPasswordDialog ? (
         <div className="ktv-modal-overlay">
-          <div className="ktv-modal max-w-[420px] text-center">
+          <div
+            aria-describedby="temporary-password-dialog-description"
+            aria-labelledby="temporary-password-dialog-title"
+            aria-modal="true"
+            className="ktv-modal max-w-[420px] text-center"
+            role="dialog"
+          >
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
+              aria-label="Đóng hộp thoại mật khẩu tạm thời"
               onClick={closeTemporaryPasswordDialog}
               type="button"
             >
@@ -1992,10 +2294,14 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                 <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
               </svg>
             </div>
-            <div className="text-base font-bold text-[#171c1f] mb-1">
-              Cấp lại mật khẩu ngẫu nhiên
+            <div className="text-base font-bold text-[#171c1f] mb-1" id="temporary-password-dialog-title">
+              {temporaryPasswordDialog.source === 'create'
+                ? 'Mật khẩu tạm thời của tài khoản mới'
+                : 'Mật khẩu tạm thời sau cấp lại'}
             </div>
-            <div className="text-xs text-[#707882] mb-4">Nhân viên: {passResetTarget}</div>
+            <div className="text-xs text-[#707882] mb-4" id="temporary-password-dialog-description">
+              Nhân viên: {temporaryPasswordDialog.targetName}
+            </div>
 
             <div className="ktv-pass-reveal-box">
               <div className="ktv-pass-reveal-label flex items-center justify-center gap-1">
@@ -2015,7 +2321,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                 </svg>
                 Mật khẩu mới — chỉ hiển thị 1 lần
               </div>
-              <div className="ktv-pass-reveal-value">{temporaryPassword}</div>
+              <div className="ktv-pass-reveal-value">{temporaryPasswordDialog.temporaryPassword}</div>
               <div className="ktv-pass-reveal-note">
                 Ghi chép mật khẩu này trước khi đóng hộp thoại.
                 <br />
@@ -2026,11 +2332,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
             <div className="mt-4 flex gap-2.5 justify-center">
               <button
                 className="px-3.5 py-2 bg-[#e8f4ff] text-[#006096] border border-[#cee5ff] hover:bg-[#cee5ff] rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
-                onClick={() => {
-                  navigator.clipboard.writeText(temporaryPassword);
-                  setCopiedPass(true);
-                  setTimeout(() => setCopiedPass(false), 3000);
-                }}
+                onClick={() => void handleCopyTemporaryPassword()}
                 type="button"
               >
                 <svg
@@ -2058,7 +2360,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
             </div>
 
             <div className="text-[11px] text-[#707882] mt-3">
-              Hành động này đã được ghi vào Audit Log · 18/07/2026 08:05:00
+              Hành động này đã được ghi nhận trong nhật ký kiểm toán.
             </div>
           </div>
         </div>
@@ -2070,7 +2372,10 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
           <div className="ktv-modal max-w-[480px]">
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
-              onClick={() => setEditUser(null)}
+              onClick={() => {
+                setEditFormError('');
+                setEditUser(null);
+              }}
               type="button"
             >
               ✕
@@ -2115,8 +2420,16 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                 </label>
                 <select
                   className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                  onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
-                  value={editUser.role}
+                  onChange={(event) => {
+                    const roleCode = event.target.value as RoleCode;
+
+                    setEditUser({
+                      ...editUser,
+                      role: roleLabelByCode[roleCode] ?? roleCode,
+                      roleCode,
+                    });
+                  }}
+                  value={editUser.roleCode}
                 >
                   {roleOptions.map((option) => (
                     <option key={option.code} value={option.value}>
@@ -2126,16 +2439,19 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                 </select>
               </div>
 
-              {formError ? (
+              {editFormError ? (
                 <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
-                  {formError}
+                  {editFormError}
                 </p>
               ) : null}
 
               <div className="flex gap-2.5 justify-end">
                 <button
                   className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
-                  onClick={() => setEditUser(null)}
+                  onClick={() => {
+                    setEditFormError('');
+                    setEditUser(null);
+                  }}
                   type="button"
                 >
                   Hủy

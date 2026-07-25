@@ -1,32 +1,42 @@
+import { z } from 'zod';
+
+import { ApiError, apiClient } from '@/shared/api-client';
+
 import {
   createStaffResultSchema,
   staffListSchema,
   staffUserSchema,
+  type CreateStaffInput,
   type CreateStaffResult,
+  type DepartmentCode,
+  type RoleCode,
   type StaffList,
   type StaffUser,
 } from '../types/staff.schema';
-import { apiClient } from '@/shared/api-client';
 
-export type CreateStaffInput = {
-  dateOfBirth: string;
-  departmentId: string;
-  fullName: string;
-  gender: 'male' | 'female';
-  identityCardNumber: string;
-  phoneNumber: string;
-  roleCodes: string[];
-  supportRequestReference: string;
-  username: string;
-};
+export type { CreateStaffInput };
 
 export type UpdateStaffInput = {
-  departmentId?: string;
+  departmentId?: DepartmentCode;
   fullName?: string;
   isActive?: boolean;
   phoneNumber?: string;
-  roleCodes?: string[];
-  supportRequestReference?: string;
+  roleCodes?: RoleCode[];
+};
+
+/**
+ * Parse dữ liệu trả về từ backend tại feature boundary để phát hiện drift hợp đồng sớm.
+ */
+const parseApiData = <T>(schema: z.ZodType<T>, raw: unknown): T => {
+  try {
+    return schema.parse(raw);
+  } catch {
+    throw new ApiError({
+      code: 'INVALID_RESPONSE',
+      message: 'Phản hồi từ hệ thống không đúng hợp đồng dữ liệu',
+      status: 0,
+    });
+  }
 };
 
 /**
@@ -49,7 +59,7 @@ export const listStaffUsers = async ({
   if (q.trim()) params.set('q', q.trim());
 
   const raw = await apiClient<unknown>(`/api/staff-users?${params.toString()}`, { signal });
-  return staffListSchema.parse(raw);
+  return parseApiData(staffListSchema, raw);
 };
 
 /**
@@ -60,7 +70,7 @@ export const createStaffUser = async (input: CreateStaffInput): Promise<CreateSt
     body: input,
     method: 'POST',
   });
-  return createStaffResultSchema.parse(raw);
+  return parseApiData(createStaffResultSchema, raw);
 };
 
 /**
@@ -82,7 +92,7 @@ export const updateStaffUser = async ({
     },
     method: 'PATCH',
   });
-  return staffUserSchema.parse(raw);
+  return parseApiData(staffUserSchema, raw);
 };
 
 /**
@@ -99,5 +109,5 @@ export const resetStaffPassword = async ({
     body: { reason },
     method: 'POST',
   });
-  return createStaffResultSchema.parse(raw);
+  return parseApiData(createStaffResultSchema, raw);
 };
