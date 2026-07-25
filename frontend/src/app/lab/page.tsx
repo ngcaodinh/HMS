@@ -1,5 +1,5 @@
-import { LabDashboardPage } from '@/modules/lab';
+import { LabWorkspacePage } from '@/modules/lab';
 
 export default function Page() {
-  return <LabDashboardPage />;
+  return <LabWorkspacePage />;
 }

@@ -2,11 +2,86 @@
 
 import { useState } from 'react';
 
-import { downloadAttachmentUrl, useLabResultDetail } from '../services/medical-record-api';
+import { downloadLabAttachmentUrl, useLabTestResult } from '../services/lab-result-api';
 import type { MedicalRecordDetail, RecordLabTestSummary } from '../types/medical-record.types';
-import { formatStructuredResultEntries } from './format-structured-result';
-import { AssetIcon, RESULT_TABLE_LABELS, cn, formatDateTimeVN } from './shared';
+import { AssetIcon, cn } from './shared';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
+
+/** Doctor's view is a read-only summary — no per-type edit forms like the lab technician's
+ * result-entry screens, so field labels are derived generically rather than duplicating that
+ * module's large label dictionary here (kept intentionally independent, no cross-module import). */
+function prettifyFieldName(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^ksd/, 'KS ')
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+const SKIP_FIELDS = new Set(['id', 'labTestId', 'createdAt', 'updatedAt']);
+
+function LabResultDetailView({ labTestId }: { labTestId: string }) {
+  const { data, isLoading } = useLabTestResult(labTestId);
+
+  if (isLoading || !data) {
+    return <p className="py-6 text-center text-sm text-[#707882]">Đang tải kết quả...</p>;
+  }
+
+  const entries = Object.entries(data.structuredResult ?? {}).filter(
+    ([key, value]) => !SKIP_FIELDS.has(key) && value !== null && value !== undefined && value !== '',
+  );
+
+  return (
+    <div>
+      {data.conclusion && (
+        <p className={cn(styles.alertInfo, 'mb-4')}>
+          <strong>Kết luận: </strong>
+          {data.conclusion}
+        </p>
+      )}
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Chỉ số</th>
+              <th className={styles.th}>Kết quả</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#e5e7eb]">
+            {entries.length === 0 && (
+              <tr>
+                <td className={cn(styles.td, 'text-center text-[#707882]')} colSpan={2}>
+                  Chưa có dữ liệu chi tiết.
+                </td>
+              </tr>
+            )}
+            {entries.map(([key, value]) => (
+              <tr key={key}>
+                <td className={styles.td}>{prettifyFieldName(key)}</td>
+                <td className={styles.td}>{String(value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {data.attachments.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2">
+          <p className="text-xs font-bold uppercase tracking-[0.6px] text-[#707882]">Tệp đính kèm</p>
+          {data.attachments.map((attachment) => (
+            <a
+              className="text-sm text-[#006096] hover:underline"
+              href={downloadLabAttachmentUrl(attachment.attachmentId)}
+              key={attachment.attachmentId}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {attachment.originalName}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ResultsScreen({ record }: { record: MedicalRecordDetail }) {
   const [selectedId, setSelectedId] = useState<string | null>(record.labTests[0]?.labTestId ?? null);
@@ -43,112 +118,27 @@ export function ResultsScreen({ record }: { record: MedicalRecordDetail }) {
       </aside>
 
       <section className={styles.card}>
-        {selected &&
-          (selected.status === 'resulted' ? (
-            <ResultDetail labTestId={selected.labTestId} />
-          ) : (
-            <>
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-bold leading-6">{selected.testName}</h2>
-                  <p className="text-[11px] leading-[16.5px] text-[#707882]">Đang chờ kỹ thuật viên thực hiện</p>
-                </div>
+        {selected && (
+          <>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-bold leading-6">{selected.testName}</h2>
+                <p className="text-[11px] leading-[16.5px] text-[#707882]">
+                  {selected.status === 'resulted' ? 'Đã có kết quả xét nghiệm' : 'Đang chờ kỹ thuật viên thực hiện'}
+                </p>
               </div>
+            </div>
+            {selected.status === 'resulted' ? (
+              <LabResultDetailView labTestId={selected.labTestId} />
+            ) : (
               <p className="rounded-md border border-dashed border-[#bfc7d2] bg-[#f8fafc] px-4 py-6 text-center text-sm text-[#707882]">
                 Xét nghiệm đang chờ kỹ thuật viên tiếp nhận và thực hiện.
               </p>
-            </>
-          ))}
+            )}
+          </>
+        )}
       </section>
     </div>
-  );
-}
-
-function ResultDetail({ labTestId }: { labTestId: string }) {
-  const { data: detail, isLoading } = useLabResultDetail(labTestId);
-
-  if (isLoading || !detail) {
-    return <p className="py-10 text-center text-sm text-[#707882]">Đang tải kết quả...</p>;
-  }
-
-  const entries = formatStructuredResultEntries(detail.structuredResult, detail.referenceRanges, detail.patient.gender);
-  const firstAttachment = detail.attachments[0];
-
-  return (
-    <>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-bold leading-6">{RESULT_TABLE_LABELS[detail.resultTableKey] ?? detail.testName}</h2>
-          <p className="text-[11px] leading-[16.5px] text-[#707882]">
-            {detail.resultedBy ? `KTV. ${detail.resultedBy}` : 'KTV. —'}
-            {detail.signedAt ? ` · Xác nhận ${formatDateTimeVN(detail.signedAt)}` : ''}
-            {` · Phiếu #${detail.reportCode ?? detail.labTestId.slice(0, 8).toUpperCase()}`}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <button className={styles.mutedButton} onClick={() => window.print()} type="button">
-            In phiếu
-          </button>
-          {firstAttachment && (
-            <a
-              className={styles.outlineButton}
-              href={downloadAttachmentUrl(firstAttachment.attachmentId)}
-              rel="noreferrer"
-              target="_blank"
-            >
-              Tải tệp đính kèm gốc
-            </a>
-          )}
-        </div>
-      </div>
-
-      {detail.conclusion && (
-        <div className={cn(styles.alertInfo, 'mb-4')}>
-          <strong>Kết luận: </strong>
-          {detail.conclusion}
-        </div>
-      )}
-
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.th}>Chỉ số</th>
-              <th className={styles.th}>Kết quả</th>
-              <th className={styles.th}>Đơn vị</th>
-              <th className={styles.th}>Tham chiếu</th>
-              <th className={styles.th}>Đánh giá</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#e5e7eb] bg-white">
-            {entries.length === 0 && (
-              <tr>
-                <td className={cn(styles.td, 'text-center text-[#707882]')} colSpan={5}>
-                  Chưa có dữ liệu kết quả.
-                </td>
-              </tr>
-            )}
-            {entries.map((entry) => (
-              <tr key={entry.label}>
-                <td className={cn(styles.td, 'font-semibold text-[#001d32]')}>{entry.label}</td>
-                <td className={cn(styles.td, entry.isNormal === false && 'font-bold text-[#ba1a1a]')}>{entry.value}</td>
-                <td className={styles.td}>{entry.unit ?? '—'}</td>
-                <td className={styles.td}>{entry.normalRange ?? '—'}</td>
-                <td className={styles.td}>
-                  {entry.isNormal === null ? (
-                    '—'
-                  ) : entry.isNormal ? (
-                    <span className={styles.statusNormal}>Bình thường</span>
-                  ) : (
-                    <span className={styles.statusHigh}>{entry.direction === 'low' ? 'THẤP' : 'CAO'}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
   );
 }
 

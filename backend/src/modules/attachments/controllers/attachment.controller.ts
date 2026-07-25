@@ -1,11 +1,29 @@
 import type { NextFunction, Request, Response } from 'express';
 
 import { AppError } from '../../../core/errors/app-error';
-import { downloadAttachmentFile } from '../services/attachment.service';
+import { sendSuccess } from '../../../core/http/response';
+import { downloadAttachmentFile, uploadAttachment } from '../services/attachment.service';
+import type { AttachmentOwnerType } from '../types/attachment.types';
 
 function requirePrincipal(req: Request) {
   if (!req.principal) throw AppError.unauthorized('UNAUTHENTICATED', 'Không xác thực được người dùng.');
   return req.principal;
+}
+
+/**
+ * @route POST /api/v1/attachments
+ * @access doctor, lab_tech, pharmacist
+ */
+export async function uploadAttachmentController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const principal = requirePrincipal(req);
+    if (!req.file) throw AppError.badRequest('INVALID_FILE_TYPE', 'Thiếu tệp đính kèm.');
+    const { ownerType, ownerId } = req.body as { ownerType: AttachmentOwnerType; ownerId: string };
+    const result = await uploadAttachment(req.file, ownerType, ownerId, principal.userId);
+    sendSuccess(res, result, { status: 201 });
+  } catch (error) {
+    next(error);
+  }
 }
 
 /**

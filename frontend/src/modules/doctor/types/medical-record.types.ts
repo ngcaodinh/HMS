@@ -51,7 +51,7 @@ export interface LatestVitalSigns {
 
 export interface RecordLabTestSummary {
   labTestId: string;
-  status: 'ordered' | 'resulted';
+  status: 'ordered' | 'in_progress' | 'resulted';
   testName: string;
   isUrgent: boolean;
   resultTableKey: string;
