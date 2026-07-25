@@ -16,6 +16,12 @@ const DOCTOR = '11111111-1111-4111-8111-111111111111';
 
 const D = (v: string) => new Prisma.Decimal(v);
 
+/** Wall-clock gần giờ VN cho DATETIME MySQL (không @default trên Invoice). */
+function nowVn(): Date {
+  const offsetMs = 7 * 60 * 60 * 1000;
+  return new Date(Date.now() + offsetMs);
+}
+
 type PatientSeed = {
   id: string;
   code: string;
@@ -157,16 +163,32 @@ async function ensureServiceOrder(recordId: string, fee: string, nameHint: strin
   });
 }
 
+const DEMO_INVOICE_IDS = [
+  '11000001-1001-4001-8001-110000000001',
+  '11000002-1002-4002-8002-110000000002',
+  '11000003-1003-4003-8003-110000000003',
+  '11000004-1004-4004-8004-110000000004',
+  '11000005-1005-4005-8005-110000000005',
+  '11000006-1006-4006-8006-110000000006',
+];
+
 async function wipeDemoInvoices(recordIds: string[]) {
   const invoices = await prisma.invoice.findMany({
-    where: { recordId: { in: recordIds } },
-    select: { id: true },
+    where: {
+      OR: [{ recordId: { in: recordIds } }, { id: { in: DEMO_INVOICE_IDS } }],
+    },
+    select: { id: true, momoOrderId: true },
   });
   const ids = invoices.map((i) => i.id);
   if (ids.length === 0) {
     return;
   }
-  await prisma.paymentIpnLog.deleteMany({});
+  const orderIds = invoices
+    .map((i) => i.momoOrderId)
+    .filter((x): x is string => Boolean(x));
+  if (orderIds.length > 0) {
+    await prisma.paymentIpnLog.deleteMany({ where: { orderId: { in: orderIds } } });
+  }
   await prisma.paymentIntent.deleteMany({ where: { invoiceId: { in: ids } } });
   await prisma.emergencyWriteOffApproval.deleteMany({ where: { invoiceId: { in: ids } } });
   await prisma.healthInsuranceClaim.deleteMany({ where: { invoiceId: { in: ids } } });
@@ -183,19 +205,18 @@ async function createInvoiceFull(params: {
   receiptNumber?: string | null;
   momoOrderId?: string | null;
   paidAt?: Date | null;
+  unitPrice?: string;
 }) {
   const covered = params.benefit === 'RATE_80';
   const rate = covered ? '0.8000' : '0.0000';
-  const unit = D('100000.00');
-  const fund = covered ? D('80000.00') : D('0.00');
-  const copay = covered ? D('20000.00') : D('100000.00');
+  const unit = D(params.unitPrice ?? '100000.00');
+  const fund = covered ? unit.mul(D('0.80')) : D('0.00');
+  const copay = covered ? unit.mul(D('0.20')) : unit;
   const discount = fund;
   const total = copay;
-  const amountDue = params.status === 'paid' ? D('0.00') : total;
-
-  // amountDue when paid should still show original due for history — contract uses amountDue at create.
-  // Keep amountDue as total due at creation (20000) even when paid.
+  // amountDue = số BN phải trả tại lúc lập (giữ nguyên khi paid để lịch sử).
   const amountDueStored = total;
+  const stamp = nowVn();
 
   await prisma.invoice.create({
     data: {
@@ -219,8 +240,10 @@ async function createInvoiceFull(params: {
       statementStatus: params.status === 'paid' ? 'signed' : 'draft',
       statementNumber: params.status === 'paid' ? `BK-DEMO-${params.id.slice(0, 6)}` : null,
       cancelReason: params.status === 'cancelled' ? 'Lập sai dịch vụ (demo seed)' : null,
-      cancelledAt: params.status === 'cancelled' ? new Date() : null,
+      cancelledAt: params.status === 'cancelled' ? stamp : null,
       version: params.status === 'pending' ? 1 : 2,
+      createdAt: stamp,
+      updatedAt: stamp,
       items: {
         create: [
           {
@@ -238,6 +261,7 @@ async function createInvoiceFull(params: {
             healthInsuranceFundAmount: fund,
             patientCoPayAmount: copay,
             sortOrder: 0,
+            createdAt: stamp,
           },
         ],
       },
@@ -250,6 +274,8 @@ async function createInvoiceFull(params: {
         id: randomUUID(),
         invoiceId: params.id,
         status: 'draft',
+        createdAt: stamp,
+        updatedAt: stamp,
       },
     });
   }
@@ -260,7 +286,9 @@ async function createInvoiceFull(params: {
         invoiceId: params.id,
         status: 'voided',
         voidReason: 'invoice_cancelled',
-        voidedAt: new Date(),
+        voidedAt: stamp,
+        createdAt: stamp,
+        updatedAt: stamp,
       },
     });
   }
@@ -278,6 +306,9 @@ async function createInvoiceFull(params: {
         expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
         idempotencyKey: randomUUID(),
         transId: params.status === 'paid' ? `SEED-TX-${params.id.slice(0, 8)}` : null,
+        paidAt: params.status === 'paid' ? (params.paidAt ?? stamp) : null,
+        createdAt: stamp,
+        updatedAt: stamp,
       },
     });
   }
@@ -294,7 +325,7 @@ async function createInvoiceFull(params: {
         rawPayload: {
           orderId: params.momoOrderId,
           resultCode: 0,
-          amount: 20000,
+          amount: Number(amountDueStored.toFixed(0)),
           message: 'seed success',
         },
       },
@@ -349,25 +380,34 @@ async function main() {
     isEmergency: true,
     complaint: 'Cấp cứu da liễu demo',
   });
+  // Hồ sơ riêng cho HĐ cancelled (không share record với HĐ paid)
+  const rCancel = await upsertRecord({
+    id: 'c1000006-cccc-4ccc-8ccc-cccccccccccc',
+    code: 'HS-PAY-006',
+    patientId: (await prisma.patient.findUniqueOrThrow({ where: { patientCode: 'BN-PAY-003' } }))
+      .id,
+    status: 'diagnosed',
+    complaint: 'Hồ sơ demo HĐ đã hủy',
+  });
 
   await ensureServiceOrder(r1.id, '100000.00', 'kham');
   await ensureServiceOrder(r2.id, '100000.00', 'kham');
   await ensureServiceOrder(r3.id, '100000.00', 'kham');
   await ensureServiceOrder(r4.id, '150000.00', 'kham');
   await ensureServiceOrder(r5.id, '100000.00', 'kham');
+  await ensureServiceOrder(rCancel.id, '100000.00', 'kham-cancel');
 
-  const recordIds = [r1.id, r2.id, r3.id, r4.id, r5.id];
+  const recordIds = [r1.id, r2.id, r3.id, r4.id, r5.id, rCancel.id];
   await wipeDemoInvoices(recordIds);
 
-  // Pending — test cash / Momo (UUID v4 hợp lệ cho Zod)
-  const invPending1 = '11000001-1001-4001-8001-110000000001';
-  const invPending2 = '11000002-1002-4002-8002-110000000002';
-  const invPending3 = '11000003-1003-4003-8003-110000000003';
-  // Paid cash / momo / cancelled
-  const invPaidCash = '11000004-1004-4004-8004-110000000004';
-  const invPaidMomo = '11000005-1005-4005-8005-110000000005';
-  const invCancelled = '11000006-1006-4006-8006-110000000006';
+  const invPending1 = DEMO_INVOICE_IDS[0]!;
+  const invPending2 = DEMO_INVOICE_IDS[1]!;
+  const invPending3 = DEMO_INVOICE_IDS[2]!;
+  const invPaidCash = DEMO_INVOICE_IDS[3]!;
+  const invPaidMomo = DEMO_INVOICE_IDS[4]!;
+  const invCancelled = DEMO_INVOICE_IDS[5]!;
 
+  // Pending — test Cash / Momo trên màn accounting
   await createInvoiceFull({
     id: invPending1,
     recordId: r1.id,
@@ -385,28 +425,10 @@ async function main() {
     recordId: r4.id,
     status: 'pending',
     benefit: 'NO_COVERAGE',
-  });
-  // Fix amount for no coverage item — recreate with 100000 due
-  await prisma.invoice.update({
-    where: { id: invPending3 },
-    data: {
-      subtotal: D('150000.00'),
-      totalAmount: D('150000.00'),
-      amountDue: D('150000.00'),
-      healthInsuranceBaseAmount: D('0.00'),
-      healthInsuranceDiscountAmount: D('0.00'),
-    },
-  });
-  await prisma.invoiceItem.updateMany({
-    where: { invoiceId: invPending3 },
-    data: {
-      unitPrice: D('150000.00'),
-      amount: D('150000.00'),
-      patientCoPayAmount: D('150000.00'),
-      healthInsuranceFundAmount: D('0.00'),
-    },
+    unitPrice: '150000.00',
   });
 
+  // Reference: đã thanh toán / đã hủy
   await createInvoiceFull({
     id: invPaidCash,
     recordId: r3.id,
@@ -414,15 +436,7 @@ async function main() {
     benefit: 'NO_COVERAGE',
     method: 'cash',
     receiptNumber: 'PT-DEMO-CASH-001',
-    paidAt: new Date(),
-  });
-  await prisma.invoice.update({
-    where: { id: invPaidCash },
-    data: {
-      subtotal: D('100000.00'),
-      totalAmount: D('100000.00'),
-      amountDue: D('100000.00'),
-    },
+    paidAt: nowVn(),
   });
 
   await createInvoiceFull({
@@ -433,12 +447,12 @@ async function main() {
     method: 'momo',
     receiptNumber: 'MM-DEMO-MOMO-001',
     momoOrderId: 'HMS-DEMO-PAID-MOMO-001',
-    paidAt: new Date(),
+    paidAt: nowVn(),
   });
 
   await createInvoiceFull({
     id: invCancelled,
-    recordId: r3.id,
+    recordId: rCancel.id,
     status: 'cancelled',
     benefit: 'RATE_80',
   });

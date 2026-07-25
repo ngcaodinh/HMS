@@ -258,6 +258,19 @@ function KioskLogo() {
   );
 }
 
+/**
+ * Chờ React flush số vào DOM print section trước window.print().
+ */
+function waitForPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.setTimeout(resolve, 50);
+      });
+    });
+  });
+}
+
 export function KioskRootPage() {
   const [isIssuing, setIsIssuing] = useState(false);
   const [issueError, setIssueError] = useState<string | null>(null);
@@ -272,9 +285,23 @@ export function KioskRootPage() {
   );
 
   /**
-   * Lấy số qua REST public (POST /queue-tickets).
-   * Không mở WebSocket trên màn kiosk — tránh request treo làm tab Chrome load mãi.
-   * Cùng dãy số với bốc số quầy / socket (queue_daily_sequences).
+   * In phiếu: reprint API best-effort + window.print().
+   * Khi dialog in Windows đóng (in hoặc Cancel) → quay lại UI kiosk/modal.
+   */
+  const printTicket = useCallback(async (id: string | null) => {
+    if (id) {
+      try {
+        await reprintQueueTicket(id);
+      } catch {
+        // In vật lý vẫn chạy dù API reprint lỗi.
+      }
+    }
+    window.print();
+  }, []);
+
+  /**
+   * Lấy số (REST) → lưu DB → hiện modal xác nhận như luồng cũ → tự mở dialog in.
+   * Sau khi đóng dialog in Windows: vẫn modal cũ (In lại / Đã nhận).
    */
   const handleGetNumber = useCallback(async () => {
     if (!window.navigator.onLine) {
@@ -297,6 +324,10 @@ export function KioskRootPage() {
       setTicketTimestamp(
         formatTicketTimestamp(new Date(issued.receipt.issuedAt || Date.now())),
       );
+
+      // Modal luồng cũ hiện ngay; rồi in tự động.
+      await waitForPaint();
+      await printTicket(issued.ticketId);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Không lấy được số. Vui lòng thử lại.';
@@ -305,7 +336,7 @@ export function KioskRootPage() {
       issuingRef.current = false;
       setIsIssuing(false);
     }
-  }, []);
+  }, [printTicket]);
 
   const handleCloseModal = useCallback(() => {
     setTicketNumber(null);
@@ -315,15 +346,8 @@ export function KioskRootPage() {
   }, []);
 
   const handlePrint = useCallback(async () => {
-    if (ticketId) {
-      try {
-        await reprintQueueTicket(ticketId);
-      } catch {
-        // In vật lý vẫn chạy dù API reprint lỗi.
-      }
-    }
-    window.print();
-  }, [ticketId]);
+    await printTicket(ticketId);
+  }, [printTicket, ticketId]);
 
   return (
     <>
@@ -412,6 +436,7 @@ export function KioskRootPage() {
           </footer>
         </div>
 
+        {/* Modal luồng cũ — hiện sau lấy số; dialog in Windows đóng vẫn giữ modal này */}
         {ticketNumber !== null ? (
           <div
             aria-labelledby="ticket-modal-title"
@@ -449,8 +474,8 @@ export function KioskRootPage() {
                   In lại phiếu
                 </button>
                 <button className={styles.primaryButton} onClick={handleCloseModal} type="button">
-                  <CheckIcon className="h-6 w-6" />
-                  Đã nhận phiếu · Quay lại
+                  
+                  Đã nhận phiếu
                 </button>
               </div>
             </div>

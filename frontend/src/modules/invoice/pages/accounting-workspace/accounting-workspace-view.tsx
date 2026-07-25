@@ -387,54 +387,6 @@ export function AccountingWorkspaceView() {
         />
 
         <main className="flex-1 overflow-y-auto p-6 bg-[#f6fafe]">
-          {USE_REAL_BILLING ? (
-            <div className="mb-4 space-y-2 rounded-xl border border-[#91c5ee] bg-[#e8f4fd] px-4 py-3 text-[13px] text-[#006096]">
-              <div className="flex flex-wrap items-center gap-2">
-                <strong>API + DB</strong>
-                <button
-                  className="rounded-lg border border-[#006096] px-3 py-1 text-xs font-bold hover:bg-white disabled:opacity-50"
-                  disabled={isBusy}
-                  onClick={() => {
-                    void loadPendingFromApi();
-                  }}
-                  type="button"
-                >
-                  Tải lại HĐ chờ thu
-                </button>
-                <span className="text-[11px] text-[#48626e]">
-                  {pendingInvoices.length} hóa đơn pending · Momo → trang sandbox (QR / ATM / thẻ)
-                </span>
-              </div>
-              {pendingInvoices.length > 0 ? (
-                <ul className="max-h-28 space-y-1 overflow-auto text-[12px]">
-                  {pendingInvoices.map((inv) => (
-                    <li key={inv.invoiceId}>
-                      <button
-                        className="text-left font-mono text-[#00527f] underline"
-                        onClick={() => {
-                          void openInvoiceFromApi(inv.invoiceId);
-                        }}
-                        type="button"
-                      >
-                        {inv.patient?.patientCode ?? '—'} · {inv.patient?.fullName ?? '—'} ·{' '}
-                        {inv.amountDue} đ · {inv.invoiceId.slice(0, 8)}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-[12px] text-[#48626e]">
-                  Chưa có HĐ pending. Chạy seed:{' '}
-                  <code className="font-mono">npx tsx prisma/seeders/seed-billing-payment-demo.ts</code>
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="mb-4 rounded-xl border border-[#e0e0e0] bg-[#f5f5f5] px-4 py-2 text-[12px] text-[#707882]">
-              Mock UI. Bật API: <code>NEXT_PUBLIC_USE_REAL_BILLING=true</code>
-            </div>
-          )}
-
           {isRedirectingMomo ? (
             <div className="mb-4 rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-4 py-3 text-sm text-fuchsia-900">
               Đang chuyển sang cổng thanh toán Momo Sandbox (QR / ví / ATM / Visa / Mastercard)…
