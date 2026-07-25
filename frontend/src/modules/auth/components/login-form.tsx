@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { getLoginErrorMessage } from '@/modules/auth/utils/login-error';
 import { apiClient } from '@/shared/api-client';
-import { ApiError } from '@/shared/api-client';
 
 type IconProps = {
   className?: string;
@@ -16,8 +16,6 @@ type LoginResponse = {
     roleCodes: string[];
   };
 };
-
-const loginFailedMessage = 'Tên đăng nhập hoặc mật khẩu không đúng';
 
 function UserIcon({ className }: IconProps) {
   return (
@@ -126,22 +124,34 @@ export function LoginForm() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   /**
-   * Đăng nhập qua BFF; điều hướng bắt đổi mật khẩu trước khi vào workspace.
+   * Xử lý gửi form đăng nhập qua BFF.
+   * Kiểm tra thông tin đầu vào (Tên đăng nhập và Mật khẩu) trước khi gọi API authentication.
+   *
+   * @param event - Sự kiện submit form đăng nhập của người dùng
    */
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    setIsSubmitting(true);
 
     const formData = new FormData(event.currentTarget);
+    const username = String(formData.get('username') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+
+    if (!username || !password) {
+      setError('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu');
+      return;
+    }
+
+    setIsSubmitting(true);
 
     try {
       const result = await apiClient<LoginResponse>('/api/auth/login', {
         body: {
-          password: String(formData.get('password') ?? ''),
-          username: String(formData.get('username') ?? '').trim(),
+          password,
+          username,
         },
         method: 'POST',
       });
@@ -158,10 +168,7 @@ export function LoginForm() {
 
       router.replace('/');
     } catch (caught) {
-      const message = caught instanceof ApiError && [400, 401].includes(caught.status)
-        ? loginFailedMessage
-        : 'Không thể đăng nhập, vui lòng thử lại';
-      setError(message);
+      setError(getLoginErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
     }
@@ -169,7 +176,7 @@ export function LoginForm() {
 
   return (
     <>
-      <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+      <form className="mt-8 space-y-5" noValidate onSubmit={handleSubmit}>
         <div>
           <label
             className="mb-2 block pl-1 text-[11px] font-bold uppercase leading-4 text-[#3f4851]"
@@ -229,12 +236,13 @@ export function LoginForm() {
             />
             Ghi nhớ đăng nhập
           </label>
-          <a
+          <button
             className="text-[13px] font-semibold text-[#006096] transition hover:text-[#004a75] focus:outline-none focus:ring-4 focus:ring-[#006096]/10"
-            href="#forgot-password"
+            onClick={() => setShowForgotPasswordModal(true)}
+            type="button"
           >
             Quên mật khẩu?
-          </a>
+          </button>
         </div>
 
         {error ? (
@@ -265,14 +273,54 @@ export function LoginForm() {
         <p className="font-medium text-[#3f4851]/60">
           © 2025 Clinical Excellence
         </p>
-        <a
+        <button
           className="flex items-center gap-1.5 font-bold text-[#006096] transition hover:text-[#004a75] focus:outline-none focus:ring-4 focus:ring-[#006096]/10"
-          href="#it-support"
+          onClick={() => setShowForgotPasswordModal(true)}
+          type="button"
         >
           <HeadsetIcon className="h-4 w-4" />
           Hỗ trợ kỹ thuật IT
-        </a>
+        </button>
       </footer>
+
+      {showForgotPasswordModal ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+          role="dialog"
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl transition-all">
+            <div className="flex items-center justify-between pb-3 border-b border-[#e5e7eb]">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#006096]/10 text-[#006096]">
+                  <HeadsetIcon className="h-5 w-5" />
+                </div>
+                <h3 className="text-base font-bold text-[#171c1f]">Quên mật khẩu</h3>
+              </div>
+              <button
+                aria-label="Đóng"
+                className="flex h-7 w-7 items-center justify-center rounded-lg text-[#707882] transition hover:bg-[#f0f5fa] hover:text-[#171c1f]"
+                onClick={() => setShowForgotPasswordModal(false)}
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="py-5 text-sm text-[#3f4851] leading-relaxed">
+              Vui lòng liên hệ kỹ thuật viên IT để xử lý.
+            </div>
+            <div className="flex justify-end pt-2">
+              <button
+                className="rounded-xl bg-[#006096] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#004a75] focus:outline-none focus:ring-4 focus:ring-[#006096]/20"
+                onClick={() => setShowForgotPasswordModal(false)}
+                type="button"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

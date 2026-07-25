@@ -73,6 +73,18 @@ export type CreateStaffInput = {
   username: string;
 };
 
+export type UpdateStaffInput = {
+  dateOfBirth?: string;
+  departmentId?: DepartmentCode;
+  fullName?: string;
+  gender?: 'male' | 'female';
+  identityCardNumber?: string;
+  isActive?: boolean;
+  phoneNumber?: string;
+  roleCodes?: RoleCode[];
+  username?: string;
+};
+
 export type StaffUser = z.infer<typeof staffUserSchema>;
 export type StaffList = z.infer<typeof staffListSchema>;
 export type CreateStaffResult = z.infer<typeof createStaffResultSchema>;

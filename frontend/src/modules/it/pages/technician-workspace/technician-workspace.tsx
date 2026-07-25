@@ -16,12 +16,18 @@ import {
 } from '../../hooks/use-staff-users';
 import {
   createStaffFormSchema,
+  editStaffFormSchema,
   getCreateStaffValidationFieldErrors,
+  getEditStaffValidationFieldErrors,
   normalizeCreateStaffFieldErrors,
+  normalizeEditStaffFieldErrors,
   toCreateStaffInput,
+  toUpdateStaffInput,
   type CreateStaffFormField,
   type CreateStaffFormFieldErrors,
   type CreateStaffFormValues,
+  type EditStaffFormField,
+  type EditStaffFormFieldErrors,
 } from '../../types/staff-form.schema';
 import type { DepartmentCode, RoleCode, StaffUser as ApiStaffUser } from '../../types/staff.schema';
 
@@ -1003,6 +1009,8 @@ interface StaffUserItem {
   role: string;
   roleCode: RoleCode;
   phone: string;
+  dateOfBirth: string;
+  gender: 'male' | 'female';
   cccd?: string;
   dept?: string;
   deptCode?: string;
@@ -1086,6 +1094,18 @@ const createStaffFieldIds: Record<CreateStaffFormField, string> = {
   username: 'create-staff-username',
 };
 
+const editStaffFieldIds: Record<EditStaffFormField, string> = {
+  dateOfBirth: 'edit-staff-date-of-birth',
+  departmentId: 'edit-staff-department-id',
+  fullName: 'edit-staff-full-name',
+  gender: 'edit-staff-gender',
+  identityCardNumber: 'edit-staff-identity-card-number',
+  isActive: 'edit-staff-is-active',
+  phoneNumber: 'edit-staff-phone-number',
+  roleCode: 'edit-staff-role-code',
+  username: 'edit-staff-username',
+};
+
 /**
  * Xác định danh sách role actor được phép gán trên UI.
  * Nhận principal từ server guard, trả role đầy đủ cho admin hoặc subset nghiệp vụ cho it_tech.
@@ -1099,6 +1119,11 @@ const getManageableRoleOptions = (principal: ItPrincipal) =>
  */
 const formatLastLogin = (value: string | null) =>
   value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đăng nhập';
+
+/**
+ * Chuẩn hóa ngày sinh từ ISO/backend DATE về dạng yyyy-MM-dd để hiển thị trong input ngày.
+ */
+const formatDateInputValue = (value: string) => value.slice(0, 10);
 
 const getResetPasswordReason = (username: string) =>
   `Cấp lại mật khẩu tài khoản ${username} theo yêu cầu hỗ trợ hợp lệ`;
@@ -1123,6 +1148,18 @@ const getFieldDescribedBy = (
     getFirstFieldError(fieldErrors, field) ? getFieldErrorId(field) : undefined,
   ].filter(Boolean).join(' ') || undefined;
 
+const getEditFieldErrorId = (field: EditStaffFormField) => `${editStaffFieldIds[field]}-error`;
+
+const getFirstEditFieldError = (
+  fieldErrors: EditStaffFormFieldErrors,
+  field: EditStaffFormField,
+) => fieldErrors[field]?.[0];
+
+const getEditFieldDescribedBy = (
+  fieldErrors: EditStaffFormFieldErrors,
+  field: EditStaffFormField,
+) => (getFirstEditFieldError(fieldErrors, field) ? getEditFieldErrorId(field) : undefined);
+
 /**
  * Map StaffUser từ API sang model trình bày của workspace IT.
  * Nhận payload đã parse bằng Zod, trả item không chứa password và có metadata chỉnh sửa.
@@ -1134,8 +1171,10 @@ const mapApiStaffUserToItem = (user: ApiStaffUser): StaffUserItem => {
     apiId: user.id,
     cccd: user.identityCardNumber,
     chipClass: chipClassByRoleCode[roleCode] ?? 'ktv-chip-blue',
+    dateOfBirth: formatDateInputValue(user.dateOfBirth),
     dept: user.departmentId,
     deptCode: user.departmentId,
+    gender: user.gender,
     id: user.id.slice(0, 8).toUpperCase(),
     lastLogin: formatLastLogin(user.lastLoginAt),
     name: user.fullName,
@@ -1161,6 +1200,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
   const [editUser, setEditUser] = useState<StaffUserItem | null>(null);
   const [addForm, setAddForm] = useState<CreateStaffFormValues>(defaultCreateStaffForm);
   const [addFieldErrors, setAddFieldErrors] = useState<CreateStaffFormFieldErrors>({});
+  const [editFieldErrors, setEditFieldErrors] = useState<EditStaffFormFieldErrors>({});
   const [addFormError, setAddFormError] = useState('');
   const [editFormError, setEditFormError] = useState('');
   const [copiedPass, setCopiedPass] = useState(false);
@@ -1335,6 +1375,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
 
       if (editUser && !updateMutation.isPending) {
         setEditUser(null);
+        setEditFieldErrors({});
         setEditFormError('');
       }
     };
@@ -1372,6 +1413,80 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
         tone: 'error',
       });
     }
+  };
+
+  /**
+   * Cập nhật state form edit theo field được phép sửa và xóa lỗi cũ của field đó.
+   */
+  const updateEditUserField = (field: EditStaffFormField, value: string | boolean) => {
+    if (!editUser) return;
+
+    setEditUser((currentUser) => {
+      if (!currentUser) return currentUser;
+
+      if (field === 'fullName') {
+        return { ...currentUser, name: String(value) };
+      }
+
+      if (field === 'username') {
+        return { ...currentUser, username: String(value) };
+      }
+
+      if (field === 'phoneNumber') {
+        return { ...currentUser, phone: String(value) };
+      }
+
+      if (field === 'identityCardNumber') {
+        return { ...currentUser, cccd: String(value) };
+      }
+
+      if (field === 'dateOfBirth') {
+        return { ...currentUser, dateOfBirth: String(value) };
+      }
+
+      if (field === 'gender') {
+        return { ...currentUser, gender: String(value) as StaffUserItem['gender'] };
+      }
+
+      if (field === 'departmentId') {
+        return { ...currentUser, dept: String(value), deptCode: String(value) };
+      }
+
+      if (field === 'roleCode') {
+        const roleCode = String(value) as RoleCode;
+
+        return {
+          ...currentUser,
+          chipClass: chipClassByRoleCode[roleCode] ?? currentUser.chipClass,
+          role: roleLabelByCode[roleCode] ?? roleCode,
+          roleCode,
+        };
+      }
+
+      return { ...currentUser, status: value ? 'active' : 'locked' };
+    });
+    setEditFormError('');
+    setEditFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) return currentErrors;
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[field];
+
+      return nextErrors;
+    });
+  };
+
+  /**
+   * Hiển thị lỗi validation cạnh input trong modal chỉnh sửa tài khoản.
+   */
+  const renderEditStaffFieldError = (field: EditStaffFormField) => {
+    const error = getFirstEditFieldError(editFieldErrors, field);
+
+    return error ? (
+      <p className="mt-1 text-[10px] font-semibold text-red-700" id={getEditFieldErrorId(field)}>
+        {error}
+      </p>
+    ) : null;
   };
 
   /**
@@ -1442,20 +1557,61 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
     event.preventDefault();
     if (!editUser || updateMutation.isPending) return;
     setEditFormError('');
+    setEditFieldErrors({});
 
     if (editUser.apiId && editUser.updatedAt) {
+      const parsedForm = editStaffFormSchema.safeParse({
+        dateOfBirth: editUser.dateOfBirth,
+        departmentId: editUser.deptCode ?? '',
+        fullName: editUser.name,
+        gender: editUser.gender,
+        identityCardNumber: editUser.cccd ?? '',
+        isActive: editUser.status === 'active',
+        phoneNumber: editUser.phone,
+        roleCode: editUser.roleCode,
+        username: editUser.username,
+      });
+
+      if (!parsedForm.success) {
+        setEditFieldErrors(getEditStaffValidationFieldErrors(parsedForm.error));
+        setEditFormError('Vui lòng kiểm tra lại các trường đang báo lỗi.');
+        showNotification({
+          message: 'Thông tin cập nhật chưa hợp lệ, vui lòng kiểm tra các trường bắt buộc.',
+          title: 'Chưa thể lưu thay đổi',
+          tone: 'error',
+        });
+        return;
+      }
+
+      const selectedRole = roleOptions.some((option) => option.value === parsedForm.data.roleCode);
+      if (!selectedRole) {
+        setEditFieldErrors({
+          roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
+        });
+        setEditFormError('Tài khoản hiện tại không đủ quyền gán vai trò đã chọn.');
+        return;
+      }
+
       void updateMutation
         .mutateAsync({
           ifUnmodifiedSince: editUser.updatedAt,
-          input: {
-            fullName: editUser.name,
-            phoneNumber: editUser.phone.replace(/\s+/g, ''),
-            roleCodes: [editUser.roleCode],
-          },
+          input: toUpdateStaffInput(parsedForm.data),
           userId: editUser.apiId,
         })
-        .then(() => setEditUser(null))
+        .then((updatedUser) => {
+          setEditUser(null);
+          setEditFieldErrors({});
+          showNotification({
+            message: `Đã cập nhật thành công tài khoản ${updatedUser.fullName}.`,
+            title: 'Cập nhật tài khoản thành công',
+            tone: 'success',
+          });
+        })
         .catch((caught: unknown) => {
+          if (caught instanceof ApiError && caught.hasFieldErrors) {
+            setEditFieldErrors(normalizeEditStaffFieldErrors(caught.fields ?? {}));
+          }
+
           setEditFormError(caught instanceof Error ? caught.message : 'Không thể cập nhật tài khoản');
         });
       return;
@@ -1761,6 +1917,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                           disabled={isLocked}
                           onClick={() => {
                             setEditFormError('');
+                            setEditFieldErrors({});
                             setEditUser(user);
                           }}
                           style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
@@ -2356,74 +2513,280 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
       {/* Modal: Edit User */}
       {editUser ? (
         <div className="ktv-modal-overlay">
-          <div className="ktv-modal max-w-[480px]">
+          <div
+            aria-describedby="edit-staff-dialog-description"
+            aria-labelledby="edit-staff-dialog-title"
+            aria-modal="true"
+            className="ktv-modal max-h-[calc(100vh-40px)] max-w-[640px] overflow-y-auto"
+            role="dialog"
+          >
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
+              aria-label="Đóng form chỉnh sửa tài khoản"
+              disabled={updateMutation.isPending}
               onClick={() => {
                 setEditFormError('');
+                setEditFieldErrors({});
                 setEditUser(null);
               }}
               type="button"
             >
               ✕
             </button>
-            <div className="text-base font-bold text-[#171c1f] mb-1">
+            <div className="text-base font-bold text-[#171c1f] mb-1" id="edit-staff-dialog-title">
               Chỉnh sửa tài khoản nhân viên
             </div>
-            <div className="text-xs text-[#707882] mb-4">
-              Mã NV: <span className="font-mono font-bold text-[#006096]">{editUser.id}</span> — Username: <span className="font-bold text-[#171c1f]">{editUser.username}</span>
+            <div className="text-xs text-[#707882] mb-5" id="edit-staff-dialog-description">
+              Mã NV: <span className="font-mono font-bold text-[#006096]">{editUser.id}</span> — kiểm tra thông tin định danh trước khi lưu.
             </div>
 
-            <form onSubmit={handleSaveEditUser}>
-              <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Họ và tên
-                </label>
-                <input
-                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-                  required
-                  type="text"
-                  value={editUser.name}
-                />
+            <form noValidate onSubmit={handleSaveEditUser}>
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.fullName}
+                  >
+                    Họ và tên <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'fullName')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'fullName'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'fullName') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.fullName}
+                    name="fullName"
+                    onChange={(event) => updateEditUserField('fullName', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.name}
+                  />
+                  {renderEditStaffFieldError('fullName')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.username}
+                  >
+                    Tên đăng nhập <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'username')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'username'))}
+                    autoComplete="username"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'username') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.username}
+                    name="username"
+                    onChange={(event) => updateEditUserField('username', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.username}
+                  />
+                  {renderEditStaffFieldError('username')}
+                </div>
               </div>
 
-              <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Số điện thoại
-                </label>
-                <input
-                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                  onChange={(e) => setEditUser({ ...editUser, phone: e.target.value })}
-                  required
-                  type="text"
-                  value={editUser.phone}
-                />
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.phoneNumber}
+                  >
+                    Số điện thoại <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'phoneNumber')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'phoneNumber'))}
+                    autoComplete="tel"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'phoneNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.phoneNumber}
+                    inputMode="tel"
+                    name="phoneNumber"
+                    onChange={(event) => updateEditUserField('phoneNumber', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.phone}
+                  />
+                  {renderEditStaffFieldError('phoneNumber')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.identityCardNumber}
+                  >
+                    Số CCCD <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'identityCardNumber')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'identityCardNumber'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'identityCardNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.identityCardNumber}
+                    inputMode="numeric"
+                    maxLength={12}
+                    name="identityCardNumber"
+                    onChange={(event) => updateEditUserField('identityCardNumber', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.cccd ?? ''}
+                  />
+                  {renderEditStaffFieldError('identityCardNumber')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.dateOfBirth}
+                  >
+                    Ngày sinh <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'dateOfBirth')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'dateOfBirth'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'dateOfBirth') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.dateOfBirth}
+                    name="dateOfBirth"
+                    onChange={(event) => updateEditUserField('dateOfBirth', event.target.value)}
+                    required
+                    type="date"
+                    value={editUser.dateOfBirth}
+                  />
+                  {renderEditStaffFieldError('dateOfBirth')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.gender}
+                  >
+                    Giới tính <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'gender')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'gender'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstEditFieldError(editFieldErrors, 'gender') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.gender}
+                    name="gender"
+                    onChange={(event) => updateEditUserField('gender', event.target.value)}
+                    required
+                    value={editUser.gender}
+                  >
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                  </select>
+                  {renderEditStaffFieldError('gender')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.roleCode}
+                  >
+                    Vai trò <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'roleCode')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'roleCode'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstEditFieldError(editFieldErrors, 'roleCode') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.roleCode}
+                    name="roleCode"
+                    onChange={(event) => updateEditUserField('roleCode', event.target.value)}
+                    required
+                    value={editUser.roleCode}
+                  >
+                    {roleOptions.map((option) => (
+                      <option key={option.code} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {renderEditStaffFieldError('roleCode')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.departmentId}
+                  >
+                    Khoa / Phòng <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'departmentId')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'departmentId'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstEditFieldError(editFieldErrors, 'departmentId') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.departmentId}
+                    name="departmentId"
+                    onChange={(event) => updateEditUserField('departmentId', event.target.value)}
+                    required
+                    value={editUser.deptCode ?? ''}
+                  >
+                    <option value="">-- Chọn khoa/phòng --</option>
+                    {departmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {renderEditStaffFieldError('departmentId')}
+                </div>
               </div>
 
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Vai trò
+                <label
+                  className="block text-xs font-semibold text-[#3f4851] mb-1"
+                  htmlFor={editStaffFieldIds.isActive}
+                >
+                  Trạng thái tài khoản
                 </label>
                 <select
-                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                  onChange={(event) => {
-                    const roleCode = event.target.value as RoleCode;
-
-                    setEditUser({
-                      ...editUser,
-                      role: roleLabelByCode[roleCode] ?? roleCode,
-                      roleCode,
-                    });
-                  }}
-                  value={editUser.roleCode}
+                  aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'isActive')}
+                  aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'isActive'))}
+                  className={cn(
+                    'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                    getFirstEditFieldError(editFieldErrors, 'isActive') && 'border-red-300 bg-red-50/30',
+                  )}
+                  disabled={updateMutation.isPending}
+                  id={editStaffFieldIds.isActive}
+                  name="isActive"
+                  onChange={(event) => updateEditUserField('isActive', event.target.value === 'active')}
+                  value={editUser.status === 'locked' ? 'locked' : 'active'}
                 >
-                  {roleOptions.map((option) => (
-                    <option key={option.code} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
+                  <option value="active">Hoạt động</option>
+                  <option value="locked">Bị khóa</option>
                 </select>
+                {renderEditStaffFieldError('isActive')}
               </div>
 
               {editFormError ? (
@@ -2435,8 +2798,10 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
               <div className="flex gap-2.5 justify-end">
                 <button
                   className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
+                  disabled={updateMutation.isPending}
                   onClick={() => {
                     setEditFormError('');
+                    setEditFieldErrors({});
                     setEditUser(null);
                   }}
                   type="button"
@@ -2444,10 +2809,11 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                   Hủy
                 </button>
                 <button
-                  className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  className="min-w-[128px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={updateMutation.isPending}
                   type="submit"
                 >
-                  Lưu thay đổi
+                  {updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </form>

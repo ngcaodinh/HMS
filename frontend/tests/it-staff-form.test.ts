@@ -3,9 +3,13 @@ import { describe, it } from 'node:test';
 
 import {
   createStaffFormSchema,
+  editStaffFormSchema,
   getCreateStaffValidationFieldErrors,
+  getEditStaffValidationFieldErrors,
   normalizeCreateStaffFieldErrors,
+  normalizeEditStaffFieldErrors,
   toCreateStaffInput,
+  toUpdateStaffInput,
 } from '../src/modules/it/types/staff-form.schema';
 import { staffUserSchema } from '../src/modules/it/types/staff.schema';
 
@@ -125,6 +129,83 @@ describe('normalizeCreateStaffFieldErrors', () => {
       {
         roleCode: ['Vai trò không hợp lệ', 'Vai trò đầu tiên không hợp lệ'],
         username: ['Tên đăng nhập đã tồn tại'],
+      },
+    );
+  });
+});
+
+describe('editStaffFormSchema', () => {
+  it('normalizes editable account fields before mapping to the staff update payload', () => {
+    const parsedForm = editStaffFormSchema.parse({
+      dateOfBirth: '1992-02-02',
+      departmentId: 'laboratory',
+      fullName: '  Trần Thị B  ',
+      gender: 'female',
+      identityCardNumber: '001 199 200 003',
+      isActive: true,
+      phoneNumber: '090 765 4321',
+      roleCode: 'lab_tech',
+      username: '  lab.tech.updated  ',
+    });
+    const payload = toUpdateStaffInput(parsedForm);
+
+    assert.deepEqual(payload, {
+      dateOfBirth: '1992-02-02',
+      departmentId: 'laboratory',
+      fullName: 'Trần Thị B',
+      gender: 'female',
+      identityCardNumber: '001199200003',
+      isActive: true,
+      phoneNumber: '0907654321',
+      roleCodes: ['lab_tech'],
+      username: 'lab.tech.updated',
+    });
+  });
+
+  it('returns UI-readable field errors for invalid editable account fields', () => {
+    const result = editStaffFormSchema.safeParse({
+      dateOfBirth: '',
+      departmentId: '',
+      fullName: '',
+      gender: '',
+      identityCardNumber: '',
+      isActive: true,
+      phoneNumber: '0123456789',
+      roleCode: '',
+      username: '',
+    });
+
+    assert.equal(result.success, false);
+    if (!result.success) {
+      assert.deepEqual(Object.keys(getEditStaffValidationFieldErrors(result.error)).sort(), [
+        'dateOfBirth',
+        'departmentId',
+        'fullName',
+        'gender',
+        'identityCardNumber',
+        'phoneNumber',
+        'roleCode',
+        'username',
+      ]);
+    }
+  });
+});
+
+describe('normalizeEditStaffFieldErrors', () => {
+  it('maps backend roleCodes paths to roleCode and keeps editable identity fields', () => {
+    assert.deepEqual(
+      normalizeEditStaffFieldErrors({
+        dateOfBirth: ['Ngày sinh không hợp lệ'],
+        identityCardNumber: ['CCCD đã tồn tại'],
+        roleCodes: ['Vai trò không hợp lệ'],
+        'roleCodes.0': ['Vai trò đầu tiên không hợp lệ'],
+        username: ['Username đã tồn tại'],
+      }),
+      {
+        dateOfBirth: ['Ngày sinh không hợp lệ'],
+        identityCardNumber: ['CCCD đã tồn tại'],
+        roleCode: ['Vai trò không hợp lệ', 'Vai trò đầu tiên không hợp lệ'],
+        username: ['Username đã tồn tại'],
       },
     );
   });

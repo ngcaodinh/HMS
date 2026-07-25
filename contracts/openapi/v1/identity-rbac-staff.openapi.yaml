@@ -292,12 +292,25 @@ components:
       minProperties: 1
       type: object
       properties:
+        username:
+          maxLength: 50
+          minLength: 3
+          pattern: '^[A-Za-z0-9._]+$'
+          type: string
         fullName:
           maxLength: 255
           minLength: 2
           type: string
+        gender:
+          $ref: '#/components/schemas/Gender'
+        dateOfBirth:
+          format: date
+          type: string
         phoneNumber:
           pattern: '^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$'
+          type: string
+        identityCardNumber:
+          pattern: '^[0-9]{12}$'
           type: string
         departmentId:
           maxLength: 36

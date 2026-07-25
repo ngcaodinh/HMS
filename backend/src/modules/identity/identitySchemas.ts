@@ -74,11 +74,15 @@ export const createStaffSchema = z
  */
 export const updateStaffSchema = z
   .object({
+    dateOfBirth: dateOnlySchema.optional(),
     departmentId: z.string().min(1).max(36).optional(),
     fullName: z.string().trim().min(2).max(255).optional(),
+    gender: z.enum(['male', 'female']).optional(),
+    identityCardNumber: identityCardSchema.optional(),
     isActive: z.boolean().optional(),
     phoneNumber: phoneSchema.optional(),
     roleCodes: z.array(roleCodeSchema).min(1).max(1).optional(),
+    username: usernameSchema.optional(),
   })
   .strict();
 

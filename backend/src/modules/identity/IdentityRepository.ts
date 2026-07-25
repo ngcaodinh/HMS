@@ -42,7 +42,7 @@ const mapUser = (user: UserWithRoles): StaffUserRecord => ({
  * Chuyển lỗi unique constraint của Prisma thành lỗi nghiệp vụ không lộ chi tiết DB.
  * Nhận lỗi thô từ Prisma, ném AppError có field cụ thể hoặc trả lại lỗi gốc cho nhánh khác xử lý.
  */
-const mapUniqueCreateStaffError = (error: unknown): never => {
+const mapUniqueStaffError = (error: unknown): never => {
   if (
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === 'P2002'
@@ -129,7 +129,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
 
       return mapUser(user);
     } catch (error) {
-      return mapUniqueCreateStaffError(error);
+      return mapUniqueStaffError(error);
     }
   }
 
@@ -302,17 +302,21 @@ export class PrismaIdentityRepository implements IdentityRepository {
     data: Prisma.UserUpdateInput;
     userId: string;
   }) {
-    const user = await this.client.user.update({
-      data: input.data,
-      include: {
-        permissions: true,
-      },
-      where: {
-        id: input.userId,
-      },
-    });
+    try {
+      const user = await this.client.user.update({
+        data: input.data,
+        include: {
+          permissions: true,
+        },
+        where: {
+          id: input.userId,
+        },
+      });
 
-    return mapUser(user);
+      return mapUser(user);
+    } catch (error) {
+      return mapUniqueStaffError(error);
+    }
   }
 
   /**
@@ -325,44 +329,48 @@ export class PrismaIdentityRepository implements IdentityRepository {
     roleCodes: RoleCode[];
     userId: string;
   }) {
-    const user = await this.client.$transaction(async (transaction) => {
-      await transaction.user.update({
-        data: input.data,
-        where: {
-          id: input.userId,
-        },
+    try {
+      const user = await this.client.$transaction(async (transaction) => {
+        await transaction.user.update({
+          data: input.data,
+          where: {
+            id: input.userId,
+          },
+        });
+
+        await transaction.permission.deleteMany({
+          where: {
+            userId: input.userId,
+          },
+        });
+
+        await Promise.all(
+          input.roleCodes.map((roleCode) =>
+            transaction.permission.create({
+              data: {
+                assignedBy: input.assignedBy,
+                id: randomUUID(),
+                roleCode,
+                userId: input.userId,
+              },
+            }),
+          ),
+        );
+
+        return transaction.user.findUnique({
+          include: {
+            permissions: true,
+          },
+          where: {
+            id: input.userId,
+          },
+        });
       });
 
-      await transaction.permission.deleteMany({
-        where: {
-          userId: input.userId,
-        },
-      });
-
-      await Promise.all(
-        input.roleCodes.map((roleCode) =>
-          transaction.permission.create({
-            data: {
-              assignedBy: input.assignedBy,
-              id: randomUUID(),
-              roleCode,
-              userId: input.userId,
-            },
-          }),
-        ),
-      );
-
-      return transaction.user.findUnique({
-        include: {
-          permissions: true,
-        },
-        where: {
-          id: input.userId,
-        },
-      });
-    });
-
-    return user ? mapUser(user) : null;
+      return user ? mapUser(user) : null;
+    } catch (error) {
+      return mapUniqueStaffError(error);
+    }
   }
 
   async userHasAction(userId: string, actionCode: string) {

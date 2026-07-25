@@ -54,7 +54,17 @@ export type CreateStaffData = {
 };
 
 export type UpdateStaffData = Partial<
-  Pick<CreateStaffData, 'departmentId' | 'fullName' | 'phoneNumber' | 'roleCodes'> & {
+  Pick<
+    CreateStaffData,
+    | 'dateOfBirth'
+    | 'departmentId'
+    | 'fullName'
+    | 'gender'
+    | 'identityCardNumber'
+    | 'phoneNumber'
+    | 'roleCodes'
+    | 'username'
+  > & {
     isActive: boolean;
   }
 >;

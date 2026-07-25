@@ -244,7 +244,7 @@ describe('IdentityService staff policy', () => {
     });
   });
 
-  it('rejects inactive staff login with the same invalid-credential response', async () => {
+  it('rejects inactive staff login with a locked-account response', async () => {
     const inactiveUser = createUser({ isActive: false });
     const service = createService([inactiveUser]);
 
@@ -255,8 +255,8 @@ describe('IdentityService staff policy', () => {
         username: inactiveUser.username,
       }),
     ).rejects.toMatchObject({
-      code: 'INVALID_CREDENTIALS',
-      status: 401,
+      code: 'USER_INACTIVE',
+      status: 403,
     });
   });
 
@@ -449,6 +449,40 @@ describe('IdentityService staff policy', () => {
     expect(result.authVersion).toBe(1);
     expect(result.fullName).toBe('Doctor Profile Updated');
     expect(result.phoneNumber).toBe('0907654321');
+  });
+
+  it('updates editable identity fields from the staff edit form', async () => {
+    const target = createUser({
+      id: '22222222-2222-4222-8222-222222222222',
+      roleCodes: ['doctor'],
+      username: 'doctor.one',
+    });
+    const service = createService([createUser(), target]);
+
+    const result = await service.updateStaffAccount({
+      actor: createUser(),
+      ifUnmodifiedSince: target.updatedAt.toISOString(),
+      input: {
+        dateOfBirth: '1992-02-02',
+        departmentId: 'laboratory',
+        fullName: 'Doctor Identity Updated',
+        gender: 'female',
+        identityCardNumber: '001199200003',
+        phoneNumber: '0907654321',
+        username: 'doctor.identity.updated',
+      },
+      requestId: 'req-identity-update',
+      userId: target.id,
+    });
+
+    expect(result.authVersion).toBe(1);
+    expect(result.dateOfBirth.toISOString()).toBe('1992-02-02T00:00:00.000Z');
+    expect(result.departmentId).toBe('laboratory');
+    expect(result.fullName).toBe('Doctor Identity Updated');
+    expect(result.gender).toBe('female');
+    expect(result.identityCardNumber).toBe('001199200003');
+    expect(result.phoneNumber).toBe('0907654321');
+    expect(result.username).toBe('doctor.identity.updated');
   });
 
   it('updates staff roles atomically and revokes existing sessions', async () => {

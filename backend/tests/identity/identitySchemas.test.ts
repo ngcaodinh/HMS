@@ -122,18 +122,26 @@ describe('updateStaffSchema', () => {
   it('accepts only updateable staff fields and keeps supported values', () => {
     expect(
       updateStaffSchema.parse({
+        dateOfBirth: '1992-02-02',
         departmentId: 'laboratory',
         fullName: 'Lab Tech Updated',
+        gender: 'female',
+        identityCardNumber: '001199200003',
         isActive: false,
         phoneNumber: '0907654321',
         roleCodes: ['lab_tech'],
+        username: 'lab.tech.updated',
       }),
     ).toEqual({
+      dateOfBirth: '1992-02-02',
       departmentId: 'laboratory',
       fullName: 'Lab Tech Updated',
+      gender: 'female',
+      identityCardNumber: '001199200003',
       isActive: false,
       phoneNumber: '0907654321',
       roleCodes: ['lab_tech'],
+      username: 'lab.tech.updated',
     });
   });
 
@@ -141,7 +149,6 @@ describe('updateStaffSchema', () => {
     const result = updateStaffSchema.safeParse({
       password: 'Secret#2026',
       supportRequestReference: 'REQ-20260725-001',
-      username: 'changed.username',
     });
 
     expect(result.success).toBe(false);
@@ -152,8 +159,27 @@ describe('updateStaffSchema', () => {
         code: 'unrecognized_keys',
       });
       expect(firstIssue && 'keys' in firstIssue ? firstIssue.keys : []).toEqual(
-        expect.arrayContaining(['username', 'password', 'supportRequestReference']),
+        expect.arrayContaining(['password', 'supportRequestReference']),
       );
+    }
+  });
+
+  it('reports validation issues on editable identity fields', () => {
+    const result = updateStaffSchema.safeParse({
+      dateOfBirth: '2026-02-31',
+      gender: 'other',
+      identityCardNumber: '123',
+      username: 'changed username',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((issue) => issue.path.join('.')).sort()).toEqual([
+        'dateOfBirth',
+        'gender',
+        'identityCardNumber',
+        'username',
+      ]);
     }
   });
 });

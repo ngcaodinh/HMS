@@ -8,21 +8,12 @@ import {
   staffUserSchema,
   type CreateStaffInput,
   type CreateStaffResult,
-  type DepartmentCode,
-  type RoleCode,
   type StaffList,
   type StaffUser,
+  type UpdateStaffInput,
 } from '../types/staff.schema';
 
-export type { CreateStaffInput };
-
-export type UpdateStaffInput = {
-  departmentId?: DepartmentCode;
-  fullName?: string;
-  isActive?: boolean;
-  phoneNumber?: string;
-  roleCodes?: RoleCode[];
-};
+export type { CreateStaffInput, UpdateStaffInput };
 
 /**
  * Parse dữ liệu trả về từ backend tại feature boundary để phát hiện drift hợp đồng sớm.

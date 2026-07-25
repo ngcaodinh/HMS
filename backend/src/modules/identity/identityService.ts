@@ -67,7 +67,15 @@ export class IdentityService {
       status: 401,
     });
 
-    if (!user || !user.isActive) throw invalidCredentials;
+    if (!user) throw invalidCredentials;
+
+    if (!user.isActive) {
+      throw new AppError({
+        code: 'USER_INACTIVE',
+        message: 'Tài khoản đã bị khóa. Vui lòng liên hệ kĩ thuật viên IT để xử lý.',
+        status: 403,
+      });
+    }
 
     const isValidPassword = await this.dependencies.bcrypt.compare(input.password, user.password);
 
@@ -309,11 +317,15 @@ export class IdentityService {
     actor: Principal;
     ifUnmodifiedSince?: string;
     input: {
+      dateOfBirth?: string;
       departmentId?: string;
       fullName?: string;
+      gender?: 'male' | 'female';
+      identityCardNumber?: string;
       isActive?: boolean;
       phoneNumber?: string;
       roleCodes?: RoleCode[];
+      username?: string;
     };
     requestId: string;
     userId: string;
@@ -369,10 +381,16 @@ export class IdentityService {
       input.input.isActive !== undefined || input.input.roleCodes !== undefined;
     const updateInput = {
       data: {
+        dateOfBirth: input.input.dateOfBirth
+          ? toDateOnly(input.input.dateOfBirth)
+          : undefined,
         departmentId: input.input.departmentId,
         fullName: input.input.fullName,
+        gender: input.input.gender,
+        identityCardNumber: input.input.identityCardNumber,
         isActive: input.input.isActive,
         phoneNumber: input.input.phoneNumber,
+        username: input.input.username,
         ...(shouldRevokeTokens ? { authVersion: { increment: 1 } } : {}),
       },
       userId: target.id,

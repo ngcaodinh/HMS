@@ -26,6 +26,16 @@ const createRepositoryThrowingError = (error: unknown) =>
 const createRepositoryThrowingUniqueError = (target: unknown) =>
   createRepositoryThrowingError(createUniqueConstraintError(target));
 
+const createRepositoryThrowingUpdateUniqueError = (target: unknown) =>
+  new PrismaIdentityRepository({
+    user: {
+      update: async () => {
+        await Promise.resolve();
+        throw createUniqueConstraintError(target);
+      },
+    },
+  } as unknown as PrismaClient);
+
 const createStaffInput = {
   assignedBy: '11111111-1111-4111-8111-111111111111',
   data: {
@@ -150,5 +160,41 @@ describe('PrismaIdentityRepository.createStaffUser', () => {
     const repository = createRepositoryThrowingError(error);
 
     await expect(repository.createStaffUser(createStaffInput)).rejects.toBe(error);
+  });
+});
+
+describe('PrismaIdentityRepository.updateStaffUser', () => {
+  it('maps duplicate username updates to a field-specific AppError', async () => {
+    const repository = createRepositoryThrowingUpdateUniqueError(['username']);
+
+    await expect(
+      repository.updateStaffUser({
+        data: {
+          username: 'doctor.duplicate',
+        },
+        userId: '33333333-3333-4333-8333-333333333333',
+      }),
+    ).rejects.toMatchObject({
+      code: 'STAFF_USERNAME_EXISTS',
+      details: [{ field: 'username', rule: 'unique' }],
+      status: 409,
+    });
+  });
+
+  it('maps duplicate identity card updates to a field-specific AppError', async () => {
+    const repository = createRepositoryThrowingUpdateUniqueError(['identityCardNumber']);
+
+    await expect(
+      repository.updateStaffUser({
+        data: {
+          identityCardNumber: '001199200003',
+        },
+        userId: '33333333-3333-4333-8333-333333333333',
+      }),
+    ).rejects.toMatchObject({
+      code: 'STAFF_IDENTITY_CARD_EXISTS',
+      details: [{ field: 'identityCardNumber', rule: 'unique' }],
+      status: 409,
+    });
   });
 });
