@@ -6,6 +6,14 @@ import { Providers } from './providers';
 export const metadata = {
   title: 'HMS',
   description: 'Hospital management system',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/hms-login-logo.png', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: '/hms-login-logo.png',
+  },
 };
 
 export default function RootLayout({
@@ -14,8 +22,8 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="vi">
-      <body>
+    <html lang="vi" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

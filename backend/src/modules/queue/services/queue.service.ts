@@ -203,9 +203,21 @@ export class QueueService {
   async callNext(dateStr: string | undefined, userId?: string): Promise<QueueTicketDto> {
     const { date } = resolveDate(dateStr);
     const calledAt = toVietnamDbDateTime();
-    const ticket = await queueRepository.callNextWaiting(date, calledAt);
 
-    if (!ticket) {
+    // Retry nhẹ khi race: quầy khác vừa gọi đúng MIN number.
+    let ticket = await queueRepository.callNextWaiting(date, calledAt);
+    if (ticket === 'race') {
+      ticket = await queueRepository.callNextWaiting(date, toVietnamDbDateTime());
+    }
+
+    if (!ticket || ticket === 'race') {
+      if (ticket === 'race') {
+        throw new AppError(
+          409,
+          'QUEUE_TICKET_ALREADY_CHANGED',
+          'Số vừa được quầy khác gọi. Vui lòng gọi lại số tiếp theo.',
+        );
+      }
       throw new AppError(404, 'NO_WAITING_TICKET', 'Không còn số đang chờ');
     }
 
@@ -219,6 +231,32 @@ export class QueueService {
 
     await publishTicketEvent('queue.ticket.called', ticket);
     return toTicketDto(ticket);
+  }
+
+  /**
+   * Nội bộ tiếp nhận: called → served (Phase createReception sẽ gọi).
+   */
+  async markTicketServed(ticketId: string, recordId?: string): Promise<QueueTicketDto> {
+    const result = await queueRepository.markServed({
+      ticketId,
+      servedAt: toVietnamDbDateTime(),
+      recordId,
+    });
+
+    if (!result) {
+      throw new AppError(404, 'QUEUE_TICKET_NOT_FOUND', 'Không tìm thấy số thứ tự');
+    }
+
+    if (result === 'invalid') {
+      throw new AppError(
+        400,
+        'QUEUE_TICKET_NOT_CALLED',
+        'Chỉ tiếp nhận được số đang ở trạng thái đã gọi',
+      );
+    }
+
+    await publishTicketEvent('queue.ticket.updated', result);
+    return toTicketDto(result);
   }
 
   /**
@@ -259,7 +297,43 @@ export class QueueService {
   }
 
   /**
-   * skipped → called (gọi lại).
+   * Gọi lại số đang called (re-announce LED/PA) — cập nhật calledAt, giữ status called.
+   * Dùng cho quầy: gọi tối đa 3 lần trước khi bỏ qua.
+   */
+  async reannounceTicket(ticketId: string, userId?: string): Promise<QueueTicketDto> {
+    const ticket = await queueRepository.findById(ticketId);
+    if (!ticket) {
+      throw new AppError(404, 'QUEUE_TICKET_NOT_FOUND', 'Không tìm thấy số thứ tự');
+    }
+
+    if (ticket.status !== 'called') {
+      throw new AppError(
+        409,
+        'INVALID_QUEUE_TRANSITION',
+        'Chỉ được gọi lại số đang ở trạng thái đã gọi',
+      );
+    }
+
+    const calledAt = toVietnamDbDateTime();
+    const updated = await queueRepository.updateStatus(ticketId, {
+      status: 'called',
+      calledAt,
+    });
+
+    await auditPort.record({
+      action: 'queue.reannounce',
+      resource: 'QueueTicket',
+      resourceId: ticketId,
+      userId,
+      metadata: { number: ticket.number },
+    });
+
+    await publishTicketEvent('queue.ticket.called', updated);
+    return toTicketDto(updated);
+  }
+
+  /**
+   * skipped → called (gọi lại từ danh sách bỏ qua).
    */
   async recallTicket(
     ticketId: string,

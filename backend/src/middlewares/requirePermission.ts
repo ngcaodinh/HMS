@@ -30,7 +30,15 @@ export function attachDevPrincipal(req: Request, _res: Response, next: NextFunct
     req.principal = {
       userId: '11111111-1111-4111-8111-111111111111',
       roleCodes: ['receptionist'],
-      permissions: ['queue.read', 'queue.call', 'queue.manage', 'reception.create'],
+      permissions: [
+        'queue.read',
+        'queue.call',
+        'queue.manage',
+        'reception.create',
+        'patient.search',
+        'emergency.create',
+        'emergency.identity.normalize',
+      ],
       authVersion: 1,
     };
   }

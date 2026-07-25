@@ -88,6 +88,17 @@ export async function skipQueueTicket(
   return response.data.data;
 }
 
+/**
+ * Gọi lại số đang called (re-announce LED/PA) — không đổi status.
+ */
+export async function reannounceQueueTicket(ticketId: string): Promise<QueueTicketDto> {
+  const response = await apiClient.post<ApiSuccess<QueueTicketDto>>(
+    `/queue-tickets/${ticketId}/reannounce`,
+    {},
+  );
+  return response.data.data;
+}
+
 export async function recallQueueTicket(
   ticketId: string,
   reason: string,
