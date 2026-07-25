@@ -109,16 +109,6 @@ type AuditLog = {
   tone: Tone;
 };
 
-type StaffUser = {
-  id: string;
-  username: string;
-  name: string;
-  role: string;
-  phone: string;
-  lastLogin: string;
-  status: 'active' | 'locked' | 'current';
-};
-
 type PopupNotification = {
   message: string;
   title: string;
@@ -355,61 +345,6 @@ const permissionRows = [
   { role: 'Kế toán', tone: 'slate', values: [false, false, false, false, true, false, false, false] },
   { role: 'Kỹ thuật IT', tone: 'sky', values: [false, false, false, false, false, false, true, true] },
 ] satisfies Array<{ role: string; tone: Tone; values: boolean[] }>;
-
-const userStats: SummaryCard[] = [
-  { label: 'Tổng tài khoản', value: '48', helper: 'Tổng số', tone: 'sky' },
-  { label: 'Đang hoạt động', value: '45', helper: 'Hoạt động', tone: 'green' },
-  { label: 'Bị khóa', value: '3', helper: 'Hạn chế', tone: 'red' },
-  { label: 'Đăng nhập hôm nay', value: '31', helper: 'Hôm nay', tone: 'teal' },
-];
-
-const staffUsers: StaffUser[] = [
-  {
-    id: 'NV-0041',
-    lastLogin: '18/07/2026 07:30',
-    name: 'Trần Minh Khoa',
-    phone: '0912 345 678',
-    role: 'Bác sĩ',
-    status: 'active',
-    username: 'khoa.tran',
-  },
-  {
-    id: 'NV-0027',
-    lastLogin: '18/07/2026 06:55',
-    name: 'Lê Thị Thu Hương',
-    phone: '0987 654 321',
-    role: 'Điều dưỡng',
-    status: 'active',
-    username: 'huong.le',
-  },
-  {
-    id: 'NV-0035',
-    lastLogin: '17/07/2026 20:11',
-    name: 'Phạm Văn Dũng',
-    phone: '0903 111 222',
-    role: 'Dược sĩ',
-    status: 'active',
-    username: 'dung.pham',
-  },
-  {
-    id: 'NV-0012',
-    lastLogin: '10/06/2026 14:22',
-    name: 'Ngô Thị Bảo Châu',
-    phone: '0967 888 999',
-    role: 'Kế toán',
-    status: 'locked',
-    username: 'chau.ngo',
-  },
-  {
-    id: 'NV-0003',
-    lastLogin: '18/07/2026 08:00',
-    name: 'Nguyễn Đức Hùng',
-    phone: '0978 000 001',
-    role: 'KTV IT',
-    status: 'current',
-    username: 'hung.nguyen',
-  },
-];
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
@@ -1138,6 +1073,8 @@ const defaultCreateStaffForm: CreateStaffFormValues = {
   username: '',
 };
 
+const staffUsersPageSize = 20;
+
 const createStaffFieldIds: Record<CreateStaffFormField, string> = {
   dateOfBirth: 'create-staff-date-of-birth',
   departmentId: 'create-staff-department-id',
@@ -1217,6 +1154,7 @@ const mapApiStaffUserToItem = (user: ApiStaffUser): StaffUserItem => {
  */
 function UsersContent({ principal }: { principal: ItPrincipal }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [temporaryPasswordDialog, setTemporaryPasswordDialog] =
     useState<TemporaryPasswordDialog | null>(null);
@@ -1231,12 +1169,32 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
   const firstAddFieldRef = useRef<HTMLInputElement>(null);
   const notificationTimer = useRef<number | null>(null);
   const copyTimer = useRef<number | null>(null);
-  const staffQuery = useStaffUsers({ page: 1, q: searchQuery });
+  const staffQuery = useStaffUsers({ page: currentPage, pageSize: staffUsersPageSize, q: searchQuery });
+  const activeStaffCountQuery = useStaffUsers({
+    isActive: true,
+    page: 1,
+    pageSize: 1,
+    q: searchQuery,
+  });
+  const lockedStaffCountQuery = useStaffUsers({
+    isActive: false,
+    page: 1,
+    pageSize: 1,
+    q: searchQuery,
+  });
   const createMutation = useCreateStaffUser();
   const updateMutation = useUpdateStaffUser();
   const resetMutation = useResetStaffPassword();
   const users = staffQuery.data?.items.map(mapApiStaffUserToItem) ?? [];
   const totalStaffUsers = staffQuery.data?.totalItems ?? users.length;
+  const totalStaffPages = staffQuery.data?.totalPages ?? 1;
+  const startPage = Math.min(Math.max(currentPage - 2, 1), Math.max(totalStaffPages - 4, 1));
+  const pageNumbers = Array.from(
+    { length: Math.min(totalStaffPages, 5) },
+    (_, index) => startPage + index,
+  );
+  const activeCount = activeStaffCountQuery.data?.totalItems ?? 0;
+  const lockedCount = lockedStaffCountQuery.data?.totalItems ?? 0;
   const roleOptions = getManageableRoleOptions(principal);
 
   /** Mở popup thông báo ngắn và tự ẩn để không chặn luồng nhập liệu của kỹ thuật IT. */
@@ -1391,20 +1349,6 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
     temporaryPasswordDialog,
     updateMutation.isPending,
   ]);
-
-  const activeCount = users.filter((u) => u.status === 'active' || u.status === 'current').length;
-  const lockedCount = users.filter((u) => u.status === 'locked').length;
-
-  const filteredUsers = users.filter((u) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      u.name.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q) ||
-      u.phone.includes(q) ||
-      u.id.toLowerCase().includes(q)
-    );
-  });
 
   /**
    * Khóa hoặc mở khóa tài khoản nhân viên bằng optimistic lock từ updatedAt.
@@ -1680,7 +1624,10 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
             </svg>
             <input
               className="w-full pl-9 pr-3 py-2 text-xs border border-[#bfc7d2] rounded-lg outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white text-[#171c1f]"
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="Tìm theo tên, username, SĐT..."
               type="text"
               value={searchQuery}
@@ -1714,24 +1661,26 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
       <div className="grid grid-cols-4 gap-4 mb-4">
         <div className="ktv-stat-mini">
           <div className="ktv-stat-mini-label">Tổng tài khoản</div>
-          <div className="ktv-stat-mini-value">48</div>
+          <div className="ktv-stat-mini-value">
+            {staffQuery.isLoading ? '...' : totalStaffUsers}
+          </div>
         </div>
         <div className="ktv-stat-mini">
           <div className="ktv-stat-mini-label">Đang hoạt động</div>
           <div className="ktv-stat-mini-value" style={{ color: '#1b6e3c' }}>
-            {activeCount + 40}
+            {activeStaffCountQuery.isLoading ? '...' : activeCount}
           </div>
         </div>
         <div className="ktv-stat-mini">
           <div className="ktv-stat-mini-label">Bị khóa</div>
           <div className="ktv-stat-mini-value" style={{ color: '#ba1a1a' }}>
-            {lockedCount + 2}
+            {lockedStaffCountQuery.isLoading ? '...' : lockedCount}
           </div>
         </div>
         <div className="ktv-stat-mini">
-          <div className="ktv-stat-mini-label">Đăng nhập hôm nay</div>
+          <div className="ktv-stat-mini-label">Đang hiển thị</div>
           <div className="ktv-stat-mini-value" style={{ color: '#006096' }}>
-            31
+            {staffQuery.isLoading ? '...' : users.length}
           </div>
         </div>
       </div>
@@ -1753,7 +1702,28 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user) => {
+              {staffQuery.isLoading ? (
+                <tr>
+                  <td className="px-3.5 py-8 text-center text-xs font-semibold text-[#707882]" colSpan={8}>
+                    Đang tải danh sách tài khoản từ API...
+                  </td>
+                </tr>
+              ) : null}
+              {staffQuery.isError ? (
+                <tr>
+                  <td className="px-3.5 py-8 text-center text-xs font-semibold text-[#ba1a1a]" colSpan={8}>
+                    Không thể tải danh sách tài khoản nhân viên từ hệ thống.
+                  </td>
+                </tr>
+              ) : null}
+              {!staffQuery.isLoading && !staffQuery.isError && users.length === 0 ? (
+                <tr>
+                  <td className="px-3.5 py-8 text-center text-xs font-semibold text-[#707882]" colSpan={8}>
+                    Không có tài khoản nhân viên phù hợp.
+                  </td>
+                </tr>
+              ) : null}
+              {!staffQuery.isLoading && !staffQuery.isError ? users.map((user) => {
                 const isLocked = user.status === 'locked';
                 const isCurrent = user.status === 'current';
 
@@ -1952,28 +1922,45 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     </td>
                   </tr>
                 );
-              })}
+              }) : null}
             </tbody>
           </table>
         </div>
 
         {/* Table Footer Pagination */}
         <div className="mt-3.5 flex items-center justify-between flex-wrap gap-2 text-xs text-[#707882]">
-          <span>Hiển thị {filteredUsers.length} / {totalStaffUsers} nhân viên</span>
+          <span>Hiển thị {users.length} / {totalStaffUsers} nhân viên</span>
           <div className="flex gap-1.5">
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+            <button
+              className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={currentPage <= 1 || staffQuery.isLoading}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              type="button"
+            >
               ‹ Trước
             </button>
-            <button className="px-3 py-1.5 bg-[#006096] text-white rounded-md text-xs font-semibold shadow-sm" type="button">
-              1
-            </button>
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
-              2
-            </button>
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
-              3
-            </button>
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+            {pageNumbers.map((page) => (
+              <button
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs font-semibold transition',
+                  page === currentPage
+                    ? 'bg-[#006096] text-white shadow-sm'
+                    : 'border border-[#bfc7d2] text-[#3f4851] hover:bg-[#f0f4f8]',
+                )}
+                disabled={staffQuery.isLoading}
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                type="button"
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={currentPage >= totalStaffPages || staffQuery.isLoading}
+              onClick={() => setCurrentPage((page) => Math.min(totalStaffPages, page + 1))}
+              type="button"
+            >
               Sau ›
             </button>
           </div>

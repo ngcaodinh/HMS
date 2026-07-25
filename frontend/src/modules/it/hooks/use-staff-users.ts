@@ -9,18 +9,26 @@ import {
   type UpdateStaffInput,
 } from '../api/staff-api';
 
+type StaffUsersQueryInput = {
+  isActive?: boolean;
+  page: number;
+  pageSize?: number;
+  q: string;
+};
+
 /**
- * Query key ổn định cho cache danh sách nhân viên theo trang và từ khóa.
+ * Query key ổn định cho cache danh sách nhân viên theo trang, filter và từ khóa.
  */
-export const staffUsersQueryKey = (page: number, q: string) => ['staff-users', page, q] as const;
+export const staffUsersQueryKey = ({ isActive, page, pageSize = 20, q }: StaffUsersQueryInput) =>
+  ['staff-users', page, pageSize, q, isActive] as const;
 
 /**
  * Hook đọc danh sách nhân viên, truyền AbortSignal để hủy request khi query đổi.
  */
-export const useStaffUsers = ({ page, q }: { page: number; q: string }) =>
+export const useStaffUsers = ({ isActive, page, pageSize, q }: StaffUsersQueryInput) =>
   useQuery({
-    queryFn: ({ signal }) => listStaffUsers({ page, q, signal }),
-    queryKey: staffUsersQueryKey(page, q),
+    queryFn: ({ signal }) => listStaffUsers({ isActive, page, pageSize, q, signal }),
+    queryKey: staffUsersQueryKey({ isActive, page, pageSize, q }),
   });
 
 /**
