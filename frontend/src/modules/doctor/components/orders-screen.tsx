@@ -149,7 +149,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                   <td className={styles.td}>—</td>
                   <td className={styles.td}>
                     <span className={test.status === 'resulted' ? styles.statusNormal : styles.statusPending}>
-                      {test.status === 'resulted' ? 'Có kết quả' : 'Đã chỉ định'}
+                      {test.status === 'resulted' ? 'Có kết quả' : test.status === 'in_progress' ? 'Đang thực hiện' : 'Đã chỉ định'}
                     </span>
                   </td>
                   <td className={styles.td}>—</td>

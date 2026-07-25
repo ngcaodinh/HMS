@@ -33,6 +33,12 @@ export async function apiPost<T>(url: string, body?: unknown, config?: AxiosRequ
   return response.data.data;
 }
 
+/** Content-Type is left unset so the browser fills in the multipart boundary itself. */
+export async function apiPostMultipart<T>(url: string, formData: FormData): Promise<T> {
+  const response = await httpClient.post<SuccessEnvelope<T>>(url, formData);
+  return response.data.data;
+}
+
 export async function apiPatch<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
   const response = await httpClient.patch<SuccessEnvelope<T>>(url, body, config);
   return response.data.data;
@@ -40,5 +46,10 @@ export async function apiPatch<T>(url: string, body?: unknown, config?: AxiosReq
 
 export async function apiPut<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
   const response = await httpClient.put<SuccessEnvelope<T>>(url, body, config);
+  return response.data.data;
+}
+
+export async function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await httpClient.delete<SuccessEnvelope<T>>(url, config);
   return response.data.data;
 }

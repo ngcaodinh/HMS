@@ -2,9 +2,86 @@
 
 import { useState } from 'react';
 
+import { downloadLabAttachmentUrl, useLabTestResult } from '../services/lab-result-api';
 import type { MedicalRecordDetail, RecordLabTestSummary } from '../types/medical-record.types';
 import { AssetIcon, cn } from './shared';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
+
+/** Doctor's view is a read-only summary — no per-type edit forms like the lab technician's
+ * result-entry screens, so field labels are derived generically rather than duplicating that
+ * module's large label dictionary here (kept intentionally independent, no cross-module import). */
+function prettifyFieldName(key: string): string {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/^ksd/, 'KS ')
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+const SKIP_FIELDS = new Set(['id', 'labTestId', 'createdAt', 'updatedAt']);
+
+function LabResultDetailView({ labTestId }: { labTestId: string }) {
+  const { data, isLoading } = useLabTestResult(labTestId);
+
+  if (isLoading || !data) {
+    return <p className="py-6 text-center text-sm text-[#707882]">Đang tải kết quả...</p>;
+  }
+
+  const entries = Object.entries(data.structuredResult ?? {}).filter(
+    ([key, value]) => !SKIP_FIELDS.has(key) && value !== null && value !== undefined && value !== '',
+  );
+
+  return (
+    <div>
+      {data.conclusion && (
+        <p className={cn(styles.alertInfo, 'mb-4')}>
+          <strong>Kết luận: </strong>
+          {data.conclusion}
+        </p>
+      )}
+      <div className={styles.tableWrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.th}>Chỉ số</th>
+              <th className={styles.th}>Kết quả</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#e5e7eb]">
+            {entries.length === 0 && (
+              <tr>
+                <td className={cn(styles.td, 'text-center text-[#707882]')} colSpan={2}>
+                  Chưa có dữ liệu chi tiết.
+                </td>
+              </tr>
+            )}
+            {entries.map(([key, value]) => (
+              <tr key={key}>
+                <td className={styles.td}>{prettifyFieldName(key)}</td>
+                <td className={styles.td}>{String(value)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {data.attachments.length > 0 && (
+        <div className="mt-4 flex flex-col gap-2">
+          <p className="text-xs font-bold uppercase tracking-[0.6px] text-[#707882]">Tệp đính kèm</p>
+          {data.attachments.map((attachment) => (
+            <a
+              className="text-sm text-[#006096] hover:underline"
+              href={downloadLabAttachmentUrl(attachment.attachmentId)}
+              key={attachment.attachmentId}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {attachment.originalName}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ResultsScreen({ record }: { record: MedicalRecordDetail }) {
   const [selectedId, setSelectedId] = useState<string | null>(record.labTests[0]?.labTestId ?? null);
@@ -52,10 +129,7 @@ export function ResultsScreen({ record }: { record: MedicalRecordDetail }) {
               </div>
             </div>
             {selected.status === 'resulted' ? (
-              <p className="rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-4 py-6 text-center text-sm text-[#3f4851]">
-                Chỉ số chi tiết của kết quả xét nghiệm sẽ hiển thị ở đây sau khi hoàn thiện màn nhập
-                kết quả của kỹ thuật viên xét nghiệm.
-              </p>
+              <LabResultDetailView labTestId={selected.labTestId} />
             ) : (
               <p className="rounded-md border border-dashed border-[#bfc7d2] bg-[#f8fafc] px-4 py-6 text-center text-sm text-[#707882]">
                 Xét nghiệm đang chờ kỹ thuật viên tiếp nhận và thực hiện.
