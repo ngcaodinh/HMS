@@ -1,12 +1,38 @@
 'use client';
 
 import Image from 'next/image';
-import type { ReactNode } from 'react';
-import { useState } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { ApiError } from '@/shared/api-client';
+import { LogoutButton } from '@/shared/auth/logout-button';
 
 import { itTechnicianWorkspaceStyles as styles } from './technician-workspace.styles';
+import {
+  useCreateStaffUser,
+  useResetStaffPassword,
+  useStaffUsers,
+  useUpdateStaffUser,
+} from '../../hooks/use-staff-users';
+import {
+  createStaffFormSchema,
+  editStaffFormSchema,
+  getCreateStaffValidationFieldErrors,
+  getEditStaffValidationFieldErrors,
+  normalizeCreateStaffFieldErrors,
+  normalizeEditStaffFieldErrors,
+  toCreateStaffInput,
+  toUpdateStaffInput,
+  type CreateStaffFormField,
+  type CreateStaffFormFieldErrors,
+  type CreateStaffFormValues,
+  type EditStaffFormField,
+  type EditStaffFormFieldErrors,
+} from '../../types/staff-form.schema';
+import type { DepartmentCode, RoleCode, StaffUser as ApiStaffUser } from '../../types/staff.schema';
 
 type PageKind = 'monitoring' | 'audit' | 'users' | 'rbac' | 'backup';
+type NotificationTone = 'error' | 'success';
 type Tone = 'green' | 'sky' | 'amber' | 'red' | 'slate' | 'teal';
 type IconName =
   | 'activity'
@@ -89,14 +115,35 @@ type AuditLog = {
   tone: Tone;
 };
 
-type StaffUser = {
-  id: string;
-  username: string;
-  name: string;
-  role: string;
-  phone: string;
-  lastLogin: string;
-  status: 'active' | 'locked' | 'current';
+type PopupNotification = {
+  message: string;
+  title: string;
+  tone: NotificationTone;
+};
+
+type ItPrincipal = {
+  roleCodes: string[];
+};
+
+type RoleOption = {
+  code: RoleCode;
+  label: string;
+  value: RoleCode;
+};
+
+type DepartmentOption = {
+  label: string;
+  value: DepartmentCode;
+};
+
+type TemporaryPasswordDialog = {
+  source: 'create' | 'reset';
+  targetName: string;
+  temporaryPassword: string;
+};
+
+type ItTechnicianWorkspaceProps = {
+  principal: ItPrincipal;
 };
 
 const navGroups: Array<{ label: string; items: NavItem[] }> = [
@@ -305,61 +352,6 @@ const permissionRows = [
   { role: 'Kỹ thuật IT', tone: 'sky', values: [false, false, false, false, false, false, true, true] },
 ] satisfies Array<{ role: string; tone: Tone; values: boolean[] }>;
 
-const userStats: SummaryCard[] = [
-  { label: 'Tổng tài khoản', value: '48', helper: 'Tổng số', tone: 'sky' },
-  { label: 'Đang hoạt động', value: '45', helper: 'Hoạt động', tone: 'green' },
-  { label: 'Bị khóa', value: '3', helper: 'Hạn chế', tone: 'red' },
-  { label: 'Đăng nhập hôm nay', value: '31', helper: 'Hôm nay', tone: 'teal' },
-];
-
-const staffUsers: StaffUser[] = [
-  {
-    id: 'NV-0041',
-    lastLogin: '18/07/2026 07:30',
-    name: 'Trần Minh Khoa',
-    phone: '0912 345 678',
-    role: 'Bác sĩ',
-    status: 'active',
-    username: 'khoa.tran',
-  },
-  {
-    id: 'NV-0027',
-    lastLogin: '18/07/2026 06:55',
-    name: 'Lê Thị Thu Hương',
-    phone: '0987 654 321',
-    role: 'Điều dưỡng',
-    status: 'active',
-    username: 'huong.le',
-  },
-  {
-    id: 'NV-0035',
-    lastLogin: '17/07/2026 20:11',
-    name: 'Phạm Văn Dũng',
-    phone: '0903 111 222',
-    role: 'Dược sĩ',
-    status: 'active',
-    username: 'dung.pham',
-  },
-  {
-    id: 'NV-0012',
-    lastLogin: '10/06/2026 14:22',
-    name: 'Ngô Thị Bảo Châu',
-    phone: '0967 888 999',
-    role: 'Kế toán',
-    status: 'locked',
-    username: 'chau.ngo',
-  },
-  {
-    id: 'NV-0003',
-    lastLogin: '18/07/2026 08:00',
-    name: 'Nguyễn Đức Hùng',
-    phone: '0978 000 001',
-    role: 'KTV IT',
-    status: 'current',
-    username: 'hung.nguyen',
-  },
-];
-
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
@@ -472,6 +464,67 @@ function ToneBadge({ children, tone }: { children: ReactNode; tone: Tone }) {
   );
 }
 
+/**
+ * Chọn nhóm class theo trạng thái thông báo.
+ * Nhận tone của popup, trả về class màu cho border, icon và text.
+ */
+function getNotificationClasses(tone: NotificationTone) {
+  if (tone === 'success') {
+    return {
+      border: 'border-emerald-200',
+      icon: 'bg-emerald-50 text-emerald-700',
+      text: 'text-emerald-700',
+    };
+  }
+
+  return {
+    border: 'border-red-200',
+    icon: 'bg-red-50 text-red-700',
+    text: 'text-red-700',
+  };
+}
+
+/**
+ * Hiển thị popup thông báo thao tác quản trị, thay thế alert native của trình duyệt.
+ * Nhận nội dung thông báo và callback đóng, không gọi API và không tự thay đổi server state.
+ */
+function NotificationPopup({
+  notification,
+  onClose,
+}: {
+  notification: PopupNotification;
+  onClose: () => void;
+}) {
+  const toneClass = getNotificationClasses(notification.tone);
+
+  return (
+    <div
+      className="fixed right-5 top-5 z-50 w-[min(360px,calc(100vw-40px))]"
+      role={notification.tone === 'error' ? 'alert' : 'status'}
+    >
+      <div className={cn('rounded-xl border bg-white p-4 shadow-2xl', toneClass.border)}>
+        <div className="flex items-start gap-3">
+          <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', toneClass.icon)}>
+            <Icon className="h-5 w-5" name={notification.tone === 'success' ? 'check' : 'alert'} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={cn('text-sm font-bold leading-5', toneClass.text)}>{notification.title}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-600">{notification.message}</p>
+          </div>
+          <button
+            aria-label="Đóng thông báo"
+            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-700/20"
+            onClick={onClose}
+            type="button"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ItSidebar({
   activePage,
   onChangePage,
@@ -533,9 +586,9 @@ function ItSidebar({
             <p className="truncate text-xs font-bold text-white/90">Nguyễn Đức Hùng</p>
             <p className="mt-0.5 text-[10px] text-white/50">Kỹ thuật viên IT</p>
           </div>
-          <button aria-label="Đăng xuất" className="rounded-md border border-white/10 p-2 text-white/90" type="button">
+          <LogoutButton className="rounded-md border border-white/10 p-2 text-white/90">
             <Icon className="h-4 w-4" name="logOut" />
-          </button>
+          </LogoutButton>
         </div>
       </div>
     </aside>
@@ -950,167 +1003,633 @@ function RbacContent() {
 
 interface StaffUserItem {
   id: string;
+  apiId?: string;
   username: string;
   name: string;
   role: string;
+  roleCode: RoleCode;
   phone: string;
+  dateOfBirth: string;
+  gender: 'male' | 'female';
   cccd?: string;
   dept?: string;
+  deptCode?: string;
   lastLogin: string;
   status: 'active' | 'locked' | 'current';
   chipClass: string;
+  updatedAt?: string;
 }
 
-const initialStaffUsers: StaffUserItem[] = [
-  {
-    id: 'NV-0041',
-    lastLogin: '18/07/2026 07:30',
-    name: 'Trần Minh Khoa',
-    phone: '0912 345 678',
-    role: 'Bác sĩ',
-    status: 'active',
-    username: 'khoa.tran',
-    chipClass: 'ktv-chip-blue',
-  },
-  {
-    id: 'NV-0027',
-    lastLogin: '18/07/2026 06:55',
-    name: 'Lê Thị Thu Hương',
-    phone: '0987 654 321',
-    role: 'Điều dưỡng',
-    status: 'active',
-    username: 'huong.le',
-    chipClass: 'ktv-chip-teal',
-  },
-  {
-    id: 'NV-0035',
-    lastLogin: '17/07/2026 20:11',
-    name: 'Phạm Văn Dũng',
-    phone: '0903 111 222',
-    role: 'Dược sĩ',
-    status: 'active',
-    username: 'dung.pham',
-    chipClass: 'ktv-chip-amber',
-  },
-  {
-    id: 'NV-0012',
-    lastLogin: '10/06/2026 14:22',
-    name: 'Ngô Thị Bảo Châu',
-    phone: '0967 888 999',
-    role: 'Kế toán',
-    status: 'locked',
-    username: 'chau.ngo',
-    chipClass: 'ktv-chip-purple',
-  },
-  {
-    id: 'NV-0003',
-    lastLogin: '18/07/2026 08:00',
-    name: 'Nguyễn Đức Hùng',
-    phone: '0978 000 001',
-    role: 'KTV IT',
-    status: 'current',
-    username: 'hung.nguyen',
-    chipClass: 'ktv-chip-indigo',
-  },
+const roleLabelByCode: Record<string, string> = {
+  admin: 'Quản trị viên',
+  accountant: 'Kế toán',
+  director: 'Giám đốc',
+  doctor: 'Bác sĩ',
+  it_tech: 'KTV IT',
+  lab_tech: 'KTV xét nghiệm',
+  nurse: 'Điều dưỡng',
+  pharmacist: 'Dược sĩ',
+  receptionist: 'Tiếp tân',
+};
+
+const chipClassByRoleCode: Record<string, string> = {
+  admin: 'ktv-chip-red',
+  accountant: 'ktv-chip-purple',
+  director: 'ktv-chip-slate',
+  doctor: 'ktv-chip-blue',
+  it_tech: 'ktv-chip-indigo',
+  lab_tech: 'ktv-chip-indigo',
+  nurse: 'ktv-chip-teal',
+  pharmacist: 'ktv-chip-amber',
+  receptionist: 'ktv-chip-green',
+};
+
+const managedRoleOptions: RoleOption[] = [
+  { code: 'doctor', label: 'Bác sĩ (doctor)', value: 'doctor' },
+  { code: 'nurse', label: 'Điều dưỡng (nurse)', value: 'nurse' },
+  { code: 'pharmacist', label: 'Dược sĩ (pharmacist)', value: 'pharmacist' },
+  { code: 'accountant', label: 'Kế toán (accountant)', value: 'accountant' },
+  { code: 'receptionist', label: 'Tiếp tân (receptionist)', value: 'receptionist' },
+  { code: 'lab_tech', label: 'KTV xét nghiệm (lab_tech)', value: 'lab_tech' },
 ];
 
-function UsersContent() {
-  const [users, setUsers] = useState<StaffUserItem[]>(initialStaffUsers);
+const adminRoleOptions: RoleOption[] = [
+  { code: 'admin', label: 'Quản trị viên (admin)', value: 'admin' },
+  ...managedRoleOptions,
+  { code: 'it_tech', label: 'KTV IT (it_tech)', value: 'it_tech' },
+  { code: 'director', label: 'Giám đốc (director)', value: 'director' },
+];
+
+const departmentOptions: DepartmentOption[] = [
+  { label: 'Khoa Da liễu', value: 'dermatology' },
+  { label: 'Khoa Lâm sàng', value: 'clinical' },
+  { label: 'Khoa Xét nghiệm', value: 'laboratory' },
+  { label: 'Phòng Dược', value: 'pharmacy' },
+  { label: 'Phòng Kế toán', value: 'accounting' },
+  { label: 'Quầy Tiếp tân', value: 'reception' },
+  { label: 'Phòng IT', value: 'it' },
+];
+
+const defaultCreateStaffForm: CreateStaffFormValues = {
+  dateOfBirth: '',
+  departmentId: '',
+  fullName: '',
+  gender: '',
+  identityCardNumber: '',
+  phoneNumber: '',
+  roleCode: '',
+  username: '',
+};
+
+const staffUsersPageSize = 20;
+
+const createStaffFieldIds: Record<CreateStaffFormField, string> = {
+  dateOfBirth: 'create-staff-date-of-birth',
+  departmentId: 'create-staff-department-id',
+  fullName: 'create-staff-full-name',
+  gender: 'create-staff-gender',
+  identityCardNumber: 'create-staff-identity-card-number',
+  phoneNumber: 'create-staff-phone-number',
+  roleCode: 'create-staff-role-code',
+  username: 'create-staff-username',
+};
+
+const editStaffFieldIds: Record<EditStaffFormField, string> = {
+  dateOfBirth: 'edit-staff-date-of-birth',
+  departmentId: 'edit-staff-department-id',
+  fullName: 'edit-staff-full-name',
+  gender: 'edit-staff-gender',
+  identityCardNumber: 'edit-staff-identity-card-number',
+  isActive: 'edit-staff-is-active',
+  phoneNumber: 'edit-staff-phone-number',
+  roleCode: 'edit-staff-role-code',
+  username: 'edit-staff-username',
+};
+
+/**
+ * Xác định danh sách role actor được phép gán trên UI.
+ * Nhận principal từ server guard, trả role đầy đủ cho admin hoặc subset nghiệp vụ cho it_tech.
+ */
+const getManageableRoleOptions = (principal: ItPrincipal) =>
+  principal.roleCodes.includes('admin') ? adminRoleOptions : managedRoleOptions;
+
+/**
+ * Định dạng thời điểm đăng nhập cuối cho bảng nhân viên.
+ * Nhận ISO string hoặc null từ API, trả chuỗi tiếng Việt dễ đọc cho UI.
+ */
+const formatLastLogin = (value: string | null) =>
+  value ? new Date(value).toLocaleString('vi-VN') : 'Chưa đăng nhập';
+
+/**
+ * Chuẩn hóa ngày sinh từ ISO/backend DATE về dạng yyyy-MM-dd để hiển thị trong input ngày.
+ */
+const formatDateInputValue = (value: string) => value.slice(0, 10);
+
+const getResetPasswordReason = (username: string) =>
+  `Cấp lại mật khẩu tài khoản ${username} theo yêu cầu hỗ trợ hợp lệ`;
+
+const getFirstFieldError = (
+  fieldErrors: CreateStaffFormFieldErrors,
+  field: CreateStaffFormField,
+) => fieldErrors[field]?.[0];
+
+const getFieldErrorId = (field: CreateStaffFormField) => `${createStaffFieldIds[field]}-error`;
+
+const getFieldDescriptionId = (field: CreateStaffFormField) =>
+  `${createStaffFieldIds[field]}-description`;
+
+const getFieldDescribedBy = (
+  fieldErrors: CreateStaffFormFieldErrors,
+  field: CreateStaffFormField,
+  hasDescription = false,
+) =>
+  [
+    hasDescription ? getFieldDescriptionId(field) : undefined,
+    getFirstFieldError(fieldErrors, field) ? getFieldErrorId(field) : undefined,
+  ].filter(Boolean).join(' ') || undefined;
+
+const getEditFieldErrorId = (field: EditStaffFormField) => `${editStaffFieldIds[field]}-error`;
+
+const getFirstEditFieldError = (
+  fieldErrors: EditStaffFormFieldErrors,
+  field: EditStaffFormField,
+) => fieldErrors[field]?.[0];
+
+const getEditFieldDescribedBy = (
+  fieldErrors: EditStaffFormFieldErrors,
+  field: EditStaffFormField,
+) => (getFirstEditFieldError(fieldErrors, field) ? getEditFieldErrorId(field) : undefined);
+
+/**
+ * Map StaffUser từ API sang model trình bày của workspace IT.
+ * Nhận payload đã parse bằng Zod, trả item không chứa password và có metadata chỉnh sửa.
+ */
+const mapApiStaffUserToItem = (user: ApiStaffUser): StaffUserItem => {
+  const roleCode = user.roleCodes[0];
+
+  return {
+    apiId: user.id,
+    cccd: user.identityCardNumber,
+    chipClass: chipClassByRoleCode[roleCode] ?? 'ktv-chip-blue',
+    dateOfBirth: formatDateInputValue(user.dateOfBirth),
+    dept: user.departmentId,
+    deptCode: user.departmentId,
+    gender: user.gender,
+    id: user.id.slice(0, 8).toUpperCase(),
+    lastLogin: formatLastLogin(user.lastLoginAt),
+    name: user.fullName,
+    phone: user.phoneNumber,
+    role: roleLabelByCode[roleCode] ?? roleCode,
+    roleCode,
+    status: user.isActive ? 'active' : 'locked',
+    updatedAt: user.updatedAt,
+    username: user.username,
+  };
+};
+
+/**
+ * Điều phối màn hình quản lý tài khoản nhân viên cho IT/admin.
+ * Nhận principal đã xác thực từ server page, gọi API qua React Query và giữ secret tạm trong state ngắn hạn.
+ */
+function UsersContent({ principal }: { principal: ItPrincipal }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [passResetTarget, setPassResetTarget] = useState<string | null>(null);
+  const [temporaryPasswordDialog, setTemporaryPasswordDialog] =
+    useState<TemporaryPasswordDialog | null>(null);
   const [editUser, setEditUser] = useState<StaffUserItem | null>(null);
-
-  // Form states for Add User
-  const [addForm, setAddForm] = useState({
-    fullname: '',
-    username: '',
-    phone: '',
-    cccd: '',
-    role: '',
-    dept: '',
-    password: 'Temp@2026!',
-  });
-  const [showPassword, setShowPassword] = useState(false);
+  const [addForm, setAddForm] = useState<CreateStaffFormValues>(defaultCreateStaffForm);
+  const [addFieldErrors, setAddFieldErrors] = useState<CreateStaffFormFieldErrors>({});
+  const [editFieldErrors, setEditFieldErrors] = useState<EditStaffFormFieldErrors>({});
+  const [addFormError, setAddFormError] = useState('');
+  const [editFormError, setEditFormError] = useState('');
   const [copiedPass, setCopiedPass] = useState(false);
-
-  const activeCount = users.filter((u) => u.status === 'active' || u.status === 'current').length;
-  const lockedCount = users.filter((u) => u.status === 'locked').length;
-
-  const filteredUsers = users.filter((u) => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      u.name.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q) ||
-      u.phone.includes(q) ||
-      u.id.toLowerCase().includes(q)
-    );
+  const [notification, setNotification] = useState<PopupNotification | null>(null);
+  const addAccountButtonRef = useRef<HTMLButtonElement>(null);
+  const firstAddFieldRef = useRef<HTMLInputElement>(null);
+  const notificationTimer = useRef<number | null>(null);
+  const copyTimer = useRef<number | null>(null);
+  const staffQuery = useStaffUsers({ page: currentPage, pageSize: staffUsersPageSize, q: searchQuery });
+  const activeStaffCountQuery = useStaffUsers({
+    isActive: true,
+    page: 1,
+    pageSize: 1,
+    q: searchQuery,
   });
+  const lockedStaffCountQuery = useStaffUsers({
+    isActive: false,
+    page: 1,
+    pageSize: 1,
+    q: searchQuery,
+  });
+  const createMutation = useCreateStaffUser();
+  const updateMutation = useUpdateStaffUser();
+  const resetMutation = useResetStaffPassword();
+  const users = staffQuery.data?.items.map(mapApiStaffUserToItem) ?? [];
+  const totalStaffUsers = staffQuery.data?.totalItems ?? users.length;
+  const totalStaffPages = staffQuery.data?.totalPages ?? 1;
+  const startPage = Math.min(Math.max(currentPage - 2, 1), Math.max(totalStaffPages - 4, 1));
+  const pageNumbers = Array.from(
+    { length: Math.min(totalStaffPages, 5) },
+    (_, index) => startPage + index,
+  );
+  const activeCount = activeStaffCountQuery.data?.totalItems ?? 0;
+  const lockedCount = lockedStaffCountQuery.data?.totalItems ?? 0;
+  const roleOptions = getManageableRoleOptions(principal);
 
-  const handleToggleLock = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId && u.status !== 'current') {
-          const newStatus = u.status === 'locked' ? 'active' : 'locked';
-          return { ...u, status: newStatus };
-        }
-        return u;
-      }),
-    );
+  /** Mở popup thông báo ngắn và tự ẩn để không chặn luồng nhập liệu của kỹ thuật IT. */
+  const showNotification = (nextNotification: PopupNotification) => {
+    if (notificationTimer.current) {
+      window.clearTimeout(notificationTimer.current);
+    }
+
+    setNotification(nextNotification);
+    notificationTimer.current = window.setTimeout(() => {
+      setNotification(null);
+      notificationTimer.current = null;
+    }, 3600);
   };
 
-  const handleCreateUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addForm.fullname || !addForm.username || !addForm.phone || !addForm.role) {
-      alert('Vui lòng điền đầy đủ các thông tin bắt buộc (*)');
+  useEffect(() => () => {
+    if (notificationTimer.current) {
+      window.clearTimeout(notificationTimer.current);
+    }
+
+    if (copyTimer.current) {
+      window.clearTimeout(copyTimer.current);
+    }
+  }, []);
+
+  /**
+   * Đóng dialog bàn giao mật khẩu và xóa secret tạm khỏi React state.
+   * Không gửi request mới, chỉ dọn trạng thái UI sau khi IT đã bàn giao mật khẩu.
+   */
+  const closeTemporaryPasswordDialog = () => {
+    if (copyTimer.current) {
+      window.clearTimeout(copyTimer.current);
+      copyTimer.current = null;
+    }
+
+    setTemporaryPasswordDialog(null);
+    setCopiedPass(false);
+  };
+
+  const resetAddFormState = () => {
+    setAddForm(defaultCreateStaffForm);
+    setAddFieldErrors({});
+    setAddFormError('');
+  };
+
+  const openAddModal = () => {
+    resetAddFormState();
+    setIsAddModalOpen(true);
+  };
+
+  const closeAddModal = () => {
+    if (createMutation.isPending) return;
+
+    setIsAddModalOpen(false);
+    resetAddFormState();
+    addAccountButtonRef.current?.focus();
+  };
+
+  const updateAddFormField = (field: CreateStaffFormField, value: string) => {
+    setAddForm((currentForm) => ({
+      ...currentForm,
+      [field]: value,
+    }));
+    setAddFormError('');
+    setAddFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) return currentErrors;
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[field];
+
+      return nextErrors;
+    });
+  };
+
+  const renderCreateStaffFieldError = (field: CreateStaffFormField) => {
+    const error = getFirstFieldError(addFieldErrors, field);
+
+    return error ? (
+      <p className="mt-1 text-[10px] font-semibold text-red-700" id={getFieldErrorId(field)}>
+        {error}
+      </p>
+    ) : null;
+  };
+
+  const handleCopyTemporaryPassword = async () => {
+    if (!temporaryPasswordDialog) return;
+
+    try {
+      await navigator.clipboard.writeText(temporaryPasswordDialog.temporaryPassword);
+      setCopiedPass(true);
+
+      if (copyTimer.current) {
+        window.clearTimeout(copyTimer.current);
+      }
+
+      copyTimer.current = window.setTimeout(() => {
+        setCopiedPass(false);
+        copyTimer.current = null;
+      }, 3000);
+    } catch {
+      showNotification({
+        message: 'Trình duyệt chưa cho phép sao chép tự động, vui lòng sao chép thủ công.',
+        title: 'Chưa thể sao chép',
+        tone: 'error',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isAddModalOpen) return;
+
+    firstAddFieldRef.current?.focus();
+  }, [isAddModalOpen]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+
+      if (temporaryPasswordDialog) {
+        if (copyTimer.current) {
+          window.clearTimeout(copyTimer.current);
+          copyTimer.current = null;
+        }
+
+        setTemporaryPasswordDialog(null);
+        setCopiedPass(false);
+        return;
+      }
+
+      if (isAddModalOpen && !createMutation.isPending) {
+        setIsAddModalOpen(false);
+        setAddForm(defaultCreateStaffForm);
+        setAddFieldErrors({});
+        setAddFormError('');
+        addAccountButtonRef.current?.focus();
+        return;
+      }
+
+      if (editUser && !updateMutation.isPending) {
+        setEditUser(null);
+        setEditFieldErrors({});
+        setEditFormError('');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    createMutation.isPending,
+    editUser,
+    isAddModalOpen,
+    temporaryPasswordDialog,
+    updateMutation.isPending,
+  ]);
+
+  /**
+   * Khóa hoặc mở khóa tài khoản nhân viên bằng optimistic lock từ updatedAt.
+   * Nhận row đang hiển thị, gọi mutation PATCH và báo lỗi nếu backend từ chối.
+   */
+  const handleToggleLock = async (user: StaffUserItem) => {
+    if (!user.apiId || !user.updatedAt || user.status === 'current') return;
+
+    try {
+      await updateMutation.mutateAsync({
+        ifUnmodifiedSince: user.updatedAt,
+        input: {
+          isActive: user.status === 'locked',
+        },
+        userId: user.apiId,
+      });
+    } catch (caught) {
+      showNotification({
+        message: caught instanceof Error ? caught.message : 'Không thể cập nhật trạng thái tài khoản',
+        title: 'Thao tác chưa thành công',
+        tone: 'error',
+      });
+    }
+  };
+
+  /**
+   * Cập nhật state form edit theo field được phép sửa và xóa lỗi cũ của field đó.
+   */
+  const updateEditUserField = (field: EditStaffFormField, value: string | boolean) => {
+    if (!editUser) return;
+
+    setEditUser((currentUser) => {
+      if (!currentUser) return currentUser;
+
+      if (field === 'fullName') {
+        return { ...currentUser, name: String(value) };
+      }
+
+      if (field === 'username') {
+        return { ...currentUser, username: String(value) };
+      }
+
+      if (field === 'phoneNumber') {
+        return { ...currentUser, phone: String(value) };
+      }
+
+      if (field === 'identityCardNumber') {
+        return { ...currentUser, cccd: String(value) };
+      }
+
+      if (field === 'dateOfBirth') {
+        return { ...currentUser, dateOfBirth: String(value) };
+      }
+
+      if (field === 'gender') {
+        return { ...currentUser, gender: String(value) as StaffUserItem['gender'] };
+      }
+
+      if (field === 'departmentId') {
+        return { ...currentUser, dept: String(value), deptCode: String(value) };
+      }
+
+      if (field === 'roleCode') {
+        const roleCode = String(value) as RoleCode;
+
+        return {
+          ...currentUser,
+          chipClass: chipClassByRoleCode[roleCode] ?? currentUser.chipClass,
+          role: roleLabelByCode[roleCode] ?? roleCode,
+          roleCode,
+        };
+      }
+
+      return { ...currentUser, status: value ? 'active' : 'locked' };
+    });
+    setEditFormError('');
+    setEditFieldErrors((currentErrors) => {
+      if (!currentErrors[field]) return currentErrors;
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[field];
+
+      return nextErrors;
+    });
+  };
+
+  /**
+   * Hiển thị lỗi validation cạnh input trong modal chỉnh sửa tài khoản.
+   */
+  const renderEditStaffFieldError = (field: EditStaffFormField) => {
+    const error = getFirstEditFieldError(editFieldErrors, field);
+
+    return error ? (
+      <p className="mt-1 text-[10px] font-semibold text-red-700" id={getEditFieldErrorId(field)}>
+        {error}
+      </p>
+    ) : null;
+  };
+
+  /**
+   * Tạo tài khoản nhân viên từ form IT và hiển thị mật khẩu tạm một lần.
+   * Nhận submit event, gọi API create staff và chỉ lưu temporaryPassword tới khi dialog đóng.
+   */
+  const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (createMutation.isPending) return;
+
+    setAddFormError('');
+    setAddFieldErrors({});
+
+    const parsedForm = createStaffFormSchema.safeParse(addForm);
+    if (!parsedForm.success) {
+      const fieldErrors = getCreateStaffValidationFieldErrors(parsedForm.error);
+
+      setAddFieldErrors(fieldErrors);
+      setAddFormError('Vui lòng kiểm tra lại các trường đang báo lỗi.');
+      showNotification({
+        message: 'Vui lòng điền đầy đủ và đúng định dạng các thông tin bắt buộc (*).',
+        title: 'Thông tin chưa hợp lệ',
+        tone: 'error',
+      });
       return;
     }
 
-    const nextIdNumber = users.length + 10;
-    const newId = `NV-00${nextIdNumber}`;
+    const selectedRole = roleOptions.some((option) => option.value === parsedForm.data.roleCode);
+    if (!selectedRole) {
+      setAddFieldErrors({
+        roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
+      });
+      setAddFormError('Tài khoản hiện tại không đủ quyền gán vai trò đã chọn.');
+      return;
+    }
 
-    let chipClass = 'ktv-chip-blue';
-    if (addForm.role.includes('Điều dưỡng')) chipClass = 'ktv-chip-teal';
-    else if (addForm.role.includes('Dược sĩ')) chipClass = 'ktv-chip-amber';
-    else if (addForm.role.includes('Kế toán')) chipClass = 'ktv-chip-purple';
-    else if (addForm.role.includes('KTV IT')) chipClass = 'ktv-chip-indigo';
+    try {
+      const result = await createMutation.mutateAsync(toCreateStaffInput(parsedForm.data));
 
-    const newUser: StaffUserItem = {
-      chipClass,
-      id: newId,
-      lastLogin: 'Vừa khởi tạo',
-      name: addForm.fullname,
-      phone: addForm.phone,
-      role: addForm.role.split(' ')[0],
-      status: 'active',
-      username: addForm.username,
-    };
+      setTemporaryPasswordDialog({
+        source: 'create',
+        targetName: result.user.fullName,
+        temporaryPassword: result.temporaryPassword,
+      });
+      showNotification({
+        message: `Đã tạo thành công tài khoản cho ${result.user.fullName}.`,
+        title: 'Tạo tài khoản thành công',
+        tone: 'success',
+      });
+      setIsAddModalOpen(false);
+      resetAddFormState();
+      return;
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.hasFieldErrors) {
+        setAddFieldErrors(normalizeCreateStaffFieldErrors(caught.fields ?? {}));
+      }
 
-    setUsers((prev) => [newUser, ...prev]);
-    setIsAddModalOpen(false);
-    setAddForm({
-      cccd: '',
-      dept: '',
-      fullname: '',
-      password: 'Temp@2026!',
-      phone: '',
-      role: '',
-      username: '',
-    });
-    alert(`Đã tạo thành công tài khoản cho ${newUser.name} (${newUser.username})`);
+      setAddFormError(caught instanceof Error ? caught.message : 'Không thể tạo tài khoản nhân viên');
+      return;
+    }
   };
 
-  const handleSaveEditUser = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editUser) return;
-    setUsers((prev) => prev.map((u) => (u.id === editUser.id ? editUser : u)));
-    setEditUser(null);
-    alert(`Đã cập nhật thông tin tài khoản ${editUser.username}`);
+  /**
+   * Lưu thay đổi hồ sơ/role nhân viên đang edit bằng updatedAt làm khóa lạc quan.
+   * Nhận submit event, gọi API update và giữ lỗi validation trong form hiện tại.
+   */
+  const handleSaveEditUser = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editUser || updateMutation.isPending) return;
+    setEditFormError('');
+    setEditFieldErrors({});
+
+    if (editUser.apiId && editUser.updatedAt) {
+      const parsedForm = editStaffFormSchema.safeParse({
+        dateOfBirth: editUser.dateOfBirth,
+        departmentId: editUser.deptCode ?? '',
+        fullName: editUser.name,
+        gender: editUser.gender,
+        identityCardNumber: editUser.cccd ?? '',
+        isActive: editUser.status === 'active',
+        phoneNumber: editUser.phone,
+        roleCode: editUser.roleCode,
+        username: editUser.username,
+      });
+
+      if (!parsedForm.success) {
+        setEditFieldErrors(getEditStaffValidationFieldErrors(parsedForm.error));
+        setEditFormError('Vui lòng kiểm tra lại các trường đang báo lỗi.');
+        showNotification({
+          message: 'Thông tin cập nhật chưa hợp lệ, vui lòng kiểm tra các trường bắt buộc.',
+          title: 'Chưa thể lưu thay đổi',
+          tone: 'error',
+        });
+        return;
+      }
+
+      const selectedRole = roleOptions.some((option) => option.value === parsedForm.data.roleCode);
+      if (!selectedRole) {
+        setEditFieldErrors({
+          roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
+        });
+        setEditFormError('Tài khoản hiện tại không đủ quyền gán vai trò đã chọn.');
+        return;
+      }
+
+      void updateMutation
+        .mutateAsync({
+          ifUnmodifiedSince: editUser.updatedAt,
+          input: toUpdateStaffInput(parsedForm.data),
+          userId: editUser.apiId,
+        })
+        .then((updatedUser) => {
+          setEditUser(null);
+          setEditFieldErrors({});
+          showNotification({
+            message: `Đã cập nhật thành công tài khoản ${updatedUser.fullName}.`,
+            title: 'Cập nhật tài khoản thành công',
+            tone: 'success',
+          });
+        })
+        .catch((caught: unknown) => {
+          if (caught instanceof ApiError && caught.hasFieldErrors) {
+            setEditFieldErrors(normalizeEditStaffFieldErrors(caught.fields ?? {}));
+          }
+
+          setEditFormError(caught instanceof Error ? caught.message : 'Không thể cập nhật tài khoản');
+        });
+      return;
+    }
+
+    showNotification({
+      message: 'Tài khoản chưa có định danh API, vui lòng tải lại dữ liệu từ backend.',
+      title: 'Không thể cập nhật',
+      tone: 'error',
+    });
   };
 
   return (
     <div className="min-w-[1080px] space-y-5 p-6 font-sans text-slate-800">
+      {notification ? (
+        <NotificationPopup notification={notification} onClose={() => setNotification(null)} />
+      ) : null}
+
       <style>{`
         .ktv-stat-mini {
           background: #ffffff;
@@ -1261,7 +1780,10 @@ function UsersContent() {
             </svg>
             <input
               className="w-full pl-9 pr-3 py-2 text-xs border border-[#bfc7d2] rounded-lg outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white text-[#171c1f]"
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="Tìm theo tên, username, SĐT..."
               type="text"
               value={searchQuery}
@@ -1269,7 +1791,8 @@ function UsersContent() {
           </div>
           <button
             className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white text-xs font-semibold rounded-lg shadow-sm transition whitespace-nowrap"
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={openAddModal}
+            ref={addAccountButtonRef}
             type="button"
           >
             <svg
@@ -1294,24 +1817,26 @@ function UsersContent() {
       <div className="grid grid-cols-4 gap-4 mb-4">
         <div className="ktv-stat-mini">
           <div className="ktv-stat-mini-label">Tổng tài khoản</div>
-          <div className="ktv-stat-mini-value">48</div>
+          <div className="ktv-stat-mini-value">
+            {staffQuery.isLoading ? '...' : totalStaffUsers}
+          </div>
         </div>
         <div className="ktv-stat-mini">
           <div className="ktv-stat-mini-label">Đang hoạt động</div>
           <div className="ktv-stat-mini-value" style={{ color: '#1b6e3c' }}>
-            {activeCount + 40}
+            {activeStaffCountQuery.isLoading ? '...' : activeCount}
           </div>
         </div>
         <div className="ktv-stat-mini">
           <div className="ktv-stat-mini-label">Bị khóa</div>
           <div className="ktv-stat-mini-value" style={{ color: '#ba1a1a' }}>
-            {lockedCount + 2}
+            {lockedStaffCountQuery.isLoading ? '...' : lockedCount}
           </div>
         </div>
         <div className="ktv-stat-mini">
-          <div className="ktv-stat-mini-label">Đăng nhập hôm nay</div>
+          <div className="ktv-stat-mini-label">Đang hiển thị</div>
           <div className="ktv-stat-mini-value" style={{ color: '#006096' }}>
-            31
+            {staffQuery.isLoading ? '...' : users.length}
           </div>
         </div>
       </div>
@@ -1333,7 +1858,28 @@ function UsersContent() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((user) => {
+              {staffQuery.isLoading ? (
+                <tr>
+                  <td className="px-3.5 py-8 text-center text-xs font-semibold text-[#707882]" colSpan={8}>
+                    Đang tải danh sách tài khoản từ API...
+                  </td>
+                </tr>
+              ) : null}
+              {staffQuery.isError ? (
+                <tr>
+                  <td className="px-3.5 py-8 text-center text-xs font-semibold text-[#ba1a1a]" colSpan={8}>
+                    Không thể tải danh sách tài khoản nhân viên từ hệ thống.
+                  </td>
+                </tr>
+              ) : null}
+              {!staffQuery.isLoading && !staffQuery.isError && users.length === 0 ? (
+                <tr>
+                  <td className="px-3.5 py-8 text-center text-xs font-semibold text-[#707882]" colSpan={8}>
+                    Không có tài khoản nhân viên phù hợp.
+                  </td>
+                </tr>
+              ) : null}
+              {!staffQuery.isLoading && !staffQuery.isError ? users.map((user) => {
                 const isLocked = user.status === 'locked';
                 const isCurrent = user.status === 'current';
 
@@ -1369,7 +1915,11 @@ function UsersContent() {
                         <button
                           className="ktv-btn-action ktv-btn-action-edit"
                           disabled={isLocked}
-                          onClick={() => setEditUser(user)}
+                          onClick={() => {
+                            setEditFormError('');
+                            setEditFieldErrors({});
+                            setEditUser(user);
+                          }}
                           style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
                           title={isLocked ? 'Tài khoản đang bị khóa' : 'Chỉnh sửa tài khoản'}
                           type="button"
@@ -1393,7 +1943,36 @@ function UsersContent() {
                         <button
                           className="ktv-btn-action ktv-btn-action-key"
                           disabled={isLocked}
-                          onClick={() => setPassResetTarget(user.name)}
+                          onClick={() => {
+                            if (!user.apiId) {
+                              showNotification({
+                                message: 'Tài khoản chưa có định danh API, vui lòng tải lại dữ liệu từ backend.',
+                                title: 'Không thể cấp lại mật khẩu',
+                                tone: 'error',
+                              });
+                              return;
+                            }
+
+                            void resetMutation
+                              .mutateAsync({
+                                reason: getResetPasswordReason(user.username),
+                                userId: user.apiId,
+                              })
+                              .then((result) => {
+                                setTemporaryPasswordDialog({
+                                  source: 'reset',
+                                  targetName: result.user.fullName,
+                                  temporaryPassword: result.temporaryPassword,
+                                });
+                              })
+                              .catch((caught: unknown) => {
+                                showNotification({
+                                  message: caught instanceof Error ? caught.message : 'Không thể cấp lại mật khẩu',
+                                  title: 'Cấp lại mật khẩu thất bại',
+                                  tone: 'error',
+                                });
+                              });
+                          }}
                           style={isLocked ? { cursor: 'not-allowed', opacity: 0.35 } : undefined}
                           title={isLocked ? 'Tài khoản đang bị khóa' : 'Cấp lại mật khẩu'}
                           type="button"
@@ -1456,7 +2035,7 @@ function UsersContent() {
                         ) : isLocked ? (
                           <button
                             className="ktv-btn-action ktv-btn-action-unlock"
-                            onClick={() => handleToggleLock(user.id)}
+                            onClick={() => void handleToggleLock(user)}
                             title={`Mở khóa tài khoản ${user.username}`}
                             type="button"
                           >
@@ -1477,7 +2056,7 @@ function UsersContent() {
                         ) : (
                           <button
                             className="ktv-btn-action ktv-btn-action-lock"
-                            onClick={() => handleToggleLock(user.id)}
+                            onClick={() => void handleToggleLock(user)}
                             title={`Khóa tài khoản ${user.username}`}
                             type="button"
                           >
@@ -1500,28 +2079,45 @@ function UsersContent() {
                     </td>
                   </tr>
                 );
-              })}
+              }) : null}
             </tbody>
           </table>
         </div>
 
         {/* Table Footer Pagination */}
         <div className="mt-3.5 flex items-center justify-between flex-wrap gap-2 text-xs text-[#707882]">
-          <span>Hiển thị {filteredUsers.length} / 48 nhân viên</span>
+          <span>Hiển thị {users.length} / {totalStaffUsers} nhân viên</span>
           <div className="flex gap-1.5">
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+            <button
+              className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={currentPage <= 1 || staffQuery.isLoading}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              type="button"
+            >
               ‹ Trước
             </button>
-            <button className="px-3 py-1.5 bg-[#006096] text-white rounded-md text-xs font-semibold shadow-sm" type="button">
-              1
-            </button>
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
-              2
-            </button>
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
-              3
-            </button>
-            <button className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition" type="button">
+            {pageNumbers.map((page) => (
+              <button
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs font-semibold transition',
+                  page === currentPage
+                    ? 'bg-[#006096] text-white shadow-sm'
+                    : 'border border-[#bfc7d2] text-[#3f4851] hover:bg-[#f0f4f8]',
+                )}
+                disabled={staffQuery.isLoading}
+                key={page}
+                onClick={() => setCurrentPage(page)}
+                type="button"
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              className="px-3 py-1.5 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-md text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={currentPage >= totalStaffPages || staffQuery.isLoading}
+              onClick={() => setCurrentPage((page) => Math.min(totalStaffPages, page + 1))}
+              type="button"
+            >
               Sau ›
             </button>
           </div>
@@ -1531,179 +2127,278 @@ function UsersContent() {
       {/* Modal: Thêm tài khoản */}
       {isAddModalOpen ? (
         <div className="ktv-modal-overlay">
-          <div className="ktv-modal max-w-[520px]">
+          <div
+            aria-describedby="create-staff-dialog-description"
+            aria-labelledby="create-staff-dialog-title"
+            aria-modal="true"
+            className="ktv-modal max-h-[calc(100vh-40px)] max-w-[520px] overflow-y-auto"
+            role="dialog"
+          >
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
-              onClick={() => setIsAddModalOpen(false)}
+              aria-label="Đóng form thêm tài khoản"
+              disabled={createMutation.isPending}
+              onClick={closeAddModal}
               type="button"
             >
               ✕
             </button>
-            <div className="text-base font-bold text-[#171c1f] mb-1">
+            <div className="text-base font-bold text-[#171c1f] mb-1" id="create-staff-dialog-title">
               Thêm tài khoản nhân viên mới
             </div>
-            <div className="text-xs text-[#707882] mb-5">
+            <div className="text-xs text-[#707882] mb-5" id="create-staff-dialog-description">
               Điền đầy đủ thông tin. Nhân viên bắt buộc đổi mật khẩu khi đăng nhập lần đầu.
             </div>
 
-            <form onSubmit={handleCreateUser}>
-              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+            <form noValidate onSubmit={handleCreateUser}>
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.fullName}
+                  >
                     Họ và tên <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, fullname: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'fullName')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'fullName'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'fullName') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.fullName}
+                    name="fullName"
+                    onChange={(event) => updateAddFormField('fullName', event.target.value)}
                     placeholder="Nguyễn Văn A"
+                    ref={firstAddFieldRef}
                     required
                     type="text"
-                    value={addForm.fullname}
+                    value={addForm.fullName}
                   />
+                  {renderCreateStaffFieldError('fullName')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.username}
+                  >
                     Tên đăng nhập (Username) <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'username')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'username'))}
+                    autoComplete="username"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'username') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.username}
+                    name="username"
+                    onChange={(event) => updateAddFormField('username', event.target.value)}
                     placeholder="a.nguyen"
                     required
                     type="text"
                     value={addForm.username}
                   />
+                  {renderCreateStaffFieldError('username')}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.phoneNumber}
+                  >
                     Số điện thoại <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, phone: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'phoneNumber', true)}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'phoneNumber'))}
+                    autoComplete="tel"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'phoneNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.phoneNumber}
+                    inputMode="tel"
+                    name="phoneNumber"
+                    onChange={(event) => updateAddFormField('phoneNumber', event.target.value)}
                     placeholder="09xx xxx xxx"
                     required
                     type="text"
-                    value={addForm.phone}
+                    value={addForm.phoneNumber}
                   />
-                  <div className="text-[10px] text-[#707882] mt-1">10 số di động Việt Nam</div>
+                  <div
+                    className="text-[10px] text-[#707882] mt-1"
+                    id={getFieldDescriptionId('phoneNumber')}
+                  >
+                    10 số di động Việt Nam
+                  </div>
+                  {renderCreateStaffFieldError('phoneNumber')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.identityCardNumber}
+                  >
                     Số CCCD (12 số) <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <input
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'identityCardNumber')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'identityCardNumber'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'identityCardNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.identityCardNumber}
+                    inputMode="numeric"
                     maxLength={12}
-                    onChange={(e) => setAddForm({ ...addForm, cccd: e.target.value })}
+                    name="identityCardNumber"
+                    onChange={(event) => updateAddFormField('identityCardNumber', event.target.value)}
                     placeholder="012345678901"
+                    required
                     type="text"
-                    value={addForm.cccd}
+                    value={addForm.identityCardNumber}
                   />
+                  {renderCreateStaffFieldError('identityCardNumber')}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3.5 mb-3.5">
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.dateOfBirth}
+                  >
+                    Ngày sinh <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'dateOfBirth')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'dateOfBirth'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstFieldError(addFieldErrors, 'dateOfBirth') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.dateOfBirth}
+                    name="dateOfBirth"
+                    onChange={(event) => updateAddFormField('dateOfBirth', event.target.value)}
+                    required
+                    type="date"
+                    value={addForm.dateOfBirth}
+                  />
+                  {renderCreateStaffFieldError('dateOfBirth')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.gender}
+                  >
+                    Giới tính <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'gender')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'gender'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstFieldError(addFieldErrors, 'gender') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.gender}
+                    name="gender"
+                    onChange={(event) => updateAddFormField('gender', event.target.value)}
+                    required
+                    value={addForm.gender}
+                  >
+                    <option value="">-- Chọn giới tính --</option>
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                  </select>
+                  {renderCreateStaffFieldError('gender')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.roleCode}
+                  >
                     Vai trò <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <select
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                    onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'roleCode')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'roleCode'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstFieldError(addFieldErrors, 'roleCode') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.roleCode}
+                    name="roleCode"
+                    onChange={(event) => updateAddFormField('roleCode', event.target.value)}
                     required
-                    value={addForm.role}
+                    value={addForm.roleCode}
                   >
                     <option value="">-- Chọn vai trò --</option>
-                    <option value="Bác sĩ (doctor)">Bác sĩ (doctor)</option>
-                    <option value="Điều dưỡng (nurse)">Điều dưỡng (nurse)</option>
-                    <option value="Dược sĩ (pharmacist)">Dược sĩ (pharmacist)</option>
-                    <option value="Kế toán (accountant)">Kế toán (accountant)</option>
-                    <option value="Tiếp tân (receptionist)">Tiếp tân (receptionist)</option>
-                    <option value="KTV IT (it_tech)">KTV IT (it_tech)</option>
+                    {roleOptions.map((option) => (
+                      <option key={option.code} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  {renderCreateStaffFieldError('roleCode')}
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-[#3f4851] mb-1">
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={createStaffFieldIds.departmentId}
+                  >
                     Khoa / Phòng <span className="text-[#ba1a1a]">*</span>
                   </label>
                   <select
-                    className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                    onChange={(e) => setAddForm({ ...addForm, dept: e.target.value })}
+                    aria-describedby={getFieldDescribedBy(addFieldErrors, 'departmentId')}
+                    aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'departmentId'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstFieldError(addFieldErrors, 'departmentId') && 'border-red-300 bg-red-50/30',
+                    )}
+                    id={createStaffFieldIds.departmentId}
+                    name="departmentId"
+                    onChange={(event) => updateAddFormField('departmentId', event.target.value)}
                     required
-                    value={addForm.dept}
+                    value={addForm.departmentId}
                   >
                     <option value="">-- Chọn khoa/phòng --</option>
-                    <option value="Khoa Da liễu">Khoa Da liễu</option>
-                    <option value="Khoa Nội">Khoa Nội</option>
-                    <option value="Khoa Ngoại">Khoa Ngoại</option>
-                    <option value="Khoa Xét nghiệm">Khoa Xét nghiệm</option>
-                    <option value="Phòng Dược">Phòng Dược</option>
-                    <option value="Phòng Kế toán">Phòng Kế toán</option>
-                    <option value="Phòng IT">Phòng IT</option>
+                    {departmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
+                  {renderCreateStaffFieldError('departmentId')}
                 </div>
               </div>
 
-              <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Mật khẩu khởi tạo
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    className="w-full pl-3 pr-10 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                    onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
-                    type={showPassword ? 'text' : 'password'}
-                    value={addForm.password}
-                  />
-                  <button
-                    className="absolute right-2.5 p-1 text-[#707882] hover:text-[#006096]"
-                    onClick={() => setShowPassword(!showPassword)}
-                    title={showPassword ? 'Ẩn mật khẩu' : 'Hiển thị mật khẩu'}
-                    type="button"
-                  >
-                    <svg
-                      fill="none"
-                      height="18"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
-                      width="18"
-                    >
-                      {showPassword ? (
-                        <>
-                          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                          <line x1="1" x2="23" y1="1" y2="23" />
-                        </>
-                      ) : (
-                        <>
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                          <circle cx="12" cy="12" r="3" />
-                        </>
-                      )}
-                    </svg>
-                  </button>
-                </div>
-              </div>
+              {addFormError ? (
+                <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {addFormError}
+                </p>
+              ) : null}
 
               <div className="flex gap-2.5 justify-end pt-2">
                 <button
                   className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
-                  onClick={() => setIsAddModalOpen(false)}
+                  disabled={createMutation.isPending}
+                  onClick={closeAddModal}
                   type="button"
                 >
                   Hủy
                 </button>
                 <button
-                  className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  className="min-w-[132px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={createMutation.isPending}
                   type="submit"
                 >
-                  ✓ Tạo tài khoản
+                  {createMutation.isPending ? 'Đang tạo...' : '✓ Tạo tài khoản'}
                 </button>
               </div>
             </form>
@@ -1712,15 +2407,19 @@ function UsersContent() {
       ) : null}
 
       {/* Modal: Cấp lại mật khẩu */}
-      {passResetTarget ? (
+      {temporaryPasswordDialog ? (
         <div className="ktv-modal-overlay">
-          <div className="ktv-modal max-w-[420px] text-center">
+          <div
+            aria-describedby="temporary-password-dialog-description"
+            aria-labelledby="temporary-password-dialog-title"
+            aria-modal="true"
+            className="ktv-modal max-w-[420px] text-center"
+            role="dialog"
+          >
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
-              onClick={() => {
-                setPassResetTarget(null);
-                setCopiedPass(false);
-              }}
+              aria-label="Đóng hộp thoại mật khẩu tạm thời"
+              onClick={closeTemporaryPasswordDialog}
               type="button"
             >
               ✕
@@ -1739,10 +2438,14 @@ function UsersContent() {
                 <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
               </svg>
             </div>
-            <div className="text-base font-bold text-[#171c1f] mb-1">
-              Cấp lại mật khẩu ngẫu nhiên
+            <div className="text-base font-bold text-[#171c1f] mb-1" id="temporary-password-dialog-title">
+              {temporaryPasswordDialog.source === 'create'
+                ? 'Mật khẩu tạm thời của tài khoản mới'
+                : 'Mật khẩu tạm thời sau cấp lại'}
             </div>
-            <div className="text-xs text-[#707882] mb-4">Nhân viên: {passResetTarget}</div>
+            <div className="text-xs text-[#707882] mb-4" id="temporary-password-dialog-description">
+              Nhân viên: {temporaryPasswordDialog.targetName}
+            </div>
 
             <div className="ktv-pass-reveal-box">
               <div className="ktv-pass-reveal-label flex items-center justify-center gap-1">
@@ -1762,7 +2465,7 @@ function UsersContent() {
                 </svg>
                 Mật khẩu mới — chỉ hiển thị 1 lần
               </div>
-              <div className="ktv-pass-reveal-value">Hm#7kP$2</div>
+              <div className="ktv-pass-reveal-value">{temporaryPasswordDialog.temporaryPassword}</div>
               <div className="ktv-pass-reveal-note">
                 Ghi chép mật khẩu này trước khi đóng hộp thoại.
                 <br />
@@ -1773,11 +2476,7 @@ function UsersContent() {
             <div className="mt-4 flex gap-2.5 justify-center">
               <button
                 className="px-3.5 py-2 bg-[#e8f4ff] text-[#006096] border border-[#cee5ff] hover:bg-[#cee5ff] rounded-lg text-xs font-semibold transition inline-flex items-center gap-1.5"
-                onClick={() => {
-                  navigator.clipboard.writeText('Hm#7kP$2');
-                  setCopiedPass(true);
-                  setTimeout(() => setCopiedPass(false), 3000);
-                }}
+                onClick={() => void handleCopyTemporaryPassword()}
                 type="button"
               >
                 <svg
@@ -1797,7 +2496,7 @@ function UsersContent() {
               </button>
               <button
                 className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
-                onClick={() => setPassResetTarget(null)}
+                onClick={closeTemporaryPasswordDialog}
                 type="button"
               >
                 ✓ Đã bàn giao — Đóng
@@ -1805,7 +2504,7 @@ function UsersContent() {
             </div>
 
             <div className="text-[11px] text-[#707882] mt-3">
-              Hành động này đã được ghi vào Audit Log · 18/07/2026 08:05:00
+              Hành động này đã được ghi nhận trong nhật ký kiểm toán.
             </div>
           </div>
         </div>
@@ -1814,78 +2513,307 @@ function UsersContent() {
       {/* Modal: Edit User */}
       {editUser ? (
         <div className="ktv-modal-overlay">
-          <div className="ktv-modal max-w-[480px]">
+          <div
+            aria-describedby="edit-staff-dialog-description"
+            aria-labelledby="edit-staff-dialog-title"
+            aria-modal="true"
+            className="ktv-modal max-h-[calc(100vh-40px)] max-w-[640px] overflow-y-auto"
+            role="dialog"
+          >
             <button
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
-              onClick={() => setEditUser(null)}
+              aria-label="Đóng form chỉnh sửa tài khoản"
+              disabled={updateMutation.isPending}
+              onClick={() => {
+                setEditFormError('');
+                setEditFieldErrors({});
+                setEditUser(null);
+              }}
               type="button"
             >
               ✕
             </button>
-            <div className="text-base font-bold text-[#171c1f] mb-1">
+            <div className="text-base font-bold text-[#171c1f] mb-1" id="edit-staff-dialog-title">
               Chỉnh sửa tài khoản nhân viên
             </div>
-            <div className="text-xs text-[#707882] mb-4">
-              Mã NV: <span className="font-mono font-bold text-[#006096]">{editUser.id}</span> — Username: <span className="font-bold text-[#171c1f]">{editUser.username}</span>
+            <div className="text-xs text-[#707882] mb-5" id="edit-staff-dialog-description">
+              Mã NV: <span className="font-mono font-bold text-[#006096]">{editUser.id}</span> — kiểm tra thông tin định danh trước khi lưu.
             </div>
 
-            <form onSubmit={handleSaveEditUser}>
-              <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Họ và tên
-                </label>
-                <input
-                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                  onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-                  required
-                  type="text"
-                  value={editUser.name}
-                />
+            <form noValidate onSubmit={handleSaveEditUser}>
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.fullName}
+                  >
+                    Họ và tên <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'fullName')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'fullName'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'fullName') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.fullName}
+                    name="fullName"
+                    onChange={(event) => updateEditUserField('fullName', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.name}
+                  />
+                  {renderEditStaffFieldError('fullName')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.username}
+                  >
+                    Tên đăng nhập <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'username')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'username'))}
+                    autoComplete="username"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'username') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.username}
+                    name="username"
+                    onChange={(event) => updateEditUserField('username', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.username}
+                  />
+                  {renderEditStaffFieldError('username')}
+                </div>
               </div>
 
-              <div className="mb-3.5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Số điện thoại
-                </label>
-                <input
-                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-                  onChange={(e) => setEditUser({ ...editUser, phone: e.target.value })}
-                  required
-                  type="text"
-                  value={editUser.phone}
-                />
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.phoneNumber}
+                  >
+                    Số điện thoại <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'phoneNumber')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'phoneNumber'))}
+                    autoComplete="tel"
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'phoneNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.phoneNumber}
+                    inputMode="tel"
+                    name="phoneNumber"
+                    onChange={(event) => updateEditUserField('phoneNumber', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.phone}
+                  />
+                  {renderEditStaffFieldError('phoneNumber')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.identityCardNumber}
+                  >
+                    Số CCCD <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'identityCardNumber')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'identityCardNumber'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'identityCardNumber') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.identityCardNumber}
+                    inputMode="numeric"
+                    maxLength={12}
+                    name="identityCardNumber"
+                    onChange={(event) => updateEditUserField('identityCardNumber', event.target.value)}
+                    required
+                    type="text"
+                    value={editUser.cccd ?? ''}
+                  />
+                  {renderEditStaffFieldError('identityCardNumber')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.dateOfBirth}
+                  >
+                    Ngày sinh <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <input
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'dateOfBirth')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'dateOfBirth'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
+                      getFirstEditFieldError(editFieldErrors, 'dateOfBirth') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.dateOfBirth}
+                    name="dateOfBirth"
+                    onChange={(event) => updateEditUserField('dateOfBirth', event.target.value)}
+                    required
+                    type="date"
+                    value={editUser.dateOfBirth}
+                  />
+                  {renderEditStaffFieldError('dateOfBirth')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.gender}
+                  >
+                    Giới tính <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'gender')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'gender'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstEditFieldError(editFieldErrors, 'gender') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.gender}
+                    name="gender"
+                    onChange={(event) => updateEditUserField('gender', event.target.value)}
+                    required
+                    value={editUser.gender}
+                  >
+                    <option value="male">Nam</option>
+                    <option value="female">Nữ</option>
+                  </select>
+                  {renderEditStaffFieldError('gender')}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3.5 mb-3.5 sm:grid-cols-2">
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.roleCode}
+                  >
+                    Vai trò <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'roleCode')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'roleCode'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstEditFieldError(editFieldErrors, 'roleCode') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.roleCode}
+                    name="roleCode"
+                    onChange={(event) => updateEditUserField('roleCode', event.target.value)}
+                    required
+                    value={editUser.roleCode}
+                  >
+                    {roleOptions.map((option) => (
+                      <option key={option.code} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {renderEditStaffFieldError('roleCode')}
+                </div>
+                <div>
+                  <label
+                    className="block text-xs font-semibold text-[#3f4851] mb-1"
+                    htmlFor={editStaffFieldIds.departmentId}
+                  >
+                    Khoa / Phòng <span className="text-[#ba1a1a]">*</span>
+                  </label>
+                  <select
+                    aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'departmentId')}
+                    aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'departmentId'))}
+                    className={cn(
+                      'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                      getFirstEditFieldError(editFieldErrors, 'departmentId') && 'border-red-300 bg-red-50/30',
+                    )}
+                    disabled={updateMutation.isPending}
+                    id={editStaffFieldIds.departmentId}
+                    name="departmentId"
+                    onChange={(event) => updateEditUserField('departmentId', event.target.value)}
+                    required
+                    value={editUser.deptCode ?? ''}
+                  >
+                    <option value="">-- Chọn khoa/phòng --</option>
+                    {departmentOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  {renderEditStaffFieldError('departmentId')}
+                </div>
               </div>
 
               <div className="mb-5">
-                <label className="block text-xs font-semibold text-[#3f4851] mb-1">
-                  Vai trò
+                <label
+                  className="block text-xs font-semibold text-[#3f4851] mb-1"
+                  htmlFor={editStaffFieldIds.isActive}
+                >
+                  Trạng thái tài khoản
                 </label>
                 <select
-                  className="w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white"
-                  onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
-                  value={editUser.role}
+                  aria-describedby={getEditFieldDescribedBy(editFieldErrors, 'isActive')}
+                  aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'isActive'))}
+                  className={cn(
+                    'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
+                    getFirstEditFieldError(editFieldErrors, 'isActive') && 'border-red-300 bg-red-50/30',
+                  )}
+                  disabled={updateMutation.isPending}
+                  id={editStaffFieldIds.isActive}
+                  name="isActive"
+                  onChange={(event) => updateEditUserField('isActive', event.target.value === 'active')}
+                  value={editUser.status === 'locked' ? 'locked' : 'active'}
                 >
-                  <option value="Bác sĩ">Bác sĩ</option>
-                  <option value="Điều dưỡng">Điều dưỡng</option>
-                  <option value="Dược sĩ">Dược sĩ</option>
-                  <option value="Kế toán">Kế toán</option>
-                  <option value="KTV IT">KTV IT</option>
+                  <option value="active">Hoạt động</option>
+                  <option value="locked">Bị khóa</option>
                 </select>
+                {renderEditStaffFieldError('isActive')}
               </div>
+
+              {editFormError ? (
+                <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  {editFormError}
+                </p>
+              ) : null}
 
               <div className="flex gap-2.5 justify-end">
                 <button
                   className="px-4 py-2 border border-[#bfc7d2] hover:bg-[#f0f4f8] text-[#3f4851] rounded-lg text-xs font-semibold transition"
-                  onClick={() => setEditUser(null)}
+                  disabled={updateMutation.isPending}
+                  onClick={() => {
+                    setEditFormError('');
+                    setEditFieldErrors({});
+                    setEditUser(null);
+                  }}
                   type="button"
                 >
                   Hủy
                 </button>
                 <button
-                  className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                  className="min-w-[128px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+                  disabled={updateMutation.isPending}
                   type="submit"
                 >
-                  Lưu thay đổi
+                  {updateMutation.isPending ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </button>
               </div>
             </form>
@@ -1953,21 +2881,27 @@ function BackupContent() {
   );
 }
 
-function ItTechnicianContent({ activePage }: { activePage: PageKind }) {
+function ItTechnicianContent({
+  activePage,
+  principal,
+}: {
+  activePage: PageKind;
+  principal: ItPrincipal;
+}) {
   if (activePage === 'audit') return <AuditContent />;
-  if (activePage === 'users') return <UsersContent />;
+  if (activePage === 'users') return <UsersContent principal={principal} />;
   if (activePage === 'rbac') return <RbacContent />;
   if (activePage === 'backup') return <BackupContent />;
 
   return <MonitoringContent />;
 }
 
-export function ItTechnicianWorkspace() {
+export function ItTechnicianWorkspace({ principal }: ItTechnicianWorkspaceProps) {
   const [activePage, setActivePage] = useState<PageKind>('monitoring');
 
   return (
     <ItShell activePage={activePage} onChangePage={setActivePage}>
-      <ItTechnicianContent activePage={activePage} />
+      <ItTechnicianContent activePage={activePage} principal={principal} />
     </ItShell>
   );
 }

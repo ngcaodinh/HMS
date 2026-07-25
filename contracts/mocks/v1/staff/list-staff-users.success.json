@@ -1,0 +1,27 @@
+{
+  "data": {
+    "items": [
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "username": "doctor.one",
+        "fullName": "Doctor One",
+        "gender": "male",
+        "dateOfBirth": "1990-01-01T00:00:00.000Z",
+        "phoneNumber": "0901234568",
+        "identityCardNumber": "001199000002",
+        "departmentId": "dermatology",
+        "isActive": true,
+        "mustChangePassword": true,
+        "authVersion": 1,
+        "lastLoginAt": null,
+        "createdAt": "2026-07-24T08:00:00.000Z",
+        "updatedAt": "2026-07-24T08:00:00.000Z",
+        "roleCodes": ["doctor"]
+      }
+    ],
+    "page": 1,
+    "pageSize": 20,
+    "totalItems": 1,
+    "totalPages": 1
+  }
+}

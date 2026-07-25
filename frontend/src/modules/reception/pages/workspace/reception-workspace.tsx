@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
 
+import { LogoutButton } from '@/shared/auth/logout-button';
+
 import { receptionWorkspaceStyles as styles } from './reception-workspace.styles';
 
 type WorkspaceMode = 'empty' | 'queue' | 'emergency';
@@ -199,9 +201,9 @@ function Sidebar({
           <p className={styles.userName}>Nguyễn Cao Đỉnh</p>
           <p className={styles.userRole}>Lễ Tân</p>
         </div>
-        <button aria-label="Đăng xuất" className={styles.logoutButton} type="button">
+        <LogoutButton className={styles.logoutButton}>
           <LogoutIcon className="h-4 w-4" />
-        </button>
+        </LogoutButton>
       </div>
     </aside>
   );

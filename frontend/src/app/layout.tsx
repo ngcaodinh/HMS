@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 
 import './globals.css';
+import { Providers } from './providers';
 
 export const metadata = {
   title: 'HMS',
@@ -14,7 +15,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi">
-      <body>{children}</body>
+      <body>
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

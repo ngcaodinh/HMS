@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+
+import { performLogout } from '@/shared/auth/logout';
+
 import {
   MOCK_ADVANCE_RECEIPTS,
   MOCK_INVOICE_DETAILS,
@@ -125,7 +128,7 @@ export function AccountingWorkspaceView() {
 
   const handleConfirmLogout = () => {
     setIsLogoutOpen(false);
-    showToast('Đã kết thúc ca trực và đăng xuất hệ thống thành công.');
+    void performLogout();
   };
 
   const handleExportReport = () => {

@@ -4,6 +4,8 @@ import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 
+import { LogoutButton } from '@/shared/auth/logout-button';
+
 import {
   beds,
   careOrders,
@@ -21,6 +23,7 @@ import {
   type VitalField,
 } from './nurse-workspace.data';
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
+
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
@@ -133,9 +136,9 @@ function Sidebar({
           <p className="truncate text-sm font-bold leading-5 text-white">Nguyễn Thị Hương</p>
           <p className="text-xs font-medium leading-4 text-white/50">Điều dưỡng</p>
         </div>
-        <button aria-label="Đăng xuất" className={styles.iconButton} type="button">
+        <LogoutButton className={styles.iconButton}>
           <Icon name="logOut" />
-        </button>
+        </LogoutButton>
       </div>
     </aside>
   );

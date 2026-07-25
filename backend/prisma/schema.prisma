@@ -6,3 +6,75 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id                 String       @id @db.VarChar(36)
+  username           String       @unique @db.VarChar(50)
+  password           String       @db.VarChar(255)
+  fullName           String       @db.VarChar(255)
+  gender             String       @db.VarChar(10)
+  dateOfBirth        DateTime     @db.Date
+  phoneNumber        String       @db.VarChar(10)
+  identityCardNumber String       @unique @db.VarChar(12)
+  departmentId       String       @db.VarChar(36)
+  isActive           Boolean      @default(true)
+  mustChangePassword Boolean      @default(true)
+  authVersion        Int          @default(1)
+  lastLoginAt        DateTime?    @db.DateTime(3)
+  createdAt          DateTime     @default(now()) @db.DateTime(3)
+  updatedAt          DateTime     @updatedAt @db.DateTime(3)
+  permissions        Permission[]
+
+  @@index([isActive])
+  @@index([fullName])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model Role {
+  id              String           @id @db.VarChar(36)
+  code            String           @unique @db.VarChar(30)
+  name            String           @db.VarChar(100)
+  description     String?          @db.VarChar(255)
+  isSystem        Boolean          @default(true)
+  isPrivileged    Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now()) @db.DateTime(3)
+  updatedAt       DateTime         @updatedAt @db.DateTime(3)
+  permissions     Permission[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id         String   @id @db.VarChar(36)
+  userId     String   @db.VarChar(36)
+  roleCode   String   @db.VarChar(30)
+  assignedAt DateTime @default(now()) @db.DateTime(3)
+  assignedBy String?  @db.VarChar(36)
+  role       Role     @relation(fields: [roleCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, roleCode])
+  @@index([roleCode])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleCode   String   @db.VarChar(30)
+  actionCode String   @db.VarChar(80)
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+  role       Role     @relation(fields: [roleCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([roleCode, actionCode])
+  @@map("role_permissions")
+}
+
+model RbacPolicyVersion {
+  revision  String   @id @db.VarChar(40)
+  checksum  String   @db.VarChar(64)
+  appliedAt DateTime @default(now()) @db.DateTime(3)
+
+  @@map("rbac_policy_versions")
+}
