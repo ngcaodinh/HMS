@@ -66,4 +66,26 @@ router.post(
   asyncHandler((req, res) => InpatientController.processDischarge(req, res))
 );
 
+// Queue Tickets & Vital Signs
+router.get(
+  '/inpatient/vitals-queue',
+  authorize('inpatient.read'),
+  asyncHandler((req, res) => InpatientController.listVitalsQueue(req, res))
+);
+router.post(
+  '/inpatient/queue-tickets/call-next',
+  authorize('queue_ticket.call'),
+  asyncHandler((req, res) => InpatientController.callNextQueueTicket(req, res))
+);
+router.post(
+  '/inpatient/queue-tickets/:id/recall',
+  authorize('queue_ticket.call'),
+  asyncHandler((req, res) => InpatientController.recallQueueTicket(req, res))
+);
+router.post(
+  '/medical-records/:recordId/vital-signs',
+  authorize('vital_signs.record'),
+  asyncHandler((req, res) => InpatientController.recordVitalSigns(req, res))
+);
+
 export const inpatientRoutes = router;

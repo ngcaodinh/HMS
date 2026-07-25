@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { 
   PrismaClient, 
   DepartmentType, 
@@ -7,6 +8,7 @@ import {
   TreatmentType, 
   Gender,
   TreatmentOrderStatus,
+  SpecimenStatus,
   medical_records_icdCodingSystem,
   medical_records_diagnosisSignatureMethod
 } from '@prisma/client';
@@ -42,7 +44,28 @@ function pad(num: number, size: number): string {
 async function main() {
   console.log('Start seeding 100 Patients & Medical Records for Lane 6...');
 
-  // Clean up existing data to allow re-seeding
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS vital_sign_logs (
+      id VARCHAR(36) PRIMARY KEY,
+      recordId VARCHAR(36) NOT NULL,
+      treatmentOrderId VARCHAR(36) NULL,
+      measuredAt DATETIME(3) NOT NULL,
+      pulse INT NOT NULL,
+      temperatureC DECIMAL(4,1) NULL,
+      bloodPressureSystolic INT NOT NULL,
+      bloodPressureDiastolic INT NOT NULL,
+      respiratoryRate INT NULL,
+      spo2 INT NOT NULL,
+      weightKg DECIMAL(5,1) NULL,
+      note VARCHAR(500) NULL,
+      recordedBy VARCHAR(36) NOT NULL,
+      createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `;
+
+  try {
+    await prisma.$executeRaw`DELETE FROM vital_sign_logs`;
+  } catch {}
   await prisma.treatmentOrder.deleteMany();
   await prisma.dischargeSummary.deleteMany();
   await prisma.bedAssignment.deleteMany();
@@ -150,6 +173,7 @@ async function main() {
     const birthYear = 1950 + Math.floor(Math.random() * 50);
     const patientCode = `BN2607${pad(i, 4)}`;
     const recordCode = `BA2607${pad(i, 4)}`;
+    const hasAllergyRisk = i > 30 && i % 6 === 0;
 
     const patient = await prisma.patient.create({
       data: {
@@ -161,6 +185,7 @@ async function main() {
         identityCardNumber: `001${pad(birthYear % 100, 2)}${pad(i, 7)}`,
         privacyNoticeAccepted: true,
         privacyNoticeAcceptedAt: new Date(),
+        allergies: hasAllergyRisk ? 'Dị ứng Penicillin, Amoxicillin' : null,
       },
     });
 
@@ -221,15 +246,36 @@ async function main() {
       });
 
       // Create sample Treatment Order
+      const orderTypeCycle: Array<'medication' | 'monitoring' | 'care' | 'diet' | 'procedure'> = [
+        'medication',
+        'monitoring',
+        'care',
+        'diet',
+        'procedure',
+      ];
+      const orderType = hasAllergyRisk ? 'medication' : orderTypeCycle[i % orderTypeCycle.length]!;
+      const orderContentByType: Record<string, string> = {
+        medication: 'Corticoid thoa ngoài da 2 lần/ngày (Sáng - Tối)',
+        monitoring: 'Theo dõi mạch, huyết áp mỗi 4 giờ',
+        care: 'Thay băng vết thương, vệ sinh vùng tổn thương',
+        diet: 'Chế độ ăn nhạt, hạn chế đạm động vật',
+        procedure: 'Chuẩn bị bệnh nhân cho thủ thuật sinh thiết da',
+      };
+      const shiftHours = [7, 11, 15, 19, 23];
+      const orderedAtDate = new Date();
+      orderedAtDate.setHours(shiftHours[i % shiftHours.length]!, 0, 0, 0);
+
       await prisma.treatmentOrder.create({
         data: {
           recordId: record.id,
-          orderType: 'medication',
-          content: 'Corticoid thoa ngoài da 2 lần/ngày (Sáng - Tối)',
-          note: 'Theo dõi phản ứng trên da',
+          orderType,
+          content: orderContentByType[orderType]!,
+          note: hasAllergyRisk
+            ? 'Bệnh nhân có tiền sử dị ứng - kiểm tra kỹ trước khi dùng thuốc'
+            : 'Theo dõi phản ứng trên da',
           status: isDischargeTarget ? TreatmentOrderStatus.done : TreatmentOrderStatus.active,
           orderedBy: doctor.id,
-          orderedAt: new Date(),
+          orderedAt: orderedAtDate,
           ...(isDischargeTarget
             ? {
                 executedBy: nurse.id,
@@ -257,7 +303,86 @@ async function main() {
     }
   }
 
-  console.log(`Successfully seeded 100 Patients, 100 Medical Records, and ${createdBeds.length} Beds for Lane 6.`);
+  // 6. Seed queue_tickets for today using raw SQL
+  console.log('Seeding queue_tickets for today...');
+  await prisma.$executeRaw`
+    CREATE TABLE IF NOT EXISTS queue_tickets (
+      id VARCHAR(36) PRIMARY KEY,
+      number INT NOT NULL,
+      date DATE NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+      calledAt DATETIME(3) NULL,
+      servedAt DATETIME(3) NULL,
+      createdAt DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `;
+  await prisma.$executeRaw`DELETE FROM queue_tickets WHERE date = CURDATE()`;
+
+  for (let n = 1; n <= 10; n++) {
+    const tId = crypto.randomUUID();
+    await prisma.$executeRaw`
+      INSERT INTO queue_tickets (id, number, date, status, calledAt, servedAt, createdAt)
+      VALUES (${tId}, ${n}, CURDATE(), 'waiting', NULL, NULL, NOW() - INTERVAL 30 MINUTE)
+    `;
+  }
+
+  // 7. Seed SpecimenCollections
+  console.log('Seeding SpecimenCollections...');
+  await prisma.specimenCollection.deleteMany();
+
+  const sampleRecords = await prisma.medicalRecord.findMany({
+    take: 10,
+    include: { patient: true, department: true },
+  });
+
+  if (sampleRecords.length > 0) {
+    const specimensToCreate = [
+      // 6 pending (1 priority)
+      { idx: 0, code: 'DL-2607-001', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Công thức máu', status: SpecimenStatus.pending, priority: true },
+      { idx: 0, code: 'DL-2607-002', type: 'Sinh thiết da (GAP)', desc: 'Chỉ định: Mổ sinh thiết chẩn đoán', status: SpecimenStatus.pending, priority: false },
+      { idx: 1, code: 'DL-2607-003', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Sinh hóa máu toàn bộ', status: SpecimenStatus.pending, priority: false },
+      { idx: 2, code: 'DL-2607-004', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Định nhóm máu ABO/Rh', status: SpecimenStatus.pending, priority: false },
+      { idx: 3, code: 'DL-2607-005', type: 'Vảy da dán kính', desc: 'Chỉ định: Soi tươi nấm da', status: SpecimenStatus.pending, priority: false },
+      { idx: 4, code: 'DL-2607-006', type: 'Nước tiểu 10 thông số', desc: 'Chỉ định: Phân tích nước tiểu', status: SpecimenStatus.pending, priority: false },
+
+      // 4 collected
+      { idx: 1, code: 'DL-2607-007', type: 'Dịch phết thương tổn', desc: 'Chỉ định: Nuôi cấy vi khuẩn & KSĐ', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 2, code: 'DL-2607-008', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm IgE toàn phần', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 5, code: 'DL-2607-009', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Công thức máu cấp cứu', status: SpecimenStatus.collected, priority: true, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 6, code: 'DL-2607-010', type: 'Sinh thiết da (GAP)', desc: 'Chỉ định: Miễn dịch huỳnh quang', status: SpecimenStatus.collected, priority: false, barcodePrinted: false, collectedBy: nurse.id, collectedAt: new Date() },
+
+      // 3 handed_over
+      { idx: 7, code: 'DL-2607-011', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm Giang mai (VDRL)', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
+      { idx: 8, code: 'DL-2607-012', type: 'Nước tiểu 24h', desc: 'Chỉ định: Định lượng Đạm niệu 24h', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
+      { idx: 9, code: 'DL-2607-013', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Điện di Huyết hồng tố', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Trần Thị Nghiệm' },
+    ];
+
+    for (const spec of specimensToCreate) {
+      const rec = sampleRecords[spec.idx % sampleRecords.length];
+      if (!rec) continue;
+      await prisma.specimenCollection.create({
+        data: {
+          recordId: rec.id,
+          patientCode: rec.patient.patientCode,
+          patientName: rec.patient.fullName,
+          departmentName: rec.department?.name || 'Khoa Da Liễu',
+          specimenCode: spec.code,
+          specimenType: spec.type,
+          orderDescription: spec.desc,
+          priority: spec.priority,
+          status: spec.status,
+          barcodePrinted: spec.barcodePrinted ?? false,
+          collectedBy: spec.collectedBy,
+          collectedAt: spec.collectedAt,
+          handedOverBy: spec.handedOverBy,
+          handedOverAt: spec.handedOverAt,
+          labReceiverName: spec.labReceiverName,
+        },
+      });
+    }
+  }
+
+  console.log(`Successfully seeded 100 Patients, 100 Medical Records, ${createdBeds.length} Beds, 10 Queue Tickets, and 13 Specimen Collections for Lane 6.`);
 }
 
 main()

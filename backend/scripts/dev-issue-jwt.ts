@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../src/config/unifiedConfig';
 
 const nursePayload = {
-  sub: '30303030-3030-4030-8030-303030303030',
+  sub: 'usr-nurse-01',
   username: 'DDTEST01',
   role: 'nurse',
   permissions: [
@@ -14,8 +14,14 @@ const nursePayload = {
     'treatment_order.cancel',
     'discharge_summary.sign',
     'discharge.execute',
+    'queue_ticket.call',
+    'vital_signs.record',
+    'specimen.read',
+    'specimen.create',
+    'specimen.collect',
+    'specimen.handoff',
   ],
-  departmentId: '22222222-2222-4222-8222-222222222222',
+  departmentId: 'dept-inpatient-01',
 };
 
 const doctorPayload = {
@@ -33,7 +39,7 @@ const doctorPayload = {
     'discharge_summary.sign',
     'discharge.execute',
   ],
-  departmentId: '22222222-2222-4222-8222-222222222222',
+  departmentId: 'dept-inpatient-01',
 };
 
 const nurseToken = jwt.sign(nursePayload, config.auth.jwtSecret, { expiresIn: '7d' });

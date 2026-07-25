@@ -404,3 +404,33 @@ enum medical_records_diagnosisSignatureMethod {
 enum medical_records_closeSignatureMethod {
   dev_e_confirmation
 }
+
+enum SpecimenStatus {
+  pending
+  collected
+  handed_over
+}
+
+model SpecimenCollection {
+  id               String         @id @default(uuid())
+  recordId         String
+  patientCode      String
+  patientName      String
+  departmentName   String
+  specimenCode     String         @unique
+  specimenType     String
+  orderDescription String
+  priority         Boolean        @default(false)
+  status           SpecimenStatus @default(pending)
+  barcodePrinted   Boolean        @default(false)
+  collectedBy      String?
+  collectedAt      DateTime?
+  handedOverBy     String?
+  handedOverAt     DateTime?
+  labReceiverName  String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("specimen_collections")
+}
+

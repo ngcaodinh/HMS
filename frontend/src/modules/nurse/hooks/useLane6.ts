@@ -29,6 +29,8 @@ export interface OrderDto {
   status: 'pending' | 'done' | 'blocked' | 'delayed' | 'active' | 'cancelled';
   time: string;
   tone: 'danger' | 'purple' | 'blue' | 'green';
+  orderType: string;
+  hasAllergyWarning: boolean;
 }
 
 export interface AdmissionBoardDto {
@@ -40,6 +42,32 @@ export interface AdmissionBoardDto {
   age: number;
   gender: string;
   version: number;
+}
+
+export interface VitalsWorklistItemDto {
+  recordId: string;
+  recordCode: string;
+  patientName: string;
+  age: number;
+  gender: string;
+  diagnosis: string | null;
+  allergies: string | null;
+  version: number;
+  createdAt: string;
+}
+
+export interface QueueTicketDto {
+  id: string;
+  number: number;
+  calledAt: string | null;
+}
+
+export interface VitalsQueueStatsDto {
+  measuredTodayCount: number;
+  measuredTodayDelta: number;
+  waitingCount: number;
+  allergyAlertTodayCount: number;
+  avgMinutesPerPatient: number;
 }
 
 // Queries
@@ -81,9 +109,12 @@ export const useOrders = (params?: { recordId?: string; bedId?: string; departme
           status: o.status,
           time: o.orderedAt || '',
           tone,
+          orderType: o.orderType || '',
+          hasAllergyWarning: !!o.hasAllergyWarning,
         };
       });
     },
+    refetchInterval: 15000,
   });
 };
 
@@ -258,3 +289,165 @@ export const useCancelOrder = () => {
     },
   });
 };
+
+export const useVitalsQueue = () =>
+  useQuery({
+    queryKey: ['vitals-queue'],
+    queryFn: async () => {
+      const res = await httpClient.get<
+        any,
+        {
+          data: {
+            worklist: VitalsWorklistItemDto[];
+            ticketQueue: {
+              currentCalled: QueueTicketDto | null;
+              waitingCount: number;
+              waitingNumbers: number[];
+            };
+            stats: VitalsQueueStatsDto;
+          };
+        }
+      >('/inpatient/vitals-queue');
+      return res.data;
+    },
+  });
+
+export const useCallNextTicket = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => httpClient.post('/inpatient/queue-tickets/call-next', {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vitals-queue'] }),
+  });
+};
+
+export const useRecallTicket = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ticketId: string) =>
+      httpClient.post(`/inpatient/queue-tickets/${ticketId}/recall`, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vitals-queue'] }),
+  });
+};
+
+export const useRecordVitalSigns = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      recordId: string;
+      ticketId: string;
+      expectedRecordVersion: number;
+      pulse: number;
+      temperatureC?: number;
+      bloodPressureSystolic: number;
+      bloodPressureDiastolic: number;
+      respiratoryRate?: number;
+      spo2: number;
+      heightCm?: number;
+      weightKg?: number;
+      allergies?: string;
+    }) => {
+      const { recordId, ...body } = payload;
+      return httpClient.post(`/medical-records/${recordId}/vital-signs`, body);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['vitals-queue'] }),
+  });
+};
+
+// Specimen Collection Types & Hooks
+export interface SpecimenDto {
+  id: string;
+  recordId: string;
+  patientCode: string;
+  patientName: string;
+  departmentName: string;
+  specimenCode: string;
+  specimenType: string;
+  orderDescription: string;
+  priority: boolean;
+  status: 'pending' | 'collected' | 'handed_over';
+  barcodePrinted: boolean;
+  collectedBy: string | null;
+  collectedAt: string | null;
+  handedOverBy: string | null;
+  handedOverAt: string | null;
+  labReceiverName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const useSpecimens = (status?: string) => {
+  return useQuery({
+    queryKey: ['specimens', status],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      if (status) queryParams.append('status', status);
+      const queryString = queryParams.toString();
+      const res = await httpClient.get<any, { data: SpecimenDto[] }>(
+        queryString ? `/specimens?${queryString}` : '/specimens'
+      );
+      return res.data || [];
+    },
+  });
+};
+
+export const useCreateSpecimen = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      recordId: string;
+      patientCode: string;
+      patientName: string;
+      departmentName: string;
+      specimenCode: string;
+      specimenType: string;
+      orderDescription: string;
+      priority?: boolean;
+    }) => {
+      const res = await httpClient.post('/specimens', payload);
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+export const useCollectSpecimen = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const res = await httpClient.post(`/specimens/${id}/collect`, {});
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+export const usePrintSpecimenBarcode = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const res = await httpClient.post(`/specimens/${id}/print-barcode`, {});
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+
+export const useHandoffSpecimen = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, labReceiverName }: { id: string; labReceiverName?: string }) => {
+      const res = await httpClient.post(`/specimens/${id}/handoff`, { labReceiverName });
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specimens'] });
+    },
+  });
+};
+

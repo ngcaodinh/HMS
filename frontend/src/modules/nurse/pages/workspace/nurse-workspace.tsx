@@ -2,12 +2,12 @@
 
 import Image from 'next/image';
 import type { ReactNode } from 'react';
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   navItems,
+  orderTypeLabels,
   queuePatients,
-  sampleOrders,
   screenMeta,
   vitalFields,
   vitalStats,
@@ -26,9 +26,21 @@ import {
   useProcessDischarge,
   useUpdateOrderStatus,
   useCancelOrder,
+  useVitalsQueue,
+  useCallNextTicket,
+  useRecallTicket,
+  useRecordVitalSigns,
+  useToggleMaintenance,
+  useSpecimens,
+  useCollectSpecimen,
+  usePrintSpecimenBarcode,
+  useHandoffSpecimen,
   type BedDto,
   type OrderDto,
   type AdmissionBoardDto,
+  type VitalsWorklistItemDto,
+  type QueueTicketDto,
+  type VitalsQueueStatsDto,
 } from '../../hooks/useLane6';
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
 function cn(...classes: Array<string | false | undefined>) {
@@ -153,6 +165,30 @@ function Sidebar({
 
 function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
   const meta = screenMeta[activeScreen];
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    if (activeScreen !== 'vitals') return;
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, [activeScreen]);
+
+  const formattedTime = useMemo(() => {
+    const hours = currentTime.getHours();
+    const minutes = currentTime.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes < 10 ? `0${minutes}` : minutes;
+    const day = String(currentTime.getDate()).padStart(2, '0');
+    const month = String(currentTime.getMonth() + 1).padStart(2, '0');
+    const year = currentTime.getFullYear();
+    return `${displayHours}:${displayMinutes} ${ampm} ${day}/${month}/${year}`;
+  }, [currentTime]);
+
+  const subtitle =
+    activeScreen === 'vitals'
+      ? `Khoa Da Liễu • Phòng Sàng Lọc A01 • ${formattedTime}`
+      : meta.subtitle;
 
   return (
     <header className={styles.topbar}>
@@ -160,7 +196,7 @@ function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
         <h1 className={cn('truncate text-lg font-bold leading-7 text-[#0369a1]', meta.titleClass)}>
           {meta.title}
         </h1>
-        <p className="truncate text-xs font-medium leading-4 text-[#64748b]">{meta.subtitle}</p>
+        <p className="truncate text-xs font-medium leading-4 text-[#64748b]">{subtitle}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <span className={styles.shortcut}>F2 Gọi tiếp</span>
@@ -222,177 +258,813 @@ function Card({
   );
 }
 
-function PatientQueue() {
+function PatientQueue({
+  ticketQueue,
+  worklist,
+  selectedRecordId,
+  calledRecordIds,
+  hasUnsavedInput,
+  onCallNext,
+  onRecall,
+  onSelectRecord,
+  isCalling,
+}: {
+  ticketQueue: { currentCalled: QueueTicketDto | null; waitingCount: number };
+  worklist: VitalsWorklistItemDto[];
+  selectedRecordId: string | null;
+  calledRecordIds: Set<string>;
+  hasUnsavedInput: boolean;
+  onCallNext: () => void;
+  onRecall: () => void;
+  onSelectRecord: (item: VitalsWorklistItemDto) => void;
+  isCalling: boolean;
+}) {
   return (
-    <Card count="7 ca" icon="clipboard" title="Hàng đợi chờ đo sinh hiệu">
-      <div className="flex flex-wrap gap-2 p-3">
-        <button className={cn(styles.primaryButton, 'h-16 px-4 text-sm')} type="button">
-          <Icon name="heart" />
-          Gọi số tiếp theo
-          <span className="rounded-sm bg-white/20 px-1.5 py-0.5 text-[10px]">F2</span>
-        </button>
-        <button className={cn(styles.secondaryButton, 'h-16 text-[#006096]')} type="button">
-          <Icon name="refresh" />
-          Gọi lại
-        </button>
-      </div>
-      <div className="px-3 pb-3">
-        <label className="relative block">
-          <span className="sr-only">Tìm bệnh nhân trong hàng đợi</span>
-          <Icon
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]"
-            name="search"
-          />
-          <input className={cn(styles.input, 'pl-9')} placeholder="Tìm theo họ tên, SĐT, CCCD..." />
-        </label>
+    <Card count={`${ticketQueue.waitingCount} số đang chờ`} icon="clipboard" title="Hàng đợi chờ đo sinh hiệu">
+      <div className="p-3">
+        <div className="mb-2 rounded-lg bg-[#f1f5f9] p-3 text-center">
+          <p className="text-xs font-medium text-[#64748b]">Số đang gọi</p>
+          <p className="text-3xl font-bold text-[#006096]">
+            {ticketQueue.currentCalled ? String(ticketQueue.currentCalled.number).padStart(2, '0') : '--'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            className={cn(styles.primaryButton, 'h-16 px-4 text-sm')}
+            type="button"
+            disabled={isCalling || hasUnsavedInput || ticketQueue.waitingCount === 0}
+            title={hasUnsavedInput ? 'Hãy lưu hoặc hủy dữ liệu đang nhập trước khi gọi số mới' : undefined}
+            onClick={onCallNext}
+          >
+            <Icon name="heart" />
+            Gọi số tiếp theo
+            <span className="rounded-sm bg-white/20 px-1.5 py-0.5 text-[10px]">F2</span>
+          </button>
+          <button
+            className={cn(styles.secondaryButton, 'h-16 text-[#006096]')}
+            type="button"
+            disabled={isCalling || !ticketQueue.currentCalled}
+            onClick={onRecall}
+          >
+            <Icon name="refresh" />
+            Gọi lại
+          </button>
+        </div>
       </div>
       <div className="max-h-96 overflow-auto border-t border-[#cbd5e1]">
-        {queuePatients.map((patient) => {
-          const calling = patient.status === 'calling';
-
-          return (
-            <button
-              className={cn(
-                'flex w-full items-center gap-3 border-b border-[#cbd5e1] p-4 text-left transition hover:bg-[#f8fafc] focus:outline-none focus:ring-2 focus:ring-[#006096]/20',
-                calling && 'border-l-4 border-l-[#006096] bg-[#e0f2fe]',
-              )}
-              key={patient.id}
-              type="button"
-            >
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-sm bg-[#006096] text-sm font-bold text-white">
-                {patient.number}
-              </span>
-              <span className="min-w-0 flex-1">
+        {worklist.length === 0 ? (
+          <div className="p-4 text-center text-xs text-[#64748b]">Không có bệnh nhân chờ đo</div>
+        ) : (
+          worklist.map((item) => {
+            const active = item.recordId === selectedRecordId;
+            const isCalled = !active && calledRecordIds.has(item.recordId);
+            return (
+              <button
+                className={cn(
+                  'flex w-full items-center gap-3 border-b border-[#cbd5e1] p-4 text-left transition hover:bg-[#f8fafc]',
+                  active && 'border-l-4 border-l-[#006096] bg-[#e0f2fe]'
+                )}
+                key={item.recordId}
+                type="button"
+                onClick={() => onSelectRecord(item)}
+              >
+                <span className="min-w-0 flex-1">
+                  <span
+                    className={cn(
+                      'block truncate text-xs font-bold uppercase leading-5',
+                      active ? 'text-[#006096]' : 'text-[#334155]'
+                    )}
+                  >
+                    {item.patientName}
+                  </span>
+                  <span className="block truncate text-xs font-medium leading-4 text-[#64748b]">
+                    {`${item.gender}, ${item.age}t — BA: ${item.recordCode}`}
+                  </span>
+                </span>
                 <span
                   className={cn(
-                    'block truncate text-xs font-bold uppercase leading-5',
-                    calling ? 'text-[#006096]' : 'text-[#334155]',
+                    'rounded-sm px-2 py-1 text-[10px] font-bold uppercase leading-4',
+                    active
+                      ? 'bg-red-100 text-[#b91c1c]'
+                      : isCalled
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-blue-50 text-[#006096]'
                   )}
                 >
-                  {patient.name}
+                  {active ? 'Đang chọn' : isCalled ? 'Đã gọi' : 'Chọn'}
                 </span>
-                <span className="block truncate text-xs font-medium leading-4 text-[#64748b]">
-                  {patient.meta}
-                </span>
-              </span>
-              <span
-                className={cn(
-                  'rounded-sm px-2 py-1 text-[10px] font-bold uppercase leading-4',
-                  calling ? 'bg-red-100 text-[#b91c1c]' : 'bg-blue-50 text-[#006096]',
-                )}
-              >
-                {calling ? 'Đang gọi' : 'Đợi đo'}
-              </span>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })
+        )}
       </div>
     </Card>
   );
 }
 
-function VitalInput({ field }: { field: VitalField }) {
+interface VitalsFormState {
+  pulse: string;
+  temperatureC: string;
+  bpSystolic: string;
+  bpDiastolic: string;
+  respiratoryRate: string;
+  spo2: string;
+  heightCm: string;
+  weightKg: string;
+  allergyEnabled: boolean;
+  allergyNote: string;
+}
+
+const emptyVitalsForm: VitalsFormState = {
+  pulse: '',
+  temperatureC: '',
+  bpSystolic: '',
+  bpDiastolic: '',
+  respiratoryRate: '',
+  spo2: '',
+  heightCm: '',
+  weightKg: '',
+  allergyEnabled: false,
+  allergyNote: '',
+};
+
+const VITAL_LIMITS = {
+  pulse: { min: 0, max: 300, label: 'mạch' },
+  temperatureC: { min: 25, max: 45, label: 'nhiệt độ' },
+  bpSystolic: { min: 0, max: 300, label: 'huyết áp tâm thu' },
+  bpDiastolic: { min: 0, max: 300, label: 'huyết áp tâm trương' },
+  respiratoryRate: { min: 0, max: 120, label: 'nhịp thở' },
+  spo2: { min: 0, max: 100, label: 'SpO2' },
+  heightCm: { min: 0, max: 300, label: 'chiều cao' },
+  weightKg: { min: 0, max: 500, label: 'cân nặng' },
+} as const;
+
+function getVitalFieldError(key: keyof typeof VITAL_LIMITS, value: string): string | undefined {
+  if (!value) return undefined;
+  const { min, max, label } = VITAL_LIMITS[key];
+  const num = Number(value);
+  if (Number.isNaN(num) || num < min || num > max) {
+    return `Giá trị ${label} không hợp lệ (${min}-${max})`;
+  }
+  return undefined;
+}
+
+function VitalInputField({
+  label,
+  unit,
+  value,
+  onChange,
+  error,
+  step,
+  required,
+}: {
+  label: string;
+  unit: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  step?: string;
+  required?: boolean;
+}) {
   return (
     <label>
-      <span className={styles.label}>{field.label}</span>
-      {field.unit ? (
-        <span className="flex">
-          <input className={cn(styles.input, 'rounded-r-none')} defaultValue={field.value} />
-          <span className={styles.fieldUnit}>{field.unit}</span>
-        </span>
-      ) : (
-        <input className={styles.input} defaultValue={field.value} />
-      )}
+      <span className={styles.label}>
+        {label}
+        {required ? ' *' : ''}
+      </span>
+      <span className="flex">
+        <input
+          type="number"
+          step={step}
+          className={cn(
+            styles.input,
+            'rounded-r-none',
+            error && 'border-red-400 text-[#b91c1c] focus:border-red-500 focus:ring-red-500/10'
+          )}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <span className={styles.fieldUnit}>{unit}</span>
+      </span>
+      {error && <p className="mt-1 text-xs font-bold text-[#b91c1c]">{error}</p>}
     </label>
   );
 }
 
-function VitalsForm() {
+function VitalsForm({
+  selectedRecord,
+  activeTicket,
+  form,
+  setForm,
+  onSave,
+  onCancel,
+  isSaving,
+  bmiValue,
+}: {
+  selectedRecord: VitalsWorklistItemDto | null;
+  activeTicket: QueueTicketDto | null;
+  form: VitalsFormState;
+  setForm: React.Dispatch<React.SetStateAction<VitalsFormState>>;
+  onSave: () => void;
+  onCancel: () => void;
+  isSaving: boolean;
+  bmiValue: string;
+}) {
+  const fieldErrors = useMemo(
+    () => ({
+      pulse: getVitalFieldError('pulse', form.pulse),
+      temperatureC: getVitalFieldError('temperatureC', form.temperatureC),
+      bpSystolic: getVitalFieldError('bpSystolic', form.bpSystolic),
+      bpDiastolic: getVitalFieldError('bpDiastolic', form.bpDiastolic),
+      respiratoryRate: getVitalFieldError('respiratoryRate', form.respiratoryRate),
+      spo2: getVitalFieldError('spo2', form.spo2),
+      heightCm: getVitalFieldError('heightCm', form.heightCm),
+      weightKg: getVitalFieldError('weightKg', form.weightKg),
+    }),
+    [form]
+  );
+  const hasFieldErrors = Object.values(fieldErrors).some(Boolean);
+
+  const canSave =
+    Boolean(activeTicket) &&
+    Boolean(selectedRecord) &&
+    !isSaving &&
+    !hasFieldErrors &&
+    Boolean(form.pulse) &&
+    Boolean(form.bpSystolic) &&
+    Boolean(form.bpDiastolic) &&
+    Boolean(form.spo2) &&
+    (!form.allergyEnabled || Boolean(form.allergyNote.trim()));
+
   return (
     <Card icon="heart" title="Chỉ số sinh tồn (Vital signs)">
       <div className="space-y-6 p-6">
+        {selectedRecord ? (
+          <div className="rounded-lg bg-[#e0f2fe] p-3 text-xs font-bold text-[#006096]">
+            Đang nhập sinh hiệu cho: <span className="uppercase">{selectedRecord.patientName}</span> ({selectedRecord.gender}, {selectedRecord.age}t — BA: {selectedRecord.recordCode})
+          </div>
+        ) : (
+          <div className="rounded-lg bg-[#f1f5f9] p-3 text-xs font-medium text-[#64748b]">
+            Chưa chọn bệnh nhân — hãy gọi số và chọn bệnh nhân từ danh sách bên trái
+          </div>
+        )}
+
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {vitalFields.map((field) => (
-            <VitalInput field={field} key={field.label} />
-          ))}
+          <VitalInputField
+            label="Mạch (lần/phút)"
+            unit="bpm"
+            required
+            value={form.pulse}
+            error={fieldErrors.pulse}
+            onChange={(v) => setForm((prev) => ({ ...prev, pulse: v }))}
+          />
+
+          <VitalInputField
+            label="Nhiệt độ (°C)"
+            unit="°C"
+            step="0.1"
+            value={form.temperatureC}
+            error={fieldErrors.temperatureC}
+            onChange={(v) => setForm((prev) => ({ ...prev, temperatureC: v }))}
+          />
+
+          <VitalInputField
+            label="Huyết áp tâm thu (mmHg)"
+            unit="mmHg"
+            required
+            value={form.bpSystolic}
+            error={fieldErrors.bpSystolic}
+            onChange={(v) => setForm((prev) => ({ ...prev, bpSystolic: v }))}
+          />
+
+          <VitalInputField
+            label="Huyết áp tâm trương (mmHg)"
+            unit="mmHg"
+            required
+            value={form.bpDiastolic}
+            error={fieldErrors.bpDiastolic}
+            onChange={(v) => setForm((prev) => ({ ...prev, bpDiastolic: v }))}
+          />
+
+          <VitalInputField
+            label="Nhịp thở (lần/phút)"
+            unit="lần/ph"
+            value={form.respiratoryRate}
+            error={fieldErrors.respiratoryRate}
+            onChange={(v) => setForm((prev) => ({ ...prev, respiratoryRate: v }))}
+          />
+
+          <VitalInputField
+            label="SpO2 (%)"
+            unit="%"
+            required
+            value={form.spo2}
+            error={fieldErrors.spo2}
+            onChange={(v) => setForm((prev) => ({ ...prev, spo2: v }))}
+          />
+
+          <VitalInputField
+            label="Chiều cao (cm)"
+            unit="cm"
+            value={form.heightCm}
+            error={fieldErrors.heightCm}
+            onChange={(v) => setForm((prev) => ({ ...prev, heightCm: v }))}
+          />
+
+          <VitalInputField
+            label="Cân nặng (kg)"
+            unit="kg"
+            step="0.1"
+            value={form.weightKg}
+            error={fieldErrors.weightKg}
+            onChange={(v) => setForm((prev) => ({ ...prev, weightKg: v }))}
+          />
+
           <label>
             <span className={styles.label}>Chỉ số BMI (tự tính)</span>
             <div className="flex h-10 items-center rounded-lg border border-[#cbd5e1] bg-[#f1f5f9] px-4 text-sm font-bold text-[#475569]">
-              -
+              {bmiValue}
             </div>
           </label>
         </div>
 
         <div>
           <p className={styles.label}>Tiền sử dị ứng</p>
-          <div className="rounded-xl border-2 border-[#b91c1c]/20 bg-red-50/30 p-4">
+          <div
+            className={cn(
+              'rounded-xl border-2 p-4 transition-colors',
+              form.allergyEnabled
+                ? 'border-[#b91c1c]/40 bg-red-50/50'
+                : 'border-[#cbd5e1] bg-[#f8fafc]'
+            )}
+          >
             <div className="flex flex-wrap items-center gap-4">
               <button
-                aria-pressed="true"
-                className="relative h-6 w-12 rounded-full bg-[#b91c1c] shadow-inner focus:outline-none focus:ring-4 focus:ring-[#b91c1c]/20"
+                aria-pressed={form.allergyEnabled}
+                className={cn(
+                  'relative h-6 w-12 rounded-full shadow-inner focus:outline-none focus:ring-4 transition-colors',
+                  form.allergyEnabled
+                    ? 'bg-[#b91c1c] focus:ring-[#b91c1c]/20'
+                    : 'bg-[#cbd5e1] focus:ring-gray-200'
+                )}
                 type="button"
+                onClick={() => setForm((prev) => ({ ...prev, allergyEnabled: !prev.allergyEnabled }))}
               >
-                <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white shadow" />
+                <span
+                  className={cn(
+                    'absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all',
+                    form.allergyEnabled ? 'right-1' : 'left-1'
+                  )}
+                />
               </button>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold leading-5 text-[#b91c1c]">
-                  Có dị ứng thuốc / thức ăn
+                <p
+                  className={cn(
+                    'text-sm font-bold leading-5',
+                    form.allergyEnabled ? 'text-[#b91c1c]' : 'text-[#64748b]'
+                  )}
+                >
+                  {form.allergyEnabled ? 'Có dị ứng thuốc / thức ăn' : 'Không có tiền sử dị ứng'}
                 </p>
-                <p className="text-xs font-medium leading-4 text-[#b91c1c]/70">
-                  Bật để nhập chi tiết chất dị ứng
+                <p className="text-xs font-medium leading-4 text-[#64748b]">
+                  {form.allergyEnabled
+                    ? 'Bật để nhập chi tiết chất dị ứng'
+                    : 'Tắt switch nếu bệnh nhân không ghi nhận dị ứng'}
                 </p>
               </div>
-              <Icon className="h-6 w-6 text-[#b91c1c]" name="alert" />
+              {form.allergyEnabled && <Icon className="h-6 w-6 text-[#b91c1c]" name="alert" />}
             </div>
-            <textarea
-              className={cn(styles.textarea, 'mt-4 border-[#b91c1c]/40')}
-              placeholder="Nhập mô tả chi tiết: tên thuốc, loại thức ăn gây dị ứng và biểu hiện dị ứng... Ví dụ: Penicillin → nổi mề đay toàn thân"
-            />
+
+            <div className="relative mt-4">
+              <textarea
+                className={cn(
+                  styles.textarea,
+                  form.allergyEnabled
+                    ? 'border-[#b91c1c]/40 bg-white'
+                    : 'border-[#cbd5e1] bg-[#e2e8f0]/40 text-[#94a3b8] cursor-not-allowed'
+                )}
+                disabled={!form.allergyEnabled}
+                value={form.allergyNote}
+                onChange={(e) => setForm((prev) => ({ ...prev, allergyNote: e.target.value }))}
+                placeholder="Nhập mô tả chi tiết: tên thuốc, loại thức ăn gây dị ứng và biểu hiện dị ứng... Ví dụ: Penicillin → nổi mề đay toàn thân"
+              />
+              {form.allergyEnabled && !form.allergyNote.trim() && (
+                <p className="mt-1 text-xs font-bold text-[#b91c1c]">
+                  Vui lòng nhập mô tả chi tiết dị ứng trước khi lưu
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
       <div className="flex flex-wrap justify-end gap-3 rounded-b-xl border-t border-[#cbd5e1] bg-[#f8fafc] p-4">
-        <button className={styles.secondaryButton} type="button">
+        <button className={styles.secondaryButton} type="button" onClick={onCancel}>
           Hủy
         </button>
-        <button className={cn(styles.primaryButton, 'px-8 text-sm')} type="button">
+        <button
+          className={cn(styles.primaryButton, 'px-8 text-sm')}
+          type="button"
+          disabled={!canSave}
+          onClick={onSave}
+        >
           <Icon name="check" />
-          Lưu kết quả (F9)
+          {isSaving ? 'Đang lưu...' : 'Lưu kết quả (F9)'}
         </button>
       </div>
     </Card>
   );
 }
 
+const VITALS_QUEUE_STATE_KEY = 'nurse:vitals-queue-state';
+
+function getTodayDateString(): string {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function VitalsScreen() {
+  const { data, isLoading } = useVitalsQueue();
+  const { mutate: callNext, isPending: isCalling } = useCallNextTicket();
+  const { mutate: recall } = useRecallTicket();
+  const { mutate: saveVitalSigns, isPending: isSaving } = useRecordVitalSigns();
+
+  const [selectedRecord, setSelectedRecord] = useState<VitalsWorklistItemDto | null>(null);
+  const [calledOrder, setCalledOrder] = useState<string[]>([]);
+  const [form, setForm] = useState<VitalsFormState>(emptyVitalsForm);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const activeTicket = data?.ticketQueue.currentCalled ?? null;
+  const worklist = data?.worklist ?? [];
+  const statsData = data?.stats;
+
+  const calledRecordIds = useMemo(() => new Set(calledOrder), [calledOrder]);
+
+  useEffect(() => {
+    if (hydratedRef.current || !data) return;
+    hydratedRef.current = true;
+
+    try {
+      const raw = window.localStorage.getItem(VITALS_QUEUE_STATE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { date?: string; selectedRecordId?: string | null; calledOrder?: string[] };
+      const today = getTodayDateString();
+      if (parsed && parsed.date === today) {
+        const validWorklist = data.worklist || [];
+        const validIds = new Set(validWorklist.map((w) => w.recordId));
+
+        const restoredCalledOrder = (parsed.calledOrder || []).filter((id) => validIds.has(id));
+        setCalledOrder(restoredCalledOrder);
+
+        if (parsed.selectedRecordId && validIds.has(parsed.selectedRecordId)) {
+          const found = validWorklist.find((w) => w.recordId === parsed.selectedRecordId);
+          if (found) {
+            setSelectedRecord(found);
+            if (found.allergies && found.allergies.trim()) {
+              setForm((prev) => ({
+                ...prev,
+                allergyEnabled: true,
+                allergyNote: found.allergies ? found.allergies.trim() : '',
+              }));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse vitals queue state from localStorage', e);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    try {
+      const payload = {
+        date: getTodayDateString(),
+        selectedRecordId: selectedRecord?.recordId ?? null,
+        calledOrder,
+      };
+      window.localStorage.setItem(VITALS_QUEUE_STATE_KEY, JSON.stringify(payload));
+    } catch (e) {
+      console.error('Failed to save vitals queue state to localStorage', e);
+    }
+  }, [selectedRecord?.recordId, calledOrder]);
+
+  const hasUnsavedInput = useMemo(() => {
+    return Object.entries(form).some(([k, v]) => k !== 'allergyEnabled' && v !== '' && v !== false);
+  }, [form]);
+
+  const bmiValue = useMemo(() => {
+    const h = Number(form.heightCm);
+    const w = Number(form.weightKg);
+    if (h > 0 && w > 0) {
+      const bmi = w / ((h / 100) ** 2);
+      return bmi.toFixed(1);
+    }
+    return '-';
+  }, [form.heightCm, form.weightKg]);
+
+  const selectRecordAndResetForm = useCallback((item: VitalsWorklistItemDto | null) => {
+    setSelectedRecord(item);
+    if (item && item.allergies && item.allergies.trim()) {
+      setForm({
+        ...emptyVitalsForm,
+        allergyEnabled: true,
+        allergyNote: item.allergies.trim(),
+      });
+    } else {
+      setForm(emptyVitalsForm);
+    }
+  }, []);
+
+  const handleCallNext = useCallback(() => {
+    if (hasUnsavedInput || isCalling) return;
+
+    if ((data?.ticketQueue.waitingCount ?? 0) > 0) {
+      callNext();
+    }
+
+    const currentWorklist = data?.worklist ?? [];
+    if (currentWorklist.length === 0) return;
+
+    let newCalledOrder = [...calledOrder];
+    if (selectedRecord && !newCalledOrder.includes(selectedRecord.recordId)) {
+      newCalledOrder.push(selectedRecord.recordId);
+    }
+
+    const newCalledSet = new Set(newCalledOrder);
+    let nextRecord: VitalsWorklistItemDto | null = null;
+
+    if (selectedRecord) {
+      const currentIndex = currentWorklist.findIndex((item) => item.recordId === selectedRecord.recordId);
+      if (currentIndex !== -1) {
+        for (let i = currentIndex + 1; i < currentWorklist.length; i++) {
+          if (!newCalledSet.has(currentWorklist[i].recordId)) {
+            nextRecord = currentWorklist[i];
+            break;
+          }
+        }
+        if (!nextRecord) {
+          for (let i = 0; i < currentIndex; i++) {
+            if (!newCalledSet.has(currentWorklist[i].recordId)) {
+              nextRecord = currentWorklist[i];
+              break;
+            }
+          }
+        }
+      } else {
+        nextRecord = currentWorklist.find((item) => !newCalledSet.has(item.recordId)) ?? null;
+      }
+    } else {
+      nextRecord = currentWorklist.find((item) => !newCalledSet.has(item.recordId)) ?? null;
+    }
+
+    setCalledOrder(newCalledOrder);
+    selectRecordAndResetForm(nextRecord);
+  }, [
+    hasUnsavedInput,
+    isCalling,
+    data?.ticketQueue.waitingCount,
+    data?.worklist,
+    callNext,
+    selectedRecord,
+    calledOrder,
+    selectRecordAndResetForm,
+  ]);
+
+  const handleRecall = () => {
+    if (calledOrder.length > 1) {
+      const firstCalledId = calledOrder[0];
+      const firstCalledRecord = worklist.find((item) => item.recordId === firstCalledId);
+
+      let updatedCalledOrder = [...calledOrder];
+      if (selectedRecord && selectedRecord.recordId !== firstCalledId) {
+        if (!updatedCalledOrder.includes(selectedRecord.recordId)) {
+          updatedCalledOrder.push(selectedRecord.recordId);
+        }
+      }
+      const finalCalledOrder = updatedCalledOrder.filter((id) => id !== firstCalledId);
+
+      setCalledOrder(finalCalledOrder);
+      selectRecordAndResetForm(firstCalledRecord ?? null);
+      return;
+    }
+
+    if (activeTicket && !isCalling) {
+      recall(activeTicket.id);
+    }
+  };
+
+  const handleCancel = () => {
+    setForm(emptyVitalsForm);
+  };
+
+  const handleSelectRecord = useCallback(
+    (item: VitalsWorklistItemDto) => {
+      selectRecordAndResetForm(item);
+    },
+    [selectRecordAndResetForm]
+  );
+
+  const handleSave = useCallback(() => {
+    if (!activeTicket || !selectedRecord || isSaving) return;
+    if (!form.pulse || !form.bpSystolic || !form.bpDiastolic || !form.spo2) return;
+    if (form.allergyEnabled && !form.allergyNote.trim()) return;
+
+    saveVitalSigns(
+      {
+        recordId: selectedRecord.recordId,
+        ticketId: activeTicket.id,
+        expectedRecordVersion: selectedRecord.version,
+        pulse: Number(form.pulse),
+        temperatureC: form.temperatureC ? Number(form.temperatureC) : undefined,
+        bloodPressureSystolic: Number(form.bpSystolic),
+        bloodPressureDiastolic: Number(form.bpDiastolic),
+        respiratoryRate: form.respiratoryRate ? Number(form.respiratoryRate) : undefined,
+        spo2: Number(form.spo2),
+        heightCm: form.heightCm ? Number(form.heightCm) : undefined,
+        weightKg: form.weightKg ? Number(form.weightKg) : undefined,
+        allergies: form.allergyEnabled ? form.allergyNote.trim() : '',
+      },
+      {
+        onSuccess: () => {
+          if (selectedRecord) {
+            setCalledOrder((prev) => prev.filter((id) => id !== selectedRecord.recordId));
+          }
+          setToast({ type: 'success', message: 'Đã lưu kết quả sinh hiệu thành công!' });
+          setForm(emptyVitalsForm);
+          setSelectedRecord(null);
+        },
+        onError: () => {
+          setToast({ type: 'error', message: 'Lưu thất bại, vui lòng thử lại!' });
+        },
+      }
+    );
+  }, [activeTicket, selectedRecord, isSaving, form, saveVitalSigns]);
+
+  useEffect(() => {
+    function handleKeydown(e: KeyboardEvent) {
+      if (e.key === 'F2') {
+        e.preventDefault();
+        handleCallNext();
+      } else if (e.key === 'F9') {
+        e.preventDefault();
+        handleSave();
+      }
+    }
+    window.addEventListener('keydown', handleKeydown);
+    return () => window.removeEventListener('keydown', handleKeydown);
+  }, [handleCallNext, handleSave]);
+
+  const stats: StatCard[] = useMemo(() => [
+    {
+      value: String(statsData?.measuredTodayCount ?? 0),
+      label: 'Đã đo hôm nay',
+      icon: 'check',
+      iconClass: 'bg-green-100 text-[#15803d]',
+      delta: statsData?.measuredTodayDelta != null ? `${statsData.measuredTodayDelta >= 0 ? '+' : ''}${statsData.measuredTodayDelta} so hôm qua` : undefined,
+    },
+    {
+      value: String(statsData?.waitingCount ?? 0),
+      label: 'Bệnh nhân chờ đo',
+      icon: 'clipboard',
+      iconClass: 'bg-blue-100 text-[#006096]',
+    },
+    {
+      value: String(statsData?.allergyAlertTodayCount ?? 0),
+      label: 'Cảnh báo dị ứng',
+      icon: 'alert',
+      iconClass: 'bg-red-100 text-[#b91c1c]',
+    },
+    {
+      value: `${statsData?.avgMinutesPerPatient ?? 0} phút`,
+      label: 'Thời gian TB/Bệnh nhân',
+      icon: 'activity',
+      iconClass: 'bg-teal-100 text-[#0f766e]',
+    },
+  ], [statsData]);
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-sm font-medium text-[#64748b]">Đang tải dữ liệu sinh hiệu...</div>;
+  }
+
   return (
     <div className="space-y-6">
-      <StatGrid stats={vitalStats} />
+      {toast && (
+        <div
+          className={cn(
+            'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
+            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#b91c1c]'
+          )}
+        >
+          {toast.message}
+        </div>
+      )}
+      <StatGrid stats={stats} />
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <PatientQueue />
-        <VitalsForm />
+        <PatientQueue
+          ticketQueue={data?.ticketQueue ?? { currentCalled: null, waitingCount: 0 }}
+          worklist={worklist}
+          selectedRecordId={selectedRecord?.recordId ?? null}
+          calledRecordIds={calledRecordIds}
+          hasUnsavedInput={hasUnsavedInput}
+          onCallNext={handleCallNext}
+          onRecall={handleRecall}
+          onSelectRecord={handleSelectRecord}
+          isCalling={isCalling}
+        />
+        <VitalsForm
+          selectedRecord={selectedRecord}
+          activeTicket={activeTicket}
+          form={form}
+          setForm={setForm}
+          onSave={handleSave}
+          onCancel={handleCancel}
+          isSaving={isSaving}
+          bmiValue={bmiValue}
+        />
       </div>
     </div>
   );
 }
 
 function SamplesScreen() {
+  const { data: specimens = [] } = useSpecimens();
+  const collectSpecimenMutation = useCollectSpecimen();
+  const printBarcodeMutation = usePrintSpecimenBarcode();
+  const handoffSpecimenMutation = useHandoffSpecimen();
+
+  const [activeTab, setActiveTab] = useState<'collect' | 'handoff'>('collect');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [selectedPatientCode, setSelectedPatientCode] = useState<string | null>(null);
+
+  // Compute stat cards from real data
+  const pendingCount = specimens.filter((s) => s.status === 'pending').length;
+  const collectedCount = specimens.filter(
+    (s) => s.status === 'collected' || s.status === 'handed_over'
+  ).length;
+  const handoffCount = specimens.filter((s) => s.status === 'collected').length;
+  const priorityCount = specimens.filter((s) => s.priority && s.status !== 'handed_over').length;
+
   const stats: StatCard[] = [
-    { value: '12', label: 'Chờ lấy mẫu', icon: 'flask', iconClass: 'bg-blue-100 text-[#006096]' },
-    { value: '8', label: 'Đã lấy mẫu', icon: 'check', iconClass: 'bg-green-100 text-[#15803d]' },
-    {
-      value: '4',
-      label: 'Chờ bàn giao lab',
-      icon: 'file',
-      iconClass: 'bg-teal-100 text-[#0f766e]',
-    },
-    {
-      value: '1',
-      label: 'Mẫu cấp cứu ưu tiên',
-      icon: 'alert',
-      iconClass: 'bg-red-100 text-[#b91c1c]',
-    },
+    { value: String(pendingCount), label: 'Chờ lấy mẫu', icon: 'flask', iconClass: 'bg-blue-100 text-[#006096]' },
+    { value: String(collectedCount), label: 'Đã lấy mẫu', icon: 'check', iconClass: 'bg-green-100 text-[#15803d]' },
+    { value: String(handoffCount), label: 'Chờ bàn giao lab', icon: 'file', iconClass: 'bg-teal-100 text-[#0f766e]' },
+    { value: String(priorityCount), label: 'Mẫu cấp cứu ưu tiên', icon: 'alert', iconClass: 'bg-red-100 text-[#b91c1c]' },
   ];
+
+  // Filter specimens client-side
+  const filteredSpecimens = specimens.filter((s) => {
+    const matchesSearch =
+      !searchQuery ||
+      s.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.patientCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.specimenCode.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesDept =
+      departmentFilter === 'all' || s.departmentName.toLowerCase().includes(departmentFilter.toLowerCase());
+    return matchesSearch && matchesDept;
+  });
+
+  const pendingSpecimens = filteredSpecimens.filter((s) => s.status === 'pending');
+  const collectedSpecimens = filteredSpecimens.filter((s) => s.status === 'collected');
+
+  // Unique patients in pending list
+  const pendingPatientsMap = new Map<string, { patientCode: string; patientName: string; count: number; departmentName: string }>();
+  for (const s of pendingSpecimens) {
+    const existing = pendingPatientsMap.get(s.patientCode);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      pendingPatientsMap.set(s.patientCode, {
+        patientCode: s.patientCode,
+        patientName: s.patientName,
+        count: 1,
+        departmentName: s.departmentName,
+      });
+    }
+  }
+  const pendingPatientsList = Array.from(pendingPatientsMap.values());
+
+  const activePatientCode =
+    selectedPatientCode && pendingPatientsMap.has(selectedPatientCode)
+      ? selectedPatientCode
+      : pendingPatientsList[0]?.patientCode || null;
+
+  const activePatientSpecimens = activePatientCode
+    ? pendingSpecimens.filter((s) => s.patientCode === activePatientCode)
+    : pendingSpecimens;
+
+  const selectedPatientInfo = activePatientSpecimens[0];
 
   return (
     <div className="space-y-5">
@@ -400,133 +1072,240 @@ function SamplesScreen() {
       <section className={cn(styles.card, 'overflow-hidden')}>
         <div className="flex border-b border-[#cbd5e1] bg-[#f8fafc]">
           <button
-            className="border-b-2 border-[#006096] px-6 py-3 text-sm font-medium text-[#006096]"
+            className={cn(
+              'px-6 py-3 text-sm font-medium transition-colors',
+              activeTab === 'collect'
+                ? 'border-b-2 border-[#006096] text-[#006096]'
+                : 'text-[#64748b] hover:text-[#1f2937]'
+            )}
             type="button"
+            onClick={() => setActiveTab('collect')}
           >
-            1. Lấy mẫu bệnh phẩm
+            1. Lấy mẫu bệnh phẩm ({pendingCount})
           </button>
-          <button className="px-6 py-3 text-sm font-medium text-[#64748b]" type="button">
-            2. Phiếu bàn giao mẫu (Phòng Lab)
+          <button
+            className={cn(
+              'px-6 py-3 text-sm font-medium transition-colors',
+              activeTab === 'handoff'
+                ? 'border-b-2 border-[#006096] text-[#006096]'
+                : 'text-[#64748b] hover:text-[#1f2937]'
+            )}
+            type="button"
+            onClick={() => setActiveTab('handoff')}
+          >
+            2. Phiếu bàn giao mẫu (Phòng Lab) ({collectedCount})
           </button>
         </div>
-        <div className="grid min-h-[620px] lg:grid-cols-[288px_minmax(0,1fr)]">
-          <aside className="border-r border-[#cbd5e1]">
-            <div className="flex gap-2 border-b border-[#cbd5e1] bg-[#f8fafc] p-3">
-              <select className={cn(styles.input, 'h-9 text-xs')}>
-                <option>Khoa Da Liễu</option>
-              </select>
-              <label className="relative">
-                <span className="sr-only">Tìm bệnh nhân</span>
-                <Icon
-                  className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]"
-                  name="search"
-                />
-                <input
-                  className={cn(styles.input, 'h-9 pl-8 text-xs')}
-                  placeholder="Tên bệnh nhân..."
-                />
-              </label>
-            </div>
-            <p className="bg-[#f8fafc]/70 px-4 py-2 text-xs font-bold uppercase leading-4 tracking-[0.4px] text-[#64748b]">
-              Bệnh nhân chờ lấy mẫu
-            </p>
-            {queuePatients.slice(0, 3).map((patient, index) => (
-              <button
-                className={cn(
-                  'flex w-full items-center gap-3 border-b border-[#f1f5f9] p-4 text-left',
-                  index === 0 && 'border-l-4 border-l-[#006096] bg-indigo-50',
-                )}
-                key={patient.id}
-                type="button"
-              >
-                <span
-                  className={cn(
-                    'flex h-10 w-10 items-center justify-center rounded-sm text-sm font-bold text-white',
-                    index === 1 ? 'bg-green-600' : 'bg-[#006096]',
-                  )}
+
+        {activeTab === 'collect' ? (
+          <div className="grid min-h-[620px] lg:grid-cols-[288px_minmax(0,1fr)]">
+            <aside className="border-r border-[#cbd5e1]">
+              <div className="flex gap-2 border-b border-[#cbd5e1] bg-[#f8fafc] p-3">
+                <select
+                  className={cn(styles.input, 'h-9 text-xs')}
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
                 >
-                  {patient.number}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold uppercase text-[#1f2937]">
-                    {patient.name}
-                  </span>
-                  <span className="block text-xs text-[#64748b]">
-                    {index === 0 ? 'Nam, 42t • Giường 101-A' : patient.meta}
-                  </span>
-                  <span className="block text-xs text-[#64748b]">
-                    {index === 0 ? '1/2 mẫu bệnh phẩm' : '1/1 mẫu bệnh phẩm'}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </aside>
-          <div className="min-w-0">
-            <div className="flex flex-wrap justify-between gap-3 border-b border-[#cbd5e1] p-4">
-              <div>
-                <h2 className="text-lg font-bold leading-7 text-[#1f2937]">NGUYỄN VĂN A</h2>
-                <p className="text-xs leading-5 text-[#64748b]">
-                  Tuổi: 42 • Giới tính: Nam • Buồng 101 – Giường 101-A
-                </p>
+                  <option value="all">Tất cả khoa</option>
+                  <option value="Khoa Da Liễu">Khoa Da Liễu</option>
+                </select>
+                <label className="relative flex-1">
+                  <span className="sr-only">Tìm bệnh nhân</span>
+                  <Icon
+                    className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]"
+                    name="search"
+                  />
+                  <input
+                    className={cn(styles.input, 'h-9 pl-8 text-xs')}
+                    placeholder="Tên, mã..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </label>
               </div>
-              <div className="text-left lg:text-right">
-                <p className="text-xs font-medium leading-4 text-[#64748b]">Chẩn đoán:</p>
-                <p className="text-xs font-bold leading-5 text-[#475569]">
-                  Viêm da tiếp xúc dị ứng mạn tính – Giai đoạn bùng phát
-                </p>
-              </div>
-            </div>
-            <div className="space-y-4 p-4">
-              {sampleOrders.map((order) => (
-                <article
-                  className="overflow-hidden rounded-lg border border-[#cbd5e1] shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                  key={order.code}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#cbd5e1] bg-[#f8fafc] px-4 py-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="rounded-sm bg-[#e5e7eb] px-2 py-0.5 text-xs font-bold text-[#475569]">
-                        {order.code}
-                      </span>
-                      <span className="text-xs font-bold uppercase text-[#0f766e]">
-                        {order.type}
-                      </span>
-                    </div>
+              <p className="bg-[#f8fafc]/70 px-4 py-2 text-xs font-bold uppercase leading-4 tracking-[0.4px] text-[#64748b]">
+                Bệnh nhân chờ lấy mẫu ({pendingPatientsList.length})
+              </p>
+              {pendingPatientsList.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[#64748b]">Không có bệnh nhân nào chờ lấy mẫu</div>
+              ) : (
+                pendingPatientsList.map((patient, index) => (
+                  <button
+                    className={cn(
+                      'flex w-full items-center gap-3 border-b border-[#f1f5f9] p-4 text-left transition-colors',
+                      patient.patientCode === activePatientCode && 'border-l-4 border-l-[#006096] bg-indigo-50'
+                    )}
+                    key={patient.patientCode}
+                    type="button"
+                    onClick={() => setSelectedPatientCode(patient.patientCode)}
+                  >
                     <span
                       className={cn(
-                        'text-xs font-bold uppercase',
-                        order.status === 'done'
-                          ? 'rounded-sm bg-green-100 px-2 py-0.5 text-[#15803d]'
-                          : 'text-[#475569]',
+                        'flex h-10 w-10 items-center justify-center rounded-sm text-sm font-bold text-white',
+                        index % 2 === 1 ? 'bg-green-600' : 'bg-[#006096]'
                       )}
                     >
-                      {order.status === 'done' ? 'Đã lấy mẫu' : 'Chờ lấy mẫu'}
+                      {String(index + 1).padStart(2, '0')}
                     </span>
-                  </div>
-                  <div className="space-y-2 px-4 py-4">
-                    <h3 className="text-base font-bold leading-6 text-[#006096]">{order.order}</h3>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold uppercase text-[#1f2937]">
+                        {patient.patientName}
+                      </span>
+                      <span className="block text-xs text-[#64748b]">Mã: {patient.patientCode}</span>
+                      <span className="block text-xs font-semibold text-[#006096]">
+                        {patient.count} mẫu bệnh phẩm
+                      </span>
+                    </span>
+                  </button>
+                ))
+              )}
+            </aside>
+            <div className="min-w-0">
+              {selectedPatientInfo ? (
+                <div className="flex flex-wrap justify-between gap-3 border-b border-[#cbd5e1] p-4">
+                  <div>
+                    <h2 className="text-lg font-bold leading-7 text-[#1f2937]">{selectedPatientInfo.patientName}</h2>
                     <p className="text-xs leading-5 text-[#64748b]">
-                      Thời điểm lấy:{' '}
-                      <strong className="text-[#334155]">{order.time ?? 'Chưa thực hiện'}</strong>
+                      Mã BN: {selectedPatientInfo.patientCode} • Khoa: {selectedPatientInfo.departmentName}
                     </p>
-                    <div className="flex flex-wrap justify-end gap-3 pt-3">
-                      <button className={styles.primaryButton} type="button">
-                        In mã vạch (Barcode)
-                      </button>
-                      <button
-                        className={
-                          order.status === 'done' ? styles.secondaryButton : styles.primaryButton
-                        }
-                        type="button"
-                      >
-                        {order.status === 'done' ? 'Đã lấy thành công' : 'Tiến hành lấy mẫu'}
-                      </button>
-                    </div>
                   </div>
-                </article>
-              ))}
+                  <div className="text-left lg:text-right">
+                    <p className="text-xs font-medium leading-4 text-[#64748b]">Số mẫu chờ lấy:</p>
+                    <p className="text-sm font-bold leading-5 text-[#006096]">
+                      {activePatientSpecimens.length} mẫu bệnh phẩm
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="border-b border-[#cbd5e1] p-4 text-sm text-[#64748b]">
+                  Chọn bệnh nhân ở danh sách bên trái để xem yêu cầu lấy mẫu
+                </div>
+              )}
+              <div className="space-y-4 p-4">
+                {activePatientSpecimens.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-[#64748b]">
+                    Đã hoàn thành lấy tất cả mẫu cho bệnh nhân này!
+                  </div>
+                ) : (
+                  activePatientSpecimens.map((order) => (
+                    <article
+                      className={cn(
+                        'overflow-hidden rounded-lg border border-[#cbd5e1] shadow-[0_1px_2px_rgba(0,0,0,0.05)]',
+                        order.priority && 'border-l-4 border-l-[#b91c1c]'
+                      )}
+                      key={order.id}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#cbd5e1] bg-[#f8fafc] px-4 py-2">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="rounded-sm bg-[#e5e7eb] px-2 py-0.5 text-xs font-bold text-[#475569]">
+                            {order.specimenCode}
+                          </span>
+                          <span className="text-xs font-bold uppercase text-[#0f766e]">
+                            {order.specimenType}
+                          </span>
+                          {order.priority && (
+                            <span className="rounded-sm bg-red-100 px-2 py-0.5 text-xs font-bold text-[#b91c1c]">
+                              ƯU TIÊN CẤP CỨU
+                            </span>
+                          )}
+                          {order.barcodePrinted && (
+                            <span className="rounded-sm bg-blue-100 px-2 py-0.5 text-xs font-semibold text-[#006096]">
+                              ✓ Đã in mã vạch
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs font-bold uppercase text-[#475569]">Chờ lấy mẫu</span>
+                      </div>
+                      <div className="space-y-2 px-4 py-4">
+                        <h3 className="text-base font-bold leading-6 text-[#006096]">{order.orderDescription}</h3>
+                        <p className="text-xs leading-5 text-[#64748b]">
+                          Bệnh nhân: <strong className="text-[#334155]">{order.patientName} ({order.patientCode})</strong> • Khoa: <strong className="text-[#334155]">{order.departmentName}</strong>
+                        </p>
+                        <div className="flex flex-wrap justify-end gap-3 pt-3">
+                          <button
+                            className={styles.primaryButton}
+                            type="button"
+                            disabled={printBarcodeMutation.isPending}
+                            onClick={() => printBarcodeMutation.mutate({ id: order.id })}
+                          >
+                            {order.barcodePrinted ? 'In lại mã vạch' : 'In mã vạch (Barcode)'}
+                          </button>
+                          <button
+                            className={styles.primaryButton}
+                            type="button"
+                            disabled={collectSpecimenMutation.isPending}
+                            onClick={() => collectSpecimenMutation.mutate({ id: order.id })}
+                          >
+                            Tiến hành lấy mẫu
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="p-4 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#cbd5e1] pb-3">
+              <div>
+                <h2 className="text-lg font-bold leading-7 text-[#1f2937]">Danh sách mẫu đã lấy — Chờ bàn giao Phòng Lab</h2>
+                <p className="text-xs text-[#64748b]">Các mẫu bệnh phẩm đã được lấy thành công, sẵn sàng bàn giao sang kỹ thuật viên phòng xét nghiệm</p>
+              </div>
+              <span className="rounded-sm bg-teal-100 px-3 py-1 text-xs font-bold text-[#0f766e]">
+                {collectedSpecimens.length} mẫu chờ bàn giao
+              </span>
+            </div>
+
+            {collectedSpecimens.length === 0 ? (
+              <div className="py-12 text-center text-sm text-[#64748b]">
+                Chưa có mẫu bệnh phẩm nào đã lấy chờ bàn giao.
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                {collectedSpecimens.map((spec) => (
+                  <article
+                    className="overflow-hidden rounded-lg border border-[#cbd5e1] bg-white p-4 shadow-sm space-y-3"
+                    key={spec.id}
+                  >
+                    <div className="flex items-center justify-between border-b border-[#f1f5f9] pb-2">
+                      <span className="rounded bg-[#e5e7eb] px-2 py-0.5 text-xs font-bold text-[#334155]">
+                        {spec.specimenCode}
+                      </span>
+                      <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-[#15803d]">
+                        ✓ Đã lấy thành công
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#006096]">{spec.orderDescription}</h3>
+                      <p className="text-xs text-[#475569] font-medium">Loại mẫu: {spec.specimenType}</p>
+                      <p className="text-xs text-[#64748b]">
+                        Bệnh nhân: <strong>{spec.patientName}</strong> ({spec.patientCode})
+                      </p>
+                      <p className="text-xs text-[#64748b]">
+                        Thời gian lấy: {spec.collectedAt ? new Date(spec.collectedAt).toLocaleTimeString('vi-VN') + ' - ' + new Date(spec.collectedAt).toLocaleDateString('vi-VN') : '—'}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between pt-2 border-t border-[#f1f5f9]">
+                      <span className="text-xs text-[#64748b]">
+                        KTV tiếp nhận: <span className="font-semibold text-[#1f2937]">Phòng Lab Central</span>
+                      </span>
+                      <button
+                        className={styles.primaryButton}
+                        type="button"
+                        disabled={handoffSpecimenMutation.isPending}
+                        onClick={() => handoffSpecimenMutation.mutate({ id: spec.id, labReceiverName: 'Phòng Lab Central' })}
+                      >
+                        Bàn giao cho Lab
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1145,9 +1924,21 @@ function OrderStatus({ order }: { order: OrderDto }) {
   );
 }
 
+function getOrderShift(iso: string): 'Sáng' | 'Chiều' | 'Tối' {
+  const hour = new Date(iso).getHours();
+  if (hour >= 6 && hour < 14) return 'Sáng';
+  if (hour >= 14 && hour < 22) return 'Chiều';
+  return 'Tối';
+}
+
 function OrdersScreen() {
   const { data: apiOrders, isLoading } = useOrders();
   const ordersList: OrderDto[] = apiOrders || [];
+
+  const [roomFilter, setRoomFilter] = useState('all');
+  const [shiftFilter, setShiftFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   if (isLoading) {
     return <div className="p-8 text-center text-[#64748b]">Đang tải dữ liệu y lệnh...</div>;
@@ -1156,6 +1947,7 @@ function OrdersScreen() {
   const pendingCount = ordersList.filter(o => o.status === 'active' || o.status === 'pending').length;
   const doneCount = ordersList.filter(o => o.status === 'done').length;
   const cancelledCount = ordersList.filter(o => o.status === 'cancelled').length;
+  const allergyCount = ordersList.filter(o => o.hasAllergyWarning).length;
 
   const stats: StatCard[] = [
     {
@@ -1180,13 +1972,28 @@ function OrdersScreen() {
       valueClass: 'text-red-700',
     },
     {
-      value: '1',
+      value: allergyCount.toString(),
       label: 'Cảnh báo dị ứng thuốc',
       icon: 'shield',
       iconClass: 'bg-red-100 text-[#dc2626]',
       valueClass: 'text-red-700',
     },
   ];
+
+  const roomOptions = Array.from(new Set(ordersList.map(o => o.roomLabel))).sort();
+
+  const filteredOrders = ordersList.filter((order) => {
+    const matchesRoom = roomFilter === 'all' || order.roomLabel === roomFilter;
+    const matchesShift = shiftFilter === 'all' || getOrderShift(order.time) === shiftFilter;
+    const matchesType = typeFilter === 'all' || order.orderType === typeFilter;
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !q ||
+      order.patientName.toLowerCase().includes(q) ||
+      order.title.toLowerCase().includes(q) ||
+      order.instruction.toLowerCase().includes(q);
+    return matchesRoom && matchesShift && matchesType && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -1199,14 +2006,39 @@ function OrdersScreen() {
           </h2>
         </div>
         <div className="flex flex-wrap gap-3 border-b border-[#f1f5f9] bg-[#f8fafc]/60 p-4">
-          <select className={cn(styles.input, 'w-36 text-xs')}>
-            <option>Tất cả buồng</option>
+          <select
+            className={cn(styles.input, 'w-36 text-xs')}
+            value={roomFilter}
+            onChange={(e) => setRoomFilter(e.target.value)}
+          >
+            <option value="all">Tất cả buồng</option>
+            {roomOptions.map((room) => (
+              <option key={room} value={room}>
+                {room}
+              </option>
+            ))}
           </select>
-          <select className={cn(styles.input, 'w-28 text-xs')}>
-            <option>Tất cả ca</option>
+          <select
+            className={cn(styles.input, 'w-28 text-xs')}
+            value={shiftFilter}
+            onChange={(e) => setShiftFilter(e.target.value)}
+          >
+            <option value="all">Tất cả ca</option>
+            <option value="Sáng">Ca sáng</option>
+            <option value="Chiều">Ca chiều</option>
+            <option value="Tối">Ca tối</option>
           </select>
-          <select className={cn(styles.input, 'w-32 text-xs')}>
-            <option>Tất cả loại</option>
+          <select
+            className={cn(styles.input, 'w-32 text-xs')}
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <option value="all">Tất cả loại</option>
+            {Object.entries(orderTypeLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
           </select>
           <label className="relative min-w-[240px] flex-1">
             <span className="sr-only">Tìm y lệnh</span>
@@ -1217,6 +2049,8 @@ function OrdersScreen() {
             <input
               className={cn(styles.input, 'pl-9 text-xs')}
               placeholder="Tìm tên thuốc, bệnh nhân..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
             />
           </label>
         </div>
@@ -1232,7 +2066,14 @@ function OrdersScreen() {
               </tr>
             </thead>
             <tbody>
-              {ordersList.map((order) => (
+              {filteredOrders.length === 0 && (
+                <tr>
+                  <td className="p-6 text-center text-sm text-[#64748b]" colSpan={5}>
+                    Không tìm thấy y lệnh phù hợp bộ lọc
+                  </td>
+                </tr>
+              )}
+              {filteredOrders.map((order) => (
                 <tr
                   className={cn(order.status === 'blocked' && 'bg-red-50/30')}
                   key={order.id}

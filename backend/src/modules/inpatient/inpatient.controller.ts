@@ -13,6 +13,7 @@ import { AuditPort } from '../../ports/AuditPort';
 import { BillingSettlementPort } from '../../ports/BillingSettlementPort';
 import { sendSuccess } from '../../core/http/response-envelope';
 import { toVNISOString } from '../../core/utils/datetime';
+import crypto from 'crypto';
 import {
   assignBedSchema,
   changeBedAssignmentSchema,
@@ -22,6 +23,7 @@ import {
   completeOrderSchema,
   updateOrderStatusSchema,
   cancelOrderSchema,
+  recordVitalSignsSchema,
 } from './schemas/inpatient.schema';
 
 const prisma = new PrismaClient();
@@ -483,6 +485,7 @@ export class InpatientController {
       cancelReason: o.cancelReason || null,
       patientName: o.record.patient.fullName,
       roomLabel: o.record.bed ? `${o.record.bed.room.name}-${o.record.bed.number}` : 'No Bed',
+      hasAllergyWarning: o.orderType === 'medication' && !!o.record.patient.allergies?.trim(),
     }));
 
     return sendSuccess(res, items);
@@ -646,4 +649,258 @@ export class InpatientController {
       cancelledAt: toVNISOString(updated.cancelledAt),
     });
   }
+
+  // 11. GET /api/v1/inpatient/vitals-queue
+  static async listVitalsQueue(req: Request, res: Response) {
+    const departmentId = (req.query.departmentId as string | undefined) || req.user?.departmentId;
+
+    // Clinical worklist - medical_records where vitalConfirmedAt IS NULL
+    const worklistRecords = await prisma.medicalRecord.findMany({
+      where: {
+        vitalConfirmedAt: null,
+        status: { not: MedicalRecordStatus.closed },
+        ...(departmentId ? { departmentId } : {}),
+      },
+      include: { patient: true },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const worklist = worklistRecords.map((r) => {
+      const vs = r.vitalSigns as Record<string, unknown> | null;
+      const allergies = typeof vs?.allergies === 'string' ? vs.allergies : null;
+      return {
+        recordId: r.id,
+        recordCode: r.recordCode,
+        patientName: r.patient.fullName,
+        age: new Date().getFullYear() - (r.patient.dateOfBirth?.getFullYear() || 0),
+        gender: r.patient.gender === 'male' ? 'Nam' : 'Nữ',
+        diagnosis: r.diagnosisText || null,
+        allergies,
+        version: r.version,
+        createdAt: toVNISOString(r.createdAt),
+      };
+    });
+
+    // Ticket queue today - raw SQL on queue_tickets
+    const tickets = await prisma.$queryRaw<
+      Array<{ id: string; number: number; status: string; calledAt: Date | null }>
+    >`
+      SELECT id, number, status, calledAt FROM queue_tickets
+      WHERE date = CURDATE() AND status IN ('waiting', 'called')
+      ORDER BY number ASC
+    `;
+
+    const currentCalledRaw = tickets.find((t) => t.status === 'called') || null;
+    const currentCalled = currentCalledRaw
+      ? {
+          id: currentCalledRaw.id,
+          number: currentCalledRaw.number,
+          calledAt: toVNISOString(currentCalledRaw.calledAt),
+        }
+      : null;
+
+    const waitingTickets = tickets.filter((t) => t.status === 'waiting');
+    const waitingCount = waitingTickets.length;
+    const waitingNumbers = waitingTickets.map((t) => t.number);
+
+    // Stats calculations from medical_records measured today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+    const measuredTodayRecords = await prisma.medicalRecord.findMany({
+      where: {
+        vitalConfirmedAt: { gte: todayStart },
+        ...(departmentId ? { departmentId } : {}),
+      },
+      select: {
+        createdAt: true,
+        vitalConfirmedAt: true,
+        vitalSigns: true,
+      },
+    });
+
+    const measuredYesterdayCount = await prisma.medicalRecord.count({
+      where: {
+        vitalConfirmedAt: { gte: yesterdayStart, lt: todayStart },
+        ...(departmentId ? { departmentId } : {}),
+      },
+    });
+
+    const measuredTodayCount = measuredTodayRecords.length;
+    const measuredTodayDelta = measuredTodayCount - measuredYesterdayCount;
+
+    let allergyAlertTodayCount = 0;
+    let totalMinutes = 0;
+
+    for (const r of measuredTodayRecords) {
+      const vs = r.vitalSigns as Record<string, unknown> | null;
+      const allergiesStr = typeof vs?.allergies === 'string' ? vs.allergies : '';
+      if (allergiesStr.trim().length > 0) {
+        allergyAlertTodayCount++;
+      }
+      if (r.vitalConfirmedAt && r.createdAt) {
+        const diffMs = r.vitalConfirmedAt.getTime() - r.createdAt.getTime();
+        totalMinutes += diffMs / (1000 * 60);
+      }
+    }
+
+    const avgMinutesPerPatient =
+      measuredTodayCount > 0 ? Math.round(totalMinutes / measuredTodayCount) : 0;
+
+    return sendSuccess(res, {
+      worklist,
+      ticketQueue: {
+        currentCalled,
+        waitingCount,
+        waitingNumbers,
+      },
+      stats: {
+        measuredTodayCount,
+        measuredTodayDelta,
+        waitingCount: worklist.length,
+        allergyAlertTodayCount,
+        avgMinutesPerPatient,
+      },
+    });
+  }
+
+  // 12. POST /api/v1/inpatient/queue-tickets/call-next
+  static async callNextQueueTicket(req: Request, res: Response) {
+    const userId = req.user?.id || 'usr-nurse-01';
+
+    const result = await prisma.$transaction(async (tx) => {
+      const [next] = await tx.$queryRaw<Array<{ id: string; number: number }>>`
+        SELECT id, number FROM queue_tickets
+        WHERE date = CURDATE() AND status = 'waiting'
+        ORDER BY number ASC
+        LIMIT 1
+        FOR UPDATE
+      `;
+      if (!next) {
+        throw new AppError(404, 'NO_WAITING_TICKET', 'Không còn số nào đang chờ gọi');
+      }
+
+      const affected = await tx.$executeRaw`
+        UPDATE queue_tickets SET status = 'called', calledAt = NOW(3)
+        WHERE id = ${next.id} AND status = 'waiting'
+      `;
+      if (affected === 0) {
+        throw new AppError(409, 'TICKET_ALREADY_CALLED', 'Số này vừa được điều dưỡng khác gọi');
+      }
+
+      const [ticket] = await tx.$queryRaw<Array<{ id: string; number: number; calledAt: Date }>>`
+        SELECT id, number, calledAt FROM queue_tickets WHERE id = ${next.id}
+      `;
+      if (!ticket) {
+        throw new AppError(404, 'TICKET_NOT_FOUND', 'Không tìm thấy thông tin số thứ tự');
+      }
+      return ticket;
+    });
+
+    AuditPort.logActivity('QUEUE_TICKET_CALLED', userId, result.id, { number: result.number });
+    RealtimePublisher.publishEvent('inpatient', 'queue_ticket_called', { ticketId: result.id, number: result.number });
+
+    return sendSuccess(res, { ticketId: result.id, number: result.number, calledAt: toVNISOString(result.calledAt) });
+  }
+
+  // 13. POST /api/v1/inpatient/queue-tickets/:id/recall
+  static async recallQueueTicket(req: Request, res: Response) {
+    const id = req.params.id || '';
+    const userId = req.user?.id || 'usr-nurse-01';
+
+    const affected = await prisma.$executeRaw`
+      UPDATE queue_tickets SET calledAt = NOW(3) WHERE id = ${id} AND status = 'called'
+    `;
+    if (affected === 0) {
+      throw new AppError(409, 'TICKET_NOT_CALLED', 'Số này không ở trạng thái đang gọi, không thể gọi lại');
+    }
+
+    const [ticket] = await prisma.$queryRaw<Array<{ id: string; number: number; calledAt: Date }>>`
+      SELECT id, number, calledAt FROM queue_tickets WHERE id = ${id}
+    `;
+
+    if (!ticket) {
+      throw new AppError(404, 'TICKET_NOT_FOUND', 'Không tìm thấy thông tin số thứ tự');
+    }
+
+    AuditPort.logActivity('QUEUE_TICKET_RECALLED', userId, id, { number: ticket.number });
+    RealtimePublisher.publishEvent('inpatient', 'queue_ticket_recalled', { ticketId: id, number: ticket.number });
+
+    return sendSuccess(res, { ticketId: ticket.id, number: ticket.number, calledAt: toVNISOString(ticket.calledAt) });
+  }
+
+  // 14. POST /api/v1/medical-records/:recordId/vital-signs
+  static async recordVitalSigns(req: Request, res: Response) {
+    const recordId = req.params.recordId || '';
+    const body = recordVitalSignsSchema.parse(req.body);
+    const userId = req.user?.id || 'usr-nurse-01';
+
+    const result = await prisma.$transaction(async (tx) => {
+      const record = await tx.medicalRecord.findUnique({ where: { id: recordId } });
+      if (!record) throw new AppError(404, 'RECORD_NOT_FOUND', 'Hồ sơ bệnh án không tồn tại');
+      if (record.version !== body.expectedRecordVersion) {
+        throw new AppError(409, 'VERSION_CONFLICT', 'Hồ sơ đã bị thay đổi bởi thao tác khác');
+      }
+      if (record.vitalConfirmedAt) {
+        throw new AppError(409, 'VITALS_ALREADY_RECORDED', 'Hồ sơ này đã được đo sinh hiệu');
+      }
+
+      const [ticket] = await tx.$queryRaw<Array<{ id: string; status: string }>>`
+        SELECT id, status FROM queue_tickets WHERE id = ${body.ticketId}
+      `;
+      if (!ticket || ticket.status !== 'called') {
+        throw new AppError(409, 'TICKET_NOT_CALLED', 'Số thứ tự không ở trạng thái đang gọi, không thể lưu kết quả');
+      }
+
+      const logId = crypto.randomUUID();
+      await tx.$executeRaw`
+        INSERT INTO vital_sign_logs
+          (id, recordId, treatmentOrderId, measuredAt, pulse, temperatureC, bloodPressureSystolic, bloodPressureDiastolic, respiratoryRate, spo2, weightKg, note, recordedBy, createdAt)
+        VALUES
+          (${logId}, ${recordId}, NULL, NOW(3), ${body.pulse}, ${body.temperatureC ?? null}, ${body.bloodPressureSystolic}, ${body.bloodPressureDiastolic}, ${body.respiratoryRate ?? null}, ${body.spo2}, ${body.weightKg ?? null}, NULL, ${userId}, NOW(3))
+      `;
+
+      const updatedRecord = await tx.medicalRecord.update({
+        where: { id: recordId },
+        data: {
+          heightCm: body.heightCm ?? null,
+          vitalSigns: {
+            spo2: body.spo2,
+            pulse: body.pulse,
+            weightKg: body.weightKg ?? null,
+            allergies: body.allergies || '',
+            temperatureC: body.temperatureC ?? null,
+            respiratoryRate: body.respiratoryRate ?? null,
+            bloodPressureSystolic: body.bloodPressureSystolic,
+            bloodPressureDiastolic: body.bloodPressureDiastolic,
+          },
+          vitalConfirmedBy: userId,
+          vitalConfirmedAt: new Date(),
+          version: { increment: 1 },
+        },
+      });
+
+      await tx.$executeRaw`UPDATE queue_tickets SET status = 'served', servedAt = NOW(3) WHERE id = ${body.ticketId}`;
+
+      return updatedRecord;
+    });
+
+    AuditPort.logActivity('VITAL_SIGNS_RECORDED', userId, recordId, { recordId, ticketId: body.ticketId });
+    RealtimePublisher.publishEvent('inpatient', 'vital_signs_recorded', { recordId, ticketId: body.ticketId });
+
+    return sendSuccess(
+      res,
+      {
+        recordId,
+        ticketId: body.ticketId,
+        recordVersion: result.version,
+        vitalConfirmedAt: toVNISOString(result.vitalConfirmedAt),
+      },
+      201
+    );
+  }
 }
+

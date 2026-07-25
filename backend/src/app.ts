@@ -11,6 +11,7 @@ import { logger } from './core/logger/logger';
 import { errorHandler } from './core/middlewares/errorHandler';
 import { bedRoutes } from './modules/beds/bed.routes';
 import { inpatientRoutes } from './modules/inpatient/inpatient.routes';
+import { specimenRoutes } from './modules/specimens/specimen.routes';
 
 export const createApp = () => {
   const app = express();
@@ -33,6 +34,7 @@ export const createApp = () => {
   // Mount Lane 6 API v1 routes
   app.use('/api/v1/beds', bedRoutes);
   app.use('/api/v1', inpatientRoutes);
+  app.use('/api/v1', specimenRoutes);
 
   // Global error handler
   app.use(errorHandler);

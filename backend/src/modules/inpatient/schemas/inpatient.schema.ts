@@ -58,3 +58,18 @@ export const updateOrderStatusSchema = z.object({
 export const cancelOrderSchema = z.object({
   cancelReason: z.string().min(1, 'Lý do hủy y lệnh không được để trống').max(500),
 });
+
+export const recordVitalSignsSchema = z.object({
+  ticketId: z.string().min(1, 'Thiếu số thứ tự đang gọi'),
+  expectedRecordVersion: z.number().int('Version phải là số nguyên'),
+  pulse: z.number().int().min(0).max(300),
+  temperatureC: z.number().min(25).max(45).optional(),
+  bloodPressureSystolic: z.number().int().min(0).max(300),
+  bloodPressureDiastolic: z.number().int().min(0).max(300),
+  respiratoryRate: z.number().int().min(0).max(120).optional(),
+  spo2: z.number().int().min(0).max(100),
+  heightCm: z.number().min(0).max(300).optional(),
+  weightKg: z.number().min(0).max(500).optional(),
+  allergies: z.string().max(1000).optional(),
+});
+
