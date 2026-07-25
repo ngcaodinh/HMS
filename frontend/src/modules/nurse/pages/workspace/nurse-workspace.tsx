@@ -1,8 +1,10 @@
 'use client';
 
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import JsBarcode from 'jsbarcode';
 
 import {
   navItems,
@@ -35,12 +37,15 @@ import {
   useCollectSpecimen,
   usePrintSpecimenBarcode,
   useHandoffSpecimen,
+  useUnidentifiedEmergencyPatients,
+  useStandardizeEmergencyIdentity,
   type BedDto,
   type OrderDto,
   type AdmissionBoardDto,
   type VitalsWorklistItemDto,
   type QueueTicketDto,
   type VitalsQueueStatsDto,
+  type SpecimenDto,
 } from '../../hooks/useLane6';
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
 function cn(...classes: Array<string | false | undefined>) {
@@ -93,6 +98,20 @@ function Sidebar({
   activeScreen: NurseScreen;
   onChangeScreen: (screen: NurseScreen) => void;
 }) {
+  const router = useRouter();
+
+  const { data: vitalsQueueData } = useVitalsQueue();
+  const { data: specimens = [] } = useSpecimens();
+  const { data: apiOrders = [] } = useOrders();
+  const { data: unidentifiedEmergencyPatients = [] } = useUnidentifiedEmergencyPatients();
+
+  const badgeCounts: Partial<Record<NurseScreen, number>> = {
+    vitals: vitalsQueueData?.stats.waitingCount ?? 0,
+    samples: specimens.filter((s) => s.status !== 'handed_over').length,
+    orders: apiOrders.filter((o) => o.status === 'active' || o.status === 'pending').length,
+    emergency: unidentifiedEmergencyPatients.length,
+  };
+
   return (
     <aside className={styles.sidebar}>
       <div className={styles.sidebarHeader}>
@@ -118,6 +137,7 @@ function Sidebar({
         <p className={styles.navSection}>Màn hình làm việc</p>
         {navItems.map((item) => {
           const active = activeScreen === item.id;
+          const badgeCount = badgeCounts[item.id];
 
           return (
             <button
@@ -132,14 +152,14 @@ function Sidebar({
                 name={item.icon}
               />
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {item.badge && (
+              {Boolean(badgeCount) && (
                 <span
                   className={cn(
                     styles.badge,
                     item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#b91c1c]',
                   )}
                 >
-                  {item.badge}
+                  {badgeCount}
                 </span>
               )}
             </button>
@@ -155,7 +175,12 @@ function Sidebar({
           <p className="truncate text-sm font-bold leading-5 text-white">Nguyễn Thị Hương</p>
           <p className="text-xs font-medium leading-4 text-white/50">Điều dưỡng</p>
         </div>
-        <button aria-label="Đăng xuất" className={styles.iconButton} type="button">
+        <button
+          aria-label="Đăng xuất"
+          className={styles.iconButton}
+          onClick={() => router.push('/login')}
+          type="button"
+        >
           <Icon name="logOut" />
         </button>
       </div>
@@ -168,10 +193,9 @@ function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
   useEffect(() => {
-    if (activeScreen !== 'vitals') return;
     const interval = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(interval);
-  }, [activeScreen]);
+  }, []);
 
   const formattedTime = useMemo(() => {
     const hours = currentTime.getHours();
@@ -185,10 +209,11 @@ function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
     return `${displayHours}:${displayMinutes} ${ampm} ${day}/${month}/${year}`;
   }, [currentTime]);
 
-  const subtitle =
-    activeScreen === 'vitals'
-      ? `Khoa Da Liễu • Phòng Sàng Lọc A01 • ${formattedTime}`
-      : meta.subtitle;
+  const subtitlePrefix = useMemo(
+    () => meta.subtitle.split(' • ').slice(0, -1).join(' • '),
+    [meta.subtitle]
+  );
+  const subtitle = `${subtitlePrefix} • ${formattedTime}`;
 
   return (
     <header className={styles.topbar}>
@@ -451,6 +476,17 @@ function VitalInputField({
   );
 }
 
+const ALL_VITAL_FIELDS = [
+  'pulse',
+  'temperatureC',
+  'bpSystolic',
+  'bpDiastolic',
+  'respiratoryRate',
+  'spo2',
+  'heightCm',
+  'weightKg',
+] as const;
+
 function VitalsForm({
   selectedRecord,
   activeTicket,
@@ -460,6 +496,7 @@ function VitalsForm({
   onCancel,
   isSaving,
   bmiValue,
+  attemptedSave,
 }: {
   selectedRecord: VitalsWorklistItemDto | null;
   activeTicket: QueueTicketDto | null;
@@ -469,32 +506,50 @@ function VitalsForm({
   onCancel: () => void;
   isSaving: boolean;
   bmiValue: string;
+  attemptedSave: boolean;
 }) {
+  const missingOnSubmit = useMemo(() => {
+    const set = new Set<string>();
+    if (attemptedSave) {
+      ALL_VITAL_FIELDS.forEach((key) => {
+        if (!form[key]) set.add(key);
+      });
+    }
+    return set;
+  }, [attemptedSave, form]);
+
+  const reminderFieldError = (key: (typeof ALL_VITAL_FIELDS)[number]): string | undefined =>
+    missingOnSubmit.has(key) ? 'Vui lòng nhập giá trị này' : undefined;
+
   const fieldErrors = useMemo(
     () => ({
-      pulse: getVitalFieldError('pulse', form.pulse),
-      temperatureC: getVitalFieldError('temperatureC', form.temperatureC),
-      bpSystolic: getVitalFieldError('bpSystolic', form.bpSystolic),
-      bpDiastolic: getVitalFieldError('bpDiastolic', form.bpDiastolic),
-      respiratoryRate: getVitalFieldError('respiratoryRate', form.respiratoryRate),
-      spo2: getVitalFieldError('spo2', form.spo2),
-      heightCm: getVitalFieldError('heightCm', form.heightCm),
-      weightKg: getVitalFieldError('weightKg', form.weightKg),
+      pulse: getVitalFieldError('pulse', form.pulse) || reminderFieldError('pulse'),
+      temperatureC: getVitalFieldError('temperatureC', form.temperatureC) || reminderFieldError('temperatureC'),
+      bpSystolic: getVitalFieldError('bpSystolic', form.bpSystolic) || reminderFieldError('bpSystolic'),
+      bpDiastolic: getVitalFieldError('bpDiastolic', form.bpDiastolic) || reminderFieldError('bpDiastolic'),
+      respiratoryRate:
+        getVitalFieldError('respiratoryRate', form.respiratoryRate) || reminderFieldError('respiratoryRate'),
+      spo2: getVitalFieldError('spo2', form.spo2) || reminderFieldError('spo2'),
+      heightCm: getVitalFieldError('heightCm', form.heightCm) || reminderFieldError('heightCm'),
+      weightKg: getVitalFieldError('weightKg', form.weightKg) || reminderFieldError('weightKg'),
     }),
-    [form]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [form, missingOnSubmit]
   );
-  const hasFieldErrors = Object.values(fieldErrors).some(Boolean);
+  const hasFormatErrors = [
+    getVitalFieldError('pulse', form.pulse),
+    getVitalFieldError('temperatureC', form.temperatureC),
+    getVitalFieldError('bpSystolic', form.bpSystolic),
+    getVitalFieldError('bpDiastolic', form.bpDiastolic),
+    getVitalFieldError('respiratoryRate', form.respiratoryRate),
+    getVitalFieldError('spo2', form.spo2),
+    getVitalFieldError('heightCm', form.heightCm),
+    getVitalFieldError('weightKg', form.weightKg),
+  ].some(Boolean);
 
-  const canSave =
-    Boolean(activeTicket) &&
-    Boolean(selectedRecord) &&
-    !isSaving &&
-    !hasFieldErrors &&
-    Boolean(form.pulse) &&
-    Boolean(form.bpSystolic) &&
-    Boolean(form.bpDiastolic) &&
-    Boolean(form.spo2) &&
-    (!form.allergyEnabled || Boolean(form.allergyNote.trim()));
+  const allergyNoteMissing = attemptedSave && form.allergyEnabled && !form.allergyNote.trim();
+
+  const canSave = Boolean(activeTicket) && Boolean(selectedRecord) && !isSaving && !hasFormatErrors;
 
   return (
     <Card icon="heart" title="Chỉ số sinh tồn (Vital signs)">
@@ -595,7 +650,8 @@ function VitalsForm({
               'rounded-xl border-2 p-4 transition-colors',
               form.allergyEnabled
                 ? 'border-[#b91c1c]/40 bg-red-50/50'
-                : 'border-[#cbd5e1] bg-[#f8fafc]'
+                : 'border-[#cbd5e1] bg-[#f8fafc]',
+              allergyNoteMissing && 'animate-blink-red'
             )}
           >
             <div className="flex flex-wrap items-center gap-4">
@@ -628,8 +684,8 @@ function VitalsForm({
                 </p>
                 <p className="text-xs font-medium leading-4 text-[#64748b]">
                   {form.allergyEnabled
-                    ? 'Bật để nhập chi tiết chất dị ứng'
-                    : 'Tắt switch nếu bệnh nhân không ghi nhận dị ứng'}
+                    ? 'Vui lòng ấn nút lại để tắt chức năng nhập dị ứng'
+                    : 'Vui lòng ấn nút để nhập dị ứng cho bệnh nhân'}
                 </p>
               </div>
               {form.allergyEnabled && <Icon className="h-6 w-6 text-[#b91c1c]" name="alert" />}
@@ -696,6 +752,7 @@ function VitalsScreen() {
   const [calledOrder, setCalledOrder] = useState<string[]>([]);
   const [form, setForm] = useState<VitalsFormState>(emptyVitalsForm);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -775,6 +832,7 @@ function VitalsScreen() {
 
   const selectRecordAndResetForm = useCallback((item: VitalsWorklistItemDto | null) => {
     setSelectedRecord(item);
+    setAttemptedSave(false);
     if (item && item.allergies && item.allergies.trim()) {
       setForm({
         ...emptyVitalsForm,
@@ -866,6 +924,7 @@ function VitalsScreen() {
 
   const handleCancel = () => {
     setForm(emptyVitalsForm);
+    setAttemptedSave(false);
   };
 
   const handleSelectRecord = useCallback(
@@ -877,8 +936,12 @@ function VitalsScreen() {
 
   const handleSave = useCallback(() => {
     if (!activeTicket || !selectedRecord || isSaving) return;
-    if (!form.pulse || !form.bpSystolic || !form.bpDiastolic || !form.spo2) return;
-    if (form.allergyEnabled && !form.allergyNote.trim()) return;
+    const missingRequired = !form.pulse || !form.bpSystolic || !form.bpDiastolic || !form.spo2;
+    const missingAllergyNote = form.allergyEnabled && !form.allergyNote.trim();
+    if (missingRequired || missingAllergyNote) {
+      setAttemptedSave(true);
+      return;
+    }
 
     saveVitalSigns(
       {
@@ -903,6 +966,7 @@ function VitalsScreen() {
           setToast({ type: 'success', message: 'Đã lưu kết quả sinh hiệu thành công!' });
           setForm(emptyVitalsForm);
           setSelectedRecord(null);
+          setAttemptedSave(false);
         },
         onError: () => {
           setToast({ type: 'error', message: 'Lưu thất bại, vui lòng thử lại!' });
@@ -991,7 +1055,59 @@ function VitalsScreen() {
           onCancel={handleCancel}
           isSaving={isSaving}
           bmiValue={bmiValue}
+          attemptedSave={attemptedSave}
         />
+      </div>
+    </div>
+  );
+}
+
+function BarcodeModal({ specimen, onClose }: { specimen: SpecimenDto; onClose: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    JsBarcode(canvasRef.current, specimen.specimenCode, {
+      format: 'CODE128',
+      width: 2,
+      height: 70,
+      displayValue: true,
+      fontSize: 16,
+      margin: 10,
+    });
+  }, [specimen.specimenCode]);
+
+  const handleDownload = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `barcode-${specimen.specimenCode}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-1 text-sm font-bold text-[#18181b]">Mã vạch mẫu bệnh phẩm</h3>
+        <p className="mb-4 text-xs text-[#64748b]">
+          {specimen.specimenType} — {specimen.patientName} ({specimen.patientCode})
+        </p>
+        <div className="flex items-center justify-center rounded-lg border border-[#cbd5e1] bg-white p-4">
+          <canvas ref={canvasRef} />
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={styles.secondaryButton} type="button" onClick={onClose}>
+            Đóng
+          </button>
+          <button className={styles.primaryButton} type="button" onClick={handleDownload}>
+            <Icon name="file" />
+            Tải về máy
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1002,6 +1118,7 @@ function SamplesScreen() {
   const collectSpecimenMutation = useCollectSpecimen();
   const printBarcodeMutation = usePrintSpecimenBarcode();
   const handoffSpecimenMutation = useHandoffSpecimen();
+  const [barcodeSpecimen, setBarcodeSpecimen] = useState<SpecimenDto | null>(null);
 
   const [activeTab, setActiveTab] = useState<'collect' | 'handoff'>('collect');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1093,7 +1210,7 @@ function SamplesScreen() {
             type="button"
             onClick={() => setActiveTab('handoff')}
           >
-            2. Phiếu bàn giao mẫu (Phòng Lab) ({collectedCount})
+            2. Phiếu bàn giao mẫu (Phòng Lab) ({handoffCount})
           </button>
         </div>
 
@@ -1226,7 +1343,10 @@ function SamplesScreen() {
                             className={styles.primaryButton}
                             type="button"
                             disabled={printBarcodeMutation.isPending}
-                            onClick={() => printBarcodeMutation.mutate({ id: order.id })}
+                            onClick={() => {
+                              printBarcodeMutation.mutate({ id: order.id });
+                              setBarcodeSpecimen(order);
+                            }}
                           >
                             {order.barcodePrinted ? 'In lại mã vạch' : 'In mã vạch (Barcode)'}
                           </button>
@@ -1307,6 +1427,10 @@ function SamplesScreen() {
           </div>
         )}
       </section>
+
+      {barcodeSpecimen && (
+        <BarcodeModal specimen={barcodeSpecimen} onClose={() => setBarcodeSpecimen(null)} />
+      )}
     </div>
   );
 }
@@ -1576,6 +1700,24 @@ function MedicalRecordModal({ bed, onClose }: { bed: BedDto; onClose: () => void
   );
 }
 
+type BedFilterStatus = 'available' | 'occupied' | 'emergency' | 'discharge' | 'maintenance';
+
+const BED_STATUS_LABELS: Record<BedFilterStatus, string> = {
+  available: 'Trống',
+  occupied: 'Đang dùng',
+  emergency: 'Cấp cứu',
+  discharge: 'Chờ xuất viện',
+  maintenance: 'Bảo trì',
+};
+
+function normalizeBedStatus(bed: BedDto, isEmergencyOverlay: boolean): BedFilterStatus {
+  if (isEmergencyOverlay || bed.status === 'emergency') return 'emergency';
+  if (bed.status === 'available' || bed.status === 'empty') return 'available';
+  if (bed.status === 'maintenance') return 'maintenance';
+  if (bed.status === 'discharge') return 'discharge';
+  return 'occupied';
+}
+
 function BedsScreen() {
   const { data: apiBeds, isLoading } = useBeds();
   const { data: admissionBoard } = useAdmissionBoard();
@@ -1588,6 +1730,8 @@ function BedsScreen() {
   const [emergencyBedIds, setEmergencyBedIds] = useState<string[]>([]);
   const [transferSourceBedId, setTransferSourceBedId] = useState<string | null>(null);
   const [transferTargetBed, setTransferTargetBed] = useState<BedDto | null>(null);
+  const [roomFilter, setRoomFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const bedsList: BedDto[] = apiBeds || [];
   const waitingPatients = admissionBoard || [];
@@ -1627,7 +1771,19 @@ function BedsScreen() {
     },
   ];
 
-  const rooms = bedsList.reduce((acc: Record<string, BedDto[]>, bed: BedDto) => {
+  const roomOptions = Array.from(new Set(bedsList.map((b) => b.roomName))).sort();
+  const statusOptions = Array.from(
+    new Set(bedsList.map((b) => normalizeBedStatus(b, emergencyBedIds.includes(b.id))))
+  );
+
+  const filteredBedsList = bedsList.filter((b) => {
+    const matchesRoom = roomFilter === 'all' || b.roomName === roomFilter;
+    const matchesStatus =
+      statusFilter === 'all' || normalizeBedStatus(b, emergencyBedIds.includes(b.id)) === statusFilter;
+    return matchesRoom && matchesStatus;
+  });
+
+  const rooms = filteredBedsList.reduce((acc: Record<string, BedDto[]>, bed: BedDto) => {
     if (!acc[bed.roomName]) acc[bed.roomName] = [];
     acc[bed.roomName].push(bed);
     return acc;
@@ -1707,7 +1863,10 @@ function BedsScreen() {
               ))}
             </select>
             <button
-              className={cn(styles.secondaryButton, 'text-red-600 border-red-300 hover:bg-red-50 text-xs h-9 px-3')}
+              className={cn(
+                styles.secondaryButton,
+                'whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 text-xs h-9 px-3'
+              )}
               type="button"
               disabled={!selectedEmergencyBedId}
               onClick={() => {
@@ -1727,11 +1886,29 @@ function BedsScreen() {
 
         <div className="flex flex-wrap justify-between gap-4 pt-1">
           <div className="flex flex-wrap gap-3">
-            <select className={cn(styles.input, 'w-36 text-xs')}>
-              <option>Tất cả buồng</option>
+            <select
+              className={cn(styles.input, 'w-36 text-xs')}
+              value={roomFilter}
+              onChange={(e) => setRoomFilter(e.target.value)}
+            >
+              <option value="all">Tất cả buồng</option>
+              {roomOptions.map((room) => (
+                <option key={room} value={room}>
+                  {room}
+                </option>
+              ))}
             </select>
-            <select className={cn(styles.input, 'w-40 text-xs')}>
-              <option>Tất cả trạng thái</option>
+            <select
+              className={cn(styles.input, 'w-40 text-xs')}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">Tất cả trạng thái</option>
+              {statusOptions.map((status) => (
+                <option key={status} value={status}>
+                  {BED_STATUS_LABELS[status]}
+                </option>
+              ))}
             </select>
           </div>
           <div className="flex flex-wrap items-center gap-4">
@@ -1833,8 +2010,68 @@ function BedsScreen() {
   );
 }
 
+function CancelOrderModal({
+  isPending,
+  onCancel,
+  onConfirm,
+}: {
+  isPending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string) => void;
+}) {
+  const [reason, setReason] = useState('');
+  const [attemptedConfirm, setAttemptedConfirm] = useState(false);
+  const isValid = reason.trim().length > 0;
+  const showError = attemptedConfirm && !isValid;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-4 text-sm font-bold text-[#18181b]">Hủy y lệnh</h3>
+        <label className="mb-1 block text-xs font-semibold text-[#334155]">Lý do hủy</label>
+        <textarea
+          className={cn(
+            styles.input,
+            'h-24 w-full text-xs',
+            showError && 'border-red-500 ring-2 ring-red-500/30 focus:border-red-500 focus:ring-red-500/30'
+          )}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="Nhập lý do hủy y lệnh..."
+          autoFocus
+        />
+        {showError && (
+          <p className="mt-1 text-xs font-bold text-red-600">
+            BẮT BUỘC NHẬP LÝ DO HỦY Y LỆNH
+          </p>
+        )}
+        <div className="mt-4 flex justify-end gap-2">
+          <button className={styles.secondaryButton} type="button" onClick={onCancel} disabled={isPending}>
+            Đóng
+          </button>
+          <button
+            className={cn(styles.primaryButton, 'bg-red-600 hover:bg-red-700')}
+            type="button"
+            disabled={isPending}
+            onClick={() => {
+              if (!isValid) {
+                setAttemptedConfirm(true);
+                return;
+              }
+              onConfirm(reason.trim());
+            }}
+          >
+            {isPending ? 'Đang hủy...' : 'Xác nhận hủy y lệnh'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrderStatus({ order }: { order: OrderDto }) {
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus();
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   if (order.status === 'done') {
     return (
@@ -1899,27 +2136,35 @@ function OrderStatus({ order }: { order: OrderDto }) {
         <input className="mt-0.5 h-4 w-4 rounded border-[#cbd5e1]" type="checkbox" />
         Đã test da – Kết quả: ÂM TÍNH
       </label>
-      <button 
-        className={styles.primaryButton} 
+      <button
+        className={styles.primaryButton}
         type="button"
         disabled={isPending}
         onClick={() => updateStatus({ orderId: order.id, status: 'done' })}
       >
         {isPending ? 'Đang xử lý...' : 'Xác nhận thực hiện'}
       </button>
-      <button 
-        className={styles.secondaryButton} 
+      <button
+        className={styles.secondaryButton}
         type="button"
         disabled={isPending}
-        onClick={() => {
-          const reason = prompt('Nhập lý do hủy:');
-          if (reason) {
-            updateStatus({ orderId: order.id, status: 'cancelled', cancelReason: reason });
-          }
-        }}
+        onClick={() => setShowCancelModal(true)}
       >
         Hủy y lệnh
       </button>
+
+      {showCancelModal && (
+        <CancelOrderModal
+          isPending={isPending}
+          onCancel={() => setShowCancelModal(false)}
+          onConfirm={(reason) => {
+            updateStatus(
+              { orderId: order.id, status: 'cancelled', cancelReason: reason },
+              { onSuccess: () => setShowCancelModal(false) }
+            );
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -2141,16 +2386,150 @@ function OrdersScreen() {
   );
 }
 
+type EmergencyIdentityFormState = {
+  fullName: string;
+  dateOfBirth: string;
+  gender: 'male' | 'female';
+  phoneNumber: string;
+  identityCardNumber: string;
+  address: string;
+  healthInsuranceCode: string;
+  guardianFullName: string;
+  privacyConfirmed: boolean;
+};
+
+const emptyEmergencyForm: EmergencyIdentityFormState = {
+  fullName: '',
+  dateOfBirth: '',
+  gender: 'male',
+  phoneNumber: '',
+  identityCardNumber: '',
+  address: '',
+  healthInsuranceCode: '',
+  guardianFullName: '',
+  privacyConfirmed: false,
+};
+
+function formatAdmittedAt(iso: string) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.toLocaleTimeString('vi-VN')} - ${d.toLocaleDateString('vi-VN')}`;
+}
+
 function EmergencyScreen() {
+  const { data: unidentifiedPatients, isLoading } = useUnidentifiedEmergencyPatients();
+  const { mutate: standardizeIdentity, isPending } = useStandardizeEmergencyIdentity();
+
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [form, setForm] = useState<EmergencyIdentityFormState>(emptyEmergencyForm);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const patients = useMemo(() => unidentifiedPatients ?? [], [unidentifiedPatients]);
+
+  useEffect(() => {
+    if (!selectedPatientId && patients.length > 0) {
+      setSelectedPatientId(patients[0].patientId);
+    }
+  }, [patients, selectedPatientId]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 3000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const selectedPatient = patients.find((p) => p.patientId === selectedPatientId) ?? null;
+
+  const handleSelectPatient = (patientId: string) => {
+    setSelectedPatientId(patientId);
+    setForm(emptyEmergencyForm);
+    setErrors({});
+  };
+
+  const handleReset = () => {
+    setForm(emptyEmergencyForm);
+    setErrors({});
+  };
+
+  const handleSubmit = () => {
+    if (!selectedPatient || isPending) return;
+
+    const nextErrors: Record<string, string> = {};
+    if (form.fullName.trim().length < 3) nextErrors.fullName = 'Họ và tên tối thiểu 3 ký tự';
+    if (!form.dateOfBirth) nextErrors.dateOfBirth = 'Vui lòng nhập ngày sinh';
+    else if (new Date(form.dateOfBirth) > new Date())
+      nextErrors.dateOfBirth = 'Ngày sinh không được ở tương lai';
+    if (!/^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/.test(form.phoneNumber))
+      nextErrors.phoneNumber = 'Số điện thoại không đúng định dạng di động Việt Nam hợp lệ (VD: 09xxxxxxxx, 03xxxxxxxx)';
+    if (!/^\d{12}$/.test(form.identityCardNumber))
+      nextErrors.identityCardNumber = 'Số CCCD phải gồm đúng 12 chữ số';
+    if (!form.guardianFullName.trim())
+      nextErrors.guardianFullName = 'Vui lòng nhập họ tên người bảo hộ / liên hệ';
+    if (!form.privacyConfirmed)
+      nextErrors.privacyConfirmed = 'Cần xác nhận đồng ý trước khi gửi';
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    standardizeIdentity(
+      {
+        patientId: selectedPatient.patientId,
+        fullName: form.fullName.trim(),
+        dateOfBirth: form.dateOfBirth,
+        gender: form.gender,
+        phoneNumber: form.phoneNumber,
+        identityCardNumber: form.identityCardNumber,
+        address: form.address.trim() || undefined,
+        healthInsuranceCode: form.healthInsuranceCode.trim() || undefined,
+        guardianFullName: form.guardianFullName.trim(),
+        privacyConfirmed: true,
+      },
+      {
+        onSuccess: () => {
+          setToast({ type: 'success', message: 'Đã chuẩn hóa danh tính bệnh nhân thành công!' });
+          setForm(emptyEmergencyForm);
+          setErrors({});
+          setSelectedPatientId('');
+        },
+        onError: (err: any) => {
+          setToast({
+            type: 'error',
+            message: err?.error?.message || 'Chuẩn hóa danh tính thất bại, vui lòng thử lại!',
+          });
+        },
+      }
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center text-sm font-medium text-[#64748b]">
+        Đang tải danh sách ca cấp cứu vô danh...
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {toast && (
+        <div
+          className={cn(
+            'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
+            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#b91c1c]'
+          )}
+        >
+          {toast.message}
+        </div>
+      )}
+
       <section className="flex flex-wrap items-center gap-4 rounded-xl border border-[#b91c1c] bg-rose-200 p-5">
         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#b91c1c]">
           <Icon className="h-6 w-6" name="shield" />
         </div>
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2 text-red-800">
-            <span className="text-3xl font-bold leading-9">2</span>
+            <span className="text-3xl font-bold leading-9">{patients.length}</span>
             <span className="text-sm font-bold">ca vô danh cấp cứu</span>
           </p>
           <p className="text-xs font-medium leading-4 text-red-800">
@@ -2164,127 +2543,202 @@ function EmergencyScreen() {
         </p>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card count="2 ca" icon="alert" title="Bệnh nhân vô danh chưa xác định">
-          <div className="divide-y divide-[#f1f5f9]">
-            {['Vô danh Nam – Cấp Cứu', 'Vô danh Nữ – Cấp Cứu'].map((name, index) => (
-              <button
-                className={cn(
-                  'flex w-full gap-3 p-4 text-left',
-                  index === 0 ? 'border-l-4 border-l-[#b91c1c] bg-red-700/5' : 'opacity-70',
-                )}
-                key={name}
-                type="button"
-              >
-                <span
-                  className={cn(
-                    'flex h-10 w-10 items-center justify-center rounded-lg',
-                    index === 0 ? 'bg-rose-200 text-[#b91c1c]' : 'bg-gray-100 text-gray-400',
-                  )}
-                >
-                  <Icon name="user" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold leading-4 text-gray-900">{name}</span>
-                  <span className="mt-1 block text-xs leading-5 text-[#64748b]">
-                    STT 0{index + 1} • Giường {index === 0 ? '101-D' : '102-C'} • Buồng Cấp cứu
-                  </span>
-                  <span
-                    className={cn(
-                      'mt-1 block text-[10px] font-bold leading-5',
-                      index === 0 ? 'text-[#b91c1c]' : 'text-gray-400',
-                    )}
-                  >
-                    Vào viện: {index === 0 ? '17/07/2026 – 03:42 sáng' : '16/07/2026 – 22:15 tối'}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </Card>
-
-        <section className={cn(styles.card, 'overflow-hidden')}>
-          <div className="border-b border-red-700/20 bg-red-50 px-5 py-3">
-            <h2 className="flex items-center gap-2 text-xs font-bold uppercase leading-4 text-[#b91c1c]">
-              <Icon name="file" />
-              Biểu mẫu chuẩn hóa danh tính – STT 01
-            </h2>
-          </div>
-          <div className="space-y-6 p-6">
-            <div className="rounded-lg border-l-4 border-gray-300 bg-gray-50 p-4">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.5px] text-gray-500">
-                Thông tin tạm thời (đọc thêm)
-              </p>
-              <p className="text-xs leading-4 text-gray-900">
-                Tên tạm: <strong>Vô danh Nam – Cấp Cứu</strong>
-              </p>
-              <p className="mt-1 text-xs leading-4 text-gray-600">
-                Lý do cấp cứu: Phản ứng dị ứng nghiêm trọng, khó thở, nổi mề đay toàn thân. Bypass
-                thủ tục hành chính khẩn cấp lúc 03:42.
-              </p>
-            </div>
-            <p className="inline-flex items-center gap-2 rounded-sm border border-blue-100 bg-sky-50 px-3 py-2 text-xs font-bold uppercase leading-4 text-[#006096]">
-              <Icon name="user" />
-              Thông tin thực tế chính thức
-            </p>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Họ và tên thật" required value="NHẬP HỌ TÊN (TỰ CHUYỂN HOA CÓ DẤU)" />
-              <Field label="Ngày sinh" required value="mm/dd/yyyy" />
-              <div>
-                <span className={styles.label}>
-                  Giới tính <span className="text-[#b91c1c]">*</span>
-                </span>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    className="flex h-11 items-center gap-2 rounded-md border border-[#006096] bg-sky-50 px-4 text-sm font-medium text-[#18181b]"
-                    type="button"
-                  >
-                    <span className="h-4 w-4 rounded-full border border-[#006096] bg-[#006096] p-1">
-                      <span className="block h-full w-full rounded-full bg-white" />
-                    </span>
-                    Nam
-                  </button>
-                  <button
-                    className="flex h-11 items-center gap-2 rounded-md border border-[#d1d5db] bg-white px-4 text-sm font-medium text-[#18181b]"
-                    type="button"
-                  >
-                    <span className="h-4 w-4 rounded-full border border-gray-500" />
-                    Nữ
-                  </button>
-                </div>
-              </div>
-              <Field label="Số điện thoại di động VN" required value="0901234567" />
-              <Field label="Số CCCD (12 chữ số)" required value="001234567890" />
-              <Field
-                label="Địa chỉ thường trú / tạm trú"
-                value="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
-              />
-              <Field label="Mã thẻ BHYT (nếu có)" value="DN3501234567890" />
-              <Field label="Họ tên người bảo hộ / liên hệ" required value="Họ và tên người thân" />
-            </div>
-            <label className="flex items-start gap-3 rounded-sm border border-gray-200 bg-gray-50 p-3 text-xs leading-4 text-gray-600">
-              <input className="mt-0.5 h-4 w-4 rounded border-gray-500" type="checkbox" />
-              <span>
-                Xác nhận bệnh nhân/người nhà đã đồng ý cung cấp thông tin và ký bản cam kết bảo mật
-                theo
-                <strong> Nghị định 13/2023/NĐ-CP</strong> về bảo vệ dữ liệu cá nhân y tế.
-              </span>
-            </label>
-            <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-6">
-              <button className={styles.secondaryButton} type="button">
-                Làm mới
-              </button>
-              <button
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#b91c1c] px-8 text-sm font-bold text-white shadow-[0_4px_6px_rgba(186,26,26,0.2)]"
-                type="button"
-              >
-                <Icon name="shield" />
-                Xác nhận chuẩn hóa danh tính
-              </button>
-            </div>
-          </div>
+      {patients.length === 0 ? (
+        <section className={cn(styles.card, 'p-10 text-center text-sm text-[#64748b]')}>
+          Không còn ca cấp cứu vô danh nào cần chuẩn hóa danh tính.
         </section>
-      </div>
+      ) : (
+        <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+          <Card count={`${patients.length} ca`} icon="alert" title="Bệnh nhân vô danh chưa xác định">
+            <div className="divide-y divide-[#f1f5f9]">
+              {patients.map((p) => {
+                const isSelected = p.patientId === selectedPatientId;
+                return (
+                  <button
+                    className={cn(
+                      'flex w-full gap-3 p-4 text-left',
+                      isSelected ? 'border-l-4 border-l-[#b91c1c] bg-red-700/5' : 'opacity-70'
+                    )}
+                    key={p.patientId}
+                    type="button"
+                    onClick={() => handleSelectPatient(p.patientId)}
+                  >
+                    <span
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-lg',
+                        isSelected ? 'bg-rose-200 text-[#b91c1c]' : 'bg-gray-100 text-gray-400'
+                      )}
+                    >
+                      <Icon name="user" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-bold leading-4 text-gray-900">{p.tempName}</span>
+                      <span className="mt-1 block text-xs leading-5 text-[#64748b]">
+                        STT {String(p.sttNumber).padStart(2, '0')}
+                        {p.bedLabel ? ` • Giường ${p.bedLabel}` : ''}
+                        {p.roomLabel ? ` • ${p.roomLabel}` : ''}
+                      </span>
+                      <span
+                        className={cn(
+                          'mt-1 block text-[10px] font-bold leading-5',
+                          isSelected ? 'text-[#b91c1c]' : 'text-gray-400'
+                        )}
+                      >
+                        Vào viện: {formatAdmittedAt(p.admittedAt)}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <section className={cn(styles.card, 'overflow-hidden')}>
+            <div className="border-b border-red-700/20 bg-red-50 px-5 py-3">
+              <h2 className="flex items-center gap-2 text-xs font-bold uppercase leading-4 text-[#b91c1c]">
+                <Icon name="file" />
+                Biểu mẫu chuẩn hóa danh tính – STT {String(selectedPatient?.sttNumber ?? 0).padStart(2, '0')}
+              </h2>
+            </div>
+            <div className="space-y-6 p-6">
+              <div className="rounded-lg border-l-4 border-gray-300 bg-gray-50 p-4">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.5px] text-gray-500">
+                  Thông tin tạm thời (đọc thêm)
+                </p>
+                <p className="text-xs leading-4 text-gray-900">
+                  Tên tạm: <strong>{selectedPatient?.tempName}</strong>
+                </p>
+                <p className="mt-1 text-xs leading-4 text-gray-600">
+                  Lý do cấp cứu: {selectedPatient?.emergencyReason || 'Không có ghi chú'}
+                </p>
+              </div>
+              <p className="inline-flex items-center gap-2 rounded-sm border border-blue-100 bg-sky-50 px-3 py-2 text-xs font-bold uppercase leading-4 text-[#006096]">
+                <Icon name="user" />
+                Thông tin thực tế chính thức
+              </p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field
+                  label="Họ và tên thật"
+                  required
+                  value={form.fullName}
+                  onChange={(v) => setForm((prev) => ({ ...prev, fullName: v.toUpperCase() }))}
+                  placeholder="NHẬP HỌ TÊN (TỰ CHUYỂN HOA CÓ DẤU)"
+                  error={errors.fullName}
+                />
+                <Field
+                  label="Ngày sinh"
+                  required
+                  type="date"
+                  value={form.dateOfBirth}
+                  onChange={(v) => setForm((prev) => ({ ...prev, dateOfBirth: v }))}
+                  error={errors.dateOfBirth}
+                />
+                <div>
+                  <span className={styles.label}>
+                    Giới tính <span className="text-[#b91c1c]">*</span>
+                  </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(['male', 'female'] as const).map((g) => {
+                      const active = form.gender === g;
+                      return (
+                        <button
+                          className={cn(
+                            'flex h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium text-[#18181b]',
+                            active ? 'border-[#006096] bg-sky-50' : 'border-[#d1d5db] bg-white'
+                          )}
+                          key={g}
+                          type="button"
+                          onClick={() => setForm((prev) => ({ ...prev, gender: g }))}
+                        >
+                          <span
+                            className={cn(
+                              'h-4 w-4 rounded-full border p-1',
+                              active ? 'border-[#006096] bg-[#006096]' : 'border-gray-500'
+                            )}
+                          >
+                            {active && <span className="block h-full w-full rounded-full bg-white" />}
+                          </span>
+                          {g === 'male' ? 'Nam' : 'Nữ'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Field
+                  label="Số điện thoại di động VN"
+                  required
+                  value={form.phoneNumber}
+                  onChange={(v) =>
+                    setForm((prev) => ({ ...prev, phoneNumber: v.replace(/\D/g, '').slice(0, 10) }))
+                  }
+                  placeholder="0901234567"
+                  error={errors.phoneNumber}
+                />
+                <Field
+                  label="Số CCCD (12 chữ số)"
+                  required
+                  value={form.identityCardNumber}
+                  onChange={(v) =>
+                    setForm((prev) => ({ ...prev, identityCardNumber: v.replace(/\D/g, '').slice(0, 12) }))
+                  }
+                  placeholder="001234567890"
+                  error={errors.identityCardNumber}
+                />
+                <Field
+                  label="Địa chỉ thường trú / tạm trú"
+                  value={form.address}
+                  onChange={(v) => setForm((prev) => ({ ...prev, address: v }))}
+                  placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                />
+                <Field
+                  label="Mã thẻ BHYT (nếu có)"
+                  value={form.healthInsuranceCode}
+                  onChange={(v) => setForm((prev) => ({ ...prev, healthInsuranceCode: v }))}
+                  placeholder="DN3501234567890"
+                />
+                <Field
+                  label="Họ tên người bảo hộ / liên hệ"
+                  required
+                  value={form.guardianFullName}
+                  onChange={(v) => setForm((prev) => ({ ...prev, guardianFullName: v }))}
+                  placeholder="Họ và tên người thân"
+                  error={errors.guardianFullName}
+                />
+              </div>
+              <label className="flex items-start gap-3 rounded-sm border border-gray-200 bg-gray-50 p-3 text-xs leading-4 text-gray-600">
+                <input
+                  className="mt-0.5 h-4 w-4 rounded border-gray-500"
+                  type="checkbox"
+                  checked={form.privacyConfirmed}
+                  onChange={(e) => setForm((prev) => ({ ...prev, privacyConfirmed: e.target.checked }))}
+                />
+                <span>
+                  Xác nhận bệnh nhân/người nhà đã đồng ý cung cấp thông tin và ký bản cam kết bảo mật
+                  theo
+                  <strong> Nghị định 13/2023/NĐ-CP</strong> về bảo vệ dữ liệu cá nhân y tế.
+                </span>
+              </label>
+              {errors.privacyConfirmed && (
+                <p className="text-xs font-bold text-[#b91c1c]">{errors.privacyConfirmed}</p>
+              )}
+              <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-6">
+                <button className={styles.secondaryButton} type="button" onClick={handleReset}>
+                  Làm mới
+                </button>
+                <button
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#b91c1c] px-8 text-sm font-bold text-white shadow-[0_4px_6px_rgba(186,26,26,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isPending}
+                  type="button"
+                  onClick={handleSubmit}
+                >
+                  <Icon name="shield" />
+                  {isPending ? 'Đang xử lý...' : 'Xác nhận chuẩn hóa danh tính'}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
@@ -2293,17 +2747,35 @@ function Field({
   label,
   required = false,
   value,
+  onChange,
+  placeholder,
+  type = 'text',
+  error,
 }: {
   label: string;
   required?: boolean;
   value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  error?: string;
 }) {
   return (
     <label>
       <span className={styles.label}>
         {label} {required && <span className="text-[#b91c1c]">*</span>}
       </span>
-      <input className={styles.input} defaultValue={value} />
+      <input
+        className={cn(
+          styles.input,
+          error && 'border-red-400 text-[#b91c1c] focus:border-red-500 focus:ring-red-500/10'
+        )}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        type={type}
+        value={value}
+      />
+      {error && <p className="mt-1 text-xs font-bold text-[#b91c1c]">{error}</p>}
     </label>
   );
 }

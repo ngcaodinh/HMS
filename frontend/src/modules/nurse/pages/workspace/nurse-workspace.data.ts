@@ -17,7 +17,6 @@ export type IconName =
   | 'user';
 
 export type NavItem = {
-  badge?: string;
   icon: IconName;
   id: NurseScreen;
   label: string;
@@ -79,11 +78,11 @@ export const orderTypeLabels: Record<string, string> = {
 };
 
 export const navItems: NavItem[] = [
-  { id: 'vitals', label: 'Tiếp nhận & Sinh hiệu', badge: '7', icon: 'heart' },
-  { id: 'samples', label: 'Lấy mẫu & Bàn giao', badge: '4', icon: 'flask' },
+  { id: 'vitals', label: 'Tiếp nhận & Sinh hiệu', icon: 'heart' },
+  { id: 'samples', label: 'Lấy mẫu & Bàn giao', icon: 'flask' },
   { id: 'beds', label: 'Quản lý buồng giường', icon: 'bed' },
-  { id: 'orders', label: 'Y lệnh & Chăm sóc', badge: '3', icon: 'clipboard' },
-  { id: 'emergency', label: 'Chuẩn hóa cấp cứu', badge: '2', icon: 'shield' },
+  { id: 'orders', label: 'Y lệnh & Chăm sóc', icon: 'clipboard' },
+  { id: 'emergency', label: 'Chuẩn hóa cấp cứu', icon: 'shield' },
 ];
 
 export const screenMeta: Record<

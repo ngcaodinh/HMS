@@ -162,6 +162,11 @@ async function main() {
   }
 
   // 5. Generate 100 Patients & Medical Records
+  // Reserve beds 101-D and 102-C for the 2 unidentified emergency patients seeded below (step 5b) —
+  // excluded from the round-robin so they don't get taken by a random named patient.
+  const emergencyBedNumbers = ['101-D', '102-C'];
+  const reservedBeds = createdBeds.filter((b) => emergencyBedNumbers.includes(b.number));
+  const generalBeds = createdBeds.filter((b) => !emergencyBedNumbers.includes(b.number));
   let availableBedIdx = 0;
 
   for (let i = 1; i <= 100; i++) {
@@ -194,7 +199,7 @@ async function main() {
     // First ~30 records wait for beds (bedId = null).
     // Next 35 records get beds assigned.
     // Next 5 records are marked for discharge.
-    const shouldAssignBed = i > 30 && availableBedIdx < createdBeds.length;
+    const shouldAssignBed = i > 30 && availableBedIdx < generalBeds.length;
     const isDischargeTarget = i > 30 && i <= 35;
 
     const record = await prisma.medicalRecord.create({
@@ -217,7 +222,7 @@ async function main() {
     });
 
     if (shouldAssignBed) {
-      const targetBed = createdBeds[availableBedIdx];
+      const targetBed = generalBeds[availableBedIdx];
       availableBedIdx++;
 
       await prisma.bedAssignment.create({
@@ -303,6 +308,83 @@ async function main() {
     }
   }
 
+  // 5b. Seed 2 unidentified emergency patients (Lane 6 "Chuẩn hóa cấp cứu") on the reserved beds.
+  console.log('Seeding unidentified emergency patients...');
+  const emergencyCases = [
+    {
+      code: 'EMG01',
+      fullName: 'Vô danh Nam - Cấp cứu',
+      gender: Gender.male,
+      bed: reservedBeds[0],
+      admittedHoursAgo: 3,
+      emergencyReason:
+        'Phản ứng dị ứng nghiêm trọng, khó thở, nổi mề đay toàn thân. Bypass thủ tục hành chính khẩn cấp.',
+    },
+    {
+      code: 'EMG02',
+      fullName: 'Vô danh Nữ - Cấp cứu',
+      gender: Gender.female,
+      bed: reservedBeds[1],
+      admittedHoursAgo: 20,
+      emergencyReason: 'Tai nạn giao thông, chấn thương đầu, bất tỉnh khi nhập viện. Không có giấy tờ tùy thân.',
+    },
+  ];
+
+  for (const c of emergencyCases) {
+    if (!c.bed) continue;
+    const admittedAt = new Date(Date.now() - c.admittedHoursAgo * 60 * 60 * 1000);
+
+    const emergencyPatient = await prisma.patient.create({
+      data: {
+        patientCode: `BN2607-${c.code}`,
+        fullName: c.fullName,
+        gender: c.gender,
+        isEmergencyBypass: true,
+        emergencyReason: c.emergencyReason,
+        privacyNoticeAccepted: false,
+      },
+    });
+
+    const emergencyRecord = await prisma.medicalRecord.create({
+      data: {
+        recordCode: `BA2607-${c.code}`,
+        patientId: emergencyPatient.id,
+        doctorId: doctor.id,
+        departmentId: dept.id,
+        status: MedicalRecordStatus.diagnosed,
+        isEmergency: true,
+        emergencyReason: c.emergencyReason,
+        icd10: 'Z04.9',
+        icdCodingSystem: medical_records_icdCodingSystem.TT06_2026,
+        diagnosisText: 'Chưa xác định danh tính - Đang cấp cứu, chờ chuẩn hóa hồ sơ',
+        diagnosedBy: doctor.id,
+        diagnosedAt: admittedAt,
+        diagnosisSignedBy: doctor.id,
+        diagnosisSignedAt: admittedAt,
+        diagnosisSignatureMethod: medical_records_diagnosisSignatureMethod.dev_e_confirmation,
+        treatmentType: TreatmentType.inpatient,
+        bedId: c.bed.id,
+        createdAt: admittedAt,
+      },
+    });
+
+    await prisma.bedAssignment.create({
+      data: {
+        recordId: emergencyRecord.id,
+        bedId: c.bed.id,
+        assignedBy: nurse.id,
+        assignedAt: admittedAt,
+        dailyRateSnapshot: c.bed.dailyRate,
+        note: 'Bệnh nhân vô danh cấp cứu - chờ chuẩn hóa danh tính',
+      },
+    });
+
+    await prisma.bed.update({
+      where: { id: c.bed.id },
+      data: { status: BedStatus.occupied, patientId: emergencyPatient.id, assignedAt: admittedAt },
+    });
+  }
+
   // 6. Seed queue_tickets for today using raw SQL
   console.log('Seeding queue_tickets for today...');
   await prisma.$executeRaw`
@@ -337,24 +419,31 @@ async function main() {
 
   if (sampleRecords.length > 0) {
     const specimensToCreate = [
-      // 6 pending (1 priority)
+      // 8 pending (2 priority)
       { idx: 0, code: 'DL-2607-001', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Công thức máu', status: SpecimenStatus.pending, priority: true },
       { idx: 0, code: 'DL-2607-002', type: 'Sinh thiết da (GAP)', desc: 'Chỉ định: Mổ sinh thiết chẩn đoán', status: SpecimenStatus.pending, priority: false },
       { idx: 1, code: 'DL-2607-003', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Sinh hóa máu toàn bộ', status: SpecimenStatus.pending, priority: false },
       { idx: 2, code: 'DL-2607-004', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Định nhóm máu ABO/Rh', status: SpecimenStatus.pending, priority: false },
       { idx: 3, code: 'DL-2607-005', type: 'Vảy da dán kính', desc: 'Chỉ định: Soi tươi nấm da', status: SpecimenStatus.pending, priority: false },
       { idx: 4, code: 'DL-2607-006', type: 'Nước tiểu 10 thông số', desc: 'Chỉ định: Phân tích nước tiểu', status: SpecimenStatus.pending, priority: false },
+      { idx: 5, code: 'DL-2607-007', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Công thức máu cấp cứu', status: SpecimenStatus.pending, priority: true },
+      { idx: 6, code: 'DL-2607-008', type: 'Dịch mủ vết thương', desc: 'Chỉ định: Nhuộm soi trực tiếp', status: SpecimenStatus.pending, priority: false },
 
-      // 4 collected
-      { idx: 1, code: 'DL-2607-007', type: 'Dịch phết thương tổn', desc: 'Chỉ định: Nuôi cấy vi khuẩn & KSĐ', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
-      { idx: 2, code: 'DL-2607-008', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm IgE toàn phần', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
-      { idx: 5, code: 'DL-2607-009', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Công thức máu cấp cứu', status: SpecimenStatus.collected, priority: true, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
-      { idx: 6, code: 'DL-2607-010', type: 'Sinh thiết da (GAP)', desc: 'Chỉ định: Miễn dịch huỳnh quang', status: SpecimenStatus.collected, priority: false, barcodePrinted: false, collectedBy: nurse.id, collectedAt: new Date() },
+      // 6 collected
+      { idx: 1, code: 'DL-2607-009', type: 'Dịch phết thương tổn', desc: 'Chỉ định: Nuôi cấy vi khuẩn & KSĐ', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 2, code: 'DL-2607-010', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm IgE toàn phần', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 5, code: 'DL-2607-011', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Đông máu cơ bản (PT/APTT)', status: SpecimenStatus.collected, priority: true, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 6, code: 'DL-2607-012', type: 'Sinh thiết da (GAP)', desc: 'Chỉ định: Miễn dịch huỳnh quang', status: SpecimenStatus.collected, priority: false, barcodePrinted: false, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 7, code: 'DL-2607-013', type: 'Nước tiểu 24h', desc: 'Chỉ định: Định lượng Đạm niệu 24h', status: SpecimenStatus.collected, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date() },
+      { idx: 8, code: 'DL-2607-014', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm chức năng gan', status: SpecimenStatus.collected, priority: false, barcodePrinted: false, collectedBy: nurse.id, collectedAt: new Date() },
 
-      // 3 handed_over
-      { idx: 7, code: 'DL-2607-011', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm Giang mai (VDRL)', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
-      { idx: 8, code: 'DL-2607-012', type: 'Nước tiểu 24h', desc: 'Chỉ định: Định lượng Đạm niệu 24h', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
-      { idx: 9, code: 'DL-2607-013', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Điện di Huyết hồng tố', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Trần Thị Nghiệm' },
+      // 6 handed_over
+      { idx: 7, code: 'DL-2607-015', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm Giang mai (VDRL)', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
+      { idx: 8, code: 'DL-2607-016', type: 'Nước tiểu 24h', desc: 'Chỉ định: Cấy nước tiểu tìm vi khuẩn', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
+      { idx: 9, code: 'DL-2607-017', type: 'Máu toàn phần (EDTA)', desc: 'Chỉ định: Điện di Huyết hồng tố', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Trần Thị Nghiệm' },
+      { idx: 9, code: 'DL-2607-018', type: 'Dịch phết thương tổn', desc: 'Chỉ định: Nuôi cấy nấm', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Trần Thị Nghiệm' },
+      { idx: 0, code: 'DL-2607-019', type: 'Huyết thanh (Clot Activator)', desc: 'Chỉ định: Xét nghiệm HIV', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Nguyễn Văn Lab' },
+      { idx: 1, code: 'DL-2607-020', type: 'Sinh thiết da (GAP)', desc: 'Chỉ định: Giải phẫu bệnh lý', status: SpecimenStatus.handed_over, priority: false, barcodePrinted: true, collectedBy: nurse.id, collectedAt: new Date(), handedOverBy: nurse.id, handedOverAt: new Date(), labReceiverName: 'KTV. Trần Thị Nghiệm' },
     ];
 
     for (const spec of specimensToCreate) {
@@ -382,7 +471,7 @@ async function main() {
     }
   }
 
-  console.log(`Successfully seeded 100 Patients, 100 Medical Records, ${createdBeds.length} Beds, 10 Queue Tickets, and 13 Specimen Collections for Lane 6.`);
+  console.log(`Successfully seeded 100 Patients, 100 Medical Records, ${createdBeds.length} Beds, 10 Queue Tickets, and 20 Specimen Collections for Lane 6.`);
 }
 
 main()

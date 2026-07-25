@@ -73,3 +73,29 @@ export const recordVitalSignsSchema = z.object({
   allergies: z.string().max(1000).optional(),
 });
 
+export const standardizeEmergencyIdentitySchema = z.object({
+  fullName: z.string().min(3, 'Họ và tên tối thiểu 3 ký tự').max(255, 'Họ và tên tối đa 255 ký tự'),
+  dateOfBirth: z.coerce
+    .date({ errorMap: () => ({ message: 'Ngày sinh không hợp lệ' }) })
+    .refine((d) => d <= new Date(), 'Ngày sinh không được ở tương lai'),
+  gender: z.enum(['male', 'female'], {
+    errorMap: () => ({ message: 'Giới tính phải là male hoặc female' }),
+  }),
+  phoneNumber: z
+    .string()
+    .regex(
+      /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/,
+      'Số điện thoại không đúng định dạng di động Việt Nam hợp lệ (VD: 09xxxxxxxx, 03xxxxxxxx)'
+    ),
+  identityCardNumber: z.string().regex(/^\d{12}$/, 'Số CCCD phải gồm đúng 12 chữ số'),
+  address: z.string().max(500, 'Địa chỉ tối đa 500 ký tự').optional(),
+  healthInsuranceCode: z.string().max(20, 'Mã thẻ BHYT tối đa 20 ký tự').optional(),
+  guardianFullName: z
+    .string()
+    .min(1, 'Họ tên người bảo hộ / liên hệ không được để trống')
+    .max(255, 'Họ tên người bảo hộ tối đa 255 ký tự'),
+  privacyConfirmed: z.literal(true, {
+    errorMap: () => ({ message: 'Cần xác nhận đồng ý cung cấp thông tin và cam kết bảo mật' }),
+  }),
+});
+

@@ -34,6 +34,9 @@ doc
 # Markdown files
 *.md
 
+# Temp directory
+temp/
+
 # Database files
 *.sql
 *.db

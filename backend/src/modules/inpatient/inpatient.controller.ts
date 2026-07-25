@@ -24,6 +24,7 @@ import {
   updateOrderStatusSchema,
   cancelOrderSchema,
   recordVitalSignsSchema,
+  standardizeEmergencyIdentitySchema,
 } from './schemas/inpatient.schema';
 
 const prisma = new PrismaClient();
@@ -901,6 +902,98 @@ export class InpatientController {
       },
       201
     );
+  }
+
+  // 15. GET /api/v1/inpatient/emergency-unidentified-patients
+  static async listUnidentifiedEmergencyPatients(req: Request, res: Response) {
+    const patients = await prisma.patient.findMany({
+      where: { isEmergencyBypass: true },
+      include: {
+        medicalRecords: {
+          where: { status: { not: MedicalRecordStatus.closed } },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          include: {
+            bedAssignments: {
+              where: { releasedAt: null },
+              take: 1,
+              include: { bed: { include: { room: true } } },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const items = patients.map((p, index) => {
+      const record = p.medicalRecords[0] || null;
+      const assignment = record?.bedAssignments[0] || null;
+
+      return {
+        patientId: p.id,
+        sttNumber: index + 1,
+        tempName: p.fullName,
+        gender: p.gender,
+        bedLabel: assignment?.bed.number || null,
+        roomLabel: assignment?.bed.room.name || null,
+        admittedAt: toVNISOString(record?.createdAt || p.createdAt),
+        emergencyReason: p.emergencyReason,
+      };
+    });
+
+    return sendSuccess(res, items);
+  }
+
+  // 16. POST /api/v1/patients/:patientId/emergency-identity
+  static async standardizeEmergencyIdentity(req: Request, res: Response) {
+    const patientId = req.params.patientId || '';
+    const body = standardizeEmergencyIdentitySchema.parse(req.body);
+    const userId = req.user?.id || 'usr-nurse-01';
+
+    const patient = await prisma.patient.findUnique({ where: { id: patientId } });
+    if (!patient) {
+      throw new AppError(404, 'PATIENT_NOT_FOUND', 'Bệnh nhân không tồn tại');
+    }
+    if (!patient.isEmergencyBypass) {
+      throw new AppError(
+        400,
+        'PATIENT_NOT_EMERGENCY_BYPASS',
+        'Bệnh nhân này không ở trạng thái chờ chuẩn hóa danh tính cấp cứu'
+      );
+    }
+
+    const updated = await prisma.patient.update({
+      where: { id: patientId },
+      data: {
+        fullName: body.fullName,
+        dateOfBirth: body.dateOfBirth,
+        gender: body.gender,
+        phoneNumber: body.phoneNumber,
+        identityCardNumber: body.identityCardNumber,
+        address: body.address,
+        healthInsuranceCode: body.healthInsuranceCode,
+        guardianFullName: body.guardianFullName,
+        isEmergencyBypass: false,
+        privacyNoticeAccepted: true,
+        privacyNoticeAcceptedAt: new Date(),
+      },
+    });
+
+    AuditPort.logActivity('EMERGENCY_IDENTITY_STANDARDIZED', userId, patientId, {
+      patientId,
+      fullName: body.fullName,
+    });
+    RealtimePublisher.publishEvent('inpatient', 'emergency_identity_standardized', { patientId });
+
+    return sendSuccess(res, {
+      patientId: updated.id,
+      fullName: updated.fullName,
+      dateOfBirth: toVNISOString(updated.dateOfBirth),
+      gender: updated.gender,
+      phoneNumber: updated.phoneNumber,
+      identityCardNumber: updated.identityCardNumber,
+      isEmergencyBypass: updated.isEmergencyBypass,
+    });
   }
 }
 

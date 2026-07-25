@@ -1,8 +1,14 @@
+'use client';
+
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 type IconProps = {
   className?: string;
 };
+
+const MOCK_ACCOUNTS = [{ username: 'nurse', password: '123456', redirectTo: '/nurse' }];
 
 const stats = [
   {
@@ -125,6 +131,24 @@ function HeadsetIcon({ className }: IconProps) {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const account = MOCK_ACCOUNTS.find(
+      (item) => item.username === username && item.password === password
+    );
+    if (!account) {
+      setError('Tên đăng nhập hoặc mật khẩu không đúng.');
+      return;
+    }
+    setError('');
+    router.push(account.redirectTo);
+  }
+
   return (
     <main className="min-h-screen bg-[#f6fafe] font-sans text-[#171c1f] lg:flex">
       <section className="relative flex min-h-[360px] flex-1 overflow-hidden px-6 py-7 text-white sm:px-10 sm:py-10 lg:min-h-screen lg:px-12 lg:py-12">
@@ -227,7 +251,12 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <form className="mt-8 space-y-5">
+          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+            {error ? (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] font-medium text-red-600">
+                {error}
+              </p>
+            ) : null}
             <div>
               <label
                 className="mb-2 block pl-1 text-[11px] font-bold uppercase leading-4 text-[#3f4851]"
@@ -242,8 +271,10 @@ export default function LoginPage() {
                   className="h-12 w-full rounded-xl border border-[#bfc7d2] bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
                   id="username"
                   name="username"
+                  onChange={(event) => setUsername(event.target.value)}
                   placeholder="Mã nhân viên hoặc tên đăng nhập"
                   type="text"
+                  value={username}
                 />
               </div>
             </div>
@@ -262,8 +293,10 @@ export default function LoginPage() {
                   className="h-12 w-full rounded-xl border border-[#bfc7d2] bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
                   id="password"
                   name="password"
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="Nhập mật khẩu"
                   type="password"
+                  value={password}
                 />
                 <button
                   aria-label="Hiện mật khẩu"

@@ -451,3 +451,52 @@ export const useHandoffSpecimen = () => {
   });
 };
 
+// Emergency Identity Standardization Types & Hooks
+export interface UnidentifiedEmergencyPatientDto {
+  patientId: string;
+  sttNumber: number;
+  tempName: string;
+  gender: 'male' | 'female';
+  bedLabel: string | null;
+  roomLabel: string | null;
+  admittedAt: string;
+  emergencyReason: string | null;
+}
+
+export const useUnidentifiedEmergencyPatients = () => {
+  return useQuery({
+    queryKey: ['unidentified-emergency-patients'],
+    queryFn: async () => {
+      const res = await httpClient.get<any, { data: UnidentifiedEmergencyPatientDto[] }>(
+        '/inpatient/emergency-unidentified-patients'
+      );
+      return res.data || [];
+    },
+  });
+};
+
+export const useStandardizeEmergencyIdentity = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      patientId: string;
+      fullName: string;
+      dateOfBirth: string;
+      gender: 'male' | 'female';
+      phoneNumber: string;
+      identityCardNumber: string;
+      address?: string;
+      healthInsuranceCode?: string;
+      guardianFullName: string;
+      privacyConfirmed: true;
+    }) => {
+      const { patientId, ...body } = payload;
+      return httpClient.post(`/patients/${patientId}/emergency-identity`, body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['unidentified-emergency-patients'] });
+      queryClient.invalidateQueries({ queryKey: ['beds'] });
+    },
+  });
+};
+

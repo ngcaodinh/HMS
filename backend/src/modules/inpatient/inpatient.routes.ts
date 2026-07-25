@@ -88,4 +88,16 @@ router.post(
   asyncHandler((req, res) => InpatientController.recordVitalSigns(req, res))
 );
 
+// Emergency Identity Standardization
+router.get(
+  '/inpatient/emergency-unidentified-patients',
+  authorize('inpatient.read'),
+  asyncHandler((req, res) => InpatientController.listUnidentifiedEmergencyPatients(req, res))
+);
+router.post(
+  '/patients/:patientId/emergency-identity',
+  authorize('patient_identity.standardize'),
+  asyncHandler((req, res) => InpatientController.standardizeEmergencyIdentity(req, res))
+);
+
 export const inpatientRoutes = router;
