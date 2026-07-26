@@ -1,12 +1,16 @@
 'use client';
 
+import { useState } from 'react';
+
 interface CashPaymentModalProps {
   isOpen: boolean;
+  /** Số tiền hiển thị — number view hoặc parse từ money string. */
   amount: number;
   invoiceNumber: string;
   patientName: string;
   onClose: () => void;
-  onConfirmSuccess: () => void;
+  onConfirmSuccess: () => void | Promise<void>;
+  isSubmitting?: boolean;
 }
 
 export function CashPaymentModal({
@@ -16,8 +20,23 @@ export function CashPaymentModal({
   patientName,
   onClose,
   onConfirmSuccess,
+  isSubmitting = false,
 }: CashPaymentModalProps) {
+  const [busy, setBusy] = useState(false);
+
   if (!isOpen) return null;
+
+  const handleConfirm = async () => {
+    if (busy || isSubmitting) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await onConfirmSuccess();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-in fade-in duration-150">
@@ -80,7 +99,10 @@ export function CashPaymentModal({
           </button>
           <button
             type="button"
-            onClick={onConfirmSuccess}
+            disabled={busy || isSubmitting}
+            onClick={() => {
+              void handleConfirm();
+            }}
             className="px-4 py-2 bg-[#006096] text-white rounded-md text-[13px] font-bold hover:bg-[#004a75] transition-colors flex items-center gap-1.5 shadow-sm"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

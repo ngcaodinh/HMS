@@ -1,0 +1,95 @@
+import type { PathologyResult } from '../../types/lab-test.types';
+import { NumericField, SelectField, TextAreaField, TextField } from '../shared';
+
+interface PathologyFormProps {
+  onChange: (value: PathologyResult) => void;
+  value: PathologyResult;
+}
+
+function field(value: string | number | null | undefined): string {
+  return value === null || value === undefined ? '' : String(value);
+}
+
+const BIOPSY_METHOD_OPTIONS = [
+  { value: 'punch', label: 'Punch' },
+  { value: 'shave', label: 'Shave' },
+  { value: 'excision', label: 'Excision' },
+  { value: 'incision', label: 'Incision' },
+  { value: 'khac', label: 'Khác' },
+];
+
+const CONCORDANCE_OPTIONS = [
+  { value: 'phu_hop', label: 'Phù hợp' },
+  { value: 'khong_phu_hop', label: 'Không phù hợp' },
+  { value: 'khong_du_thong_tin', label: 'Không đủ thông tin' },
+];
+
+export function PathologyForm({ onChange, value }: PathologyFormProps) {
+  function set<K extends keyof PathologyResult>(key: K, next: PathologyResult[K]) {
+    onChange({ ...value, [key]: next || undefined });
+  }
+
+  const isFinal = value.trangThai === 'da_co_ket_qua';
+
+  return (
+    <div>
+      <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.4px] text-[#004871]">Thông tin sinh thiết</p>
+      <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SelectField
+          label="Phương pháp sinh thiết"
+          onChange={(v) => set('phuongPhapSinhThiet', v as PathologyResult['phuongPhapSinhThiet'])}
+          options={BIOPSY_METHOD_OPTIONS}
+          value={field(value.phuongPhapSinhThiet)}
+        />
+        <TextField label="Vị trí sinh thiết" onChange={(v) => set('viTriSinhThiet', v)} value={field(value.viTriSinhThiet)} />
+        <NumericField label="Số mảnh" onChange={(v) => set('soManh', v ? Number(v) : undefined)} value={field(value.soManh)} />
+        <TextField label="Dung dịch cố định" onChange={(v) => set('dungDichCoDinh', v)} value={field(value.dungDichCoDinh)} />
+        <TextField label="Phương pháp nhuộm" onChange={(v) => set('phuongPhapNhuomHE', v)} value={field(value.phuongPhapNhuomHE || 'HE')} />
+        <TextField label="Nhuộm đặc biệt / IHC" onChange={(v) => set('nhuomDacBiet', v)} value={field(value.nhuomDacBiet)} />
+      </div>
+
+      <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.4px] text-[#004871]">Thông tin từ bác sĩ điều trị</p>
+      <div className="mb-5 grid gap-4">
+        <TextField label="Chẩn đoán lâm sàng" onChange={(v) => set('chanDoanLamSang', v)} value={field(value.chanDoanLamSang)} />
+        <TextAreaField label="Tóm tắt dấu hiệu lâm sàng" onChange={(v) => set('tomTatLamSang', v)} value={field(value.tomTatLamSang)} />
+        <TextAreaField label="Quá trình điều trị" onChange={(v) => set('quaTrinhDieuTri', v)} value={field(value.quaTrinhDieuTri)} />
+        <TextAreaField label="Nhận xét đại thể khi lấy sinh thiết" onChange={(v) => set('nhanXetDaiTheLayMau', v)} value={field(value.nhanXetDaiTheLayMau)} />
+        <TextAreaField label="Kết quả sinh thiết lần trước" onChange={(v) => set('ketQuaSinhThietLanTruoc', v)} value={field(value.ketQuaSinhThietLanTruoc)} />
+      </div>
+
+      <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.4px] text-[#004871]">Kết quả xét nghiệm (phòng lab)</p>
+      <div className="mb-5 grid gap-4">
+        <TextAreaField label="Nhận xét đại thể" onChange={(v) => set('daiThe', v)} value={field(value.daiThe)} />
+        <TextAreaField label="Nhận xét vi thể" onChange={(v) => set('viThe', v)} value={field(value.viThe)} />
+      </div>
+
+      <div className="mb-2 rounded-md border border-[#bae6fd] bg-[#f0f9ff] px-4 py-3 text-[13px] text-[#0369a1]">
+        {isFinal
+          ? 'Chế độ hoàn tất — cần đủ Chẩn đoán giải phẫu bệnh, Bác sĩ đọc kết quả và Ngày trả kết quả trước khi ký.'
+          : 'Đang ở chế độ lưu nháp — có thể lưu nhiều lần trước khi hoàn tất chính thức.'}
+      </div>
+
+      <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.4px] text-[#004871]">Chẩn đoán giải phẫu bệnh</p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField label="Chẩn đoán giải phẫu bệnh *" onChange={(v) => set('chanDoanMoHoc', v)} value={field(value.chanDoanMoHoc)} />
+        <TextField label="Mã ICD-10 (VD L23.9)" onChange={(v) => set('icd10MoHoc', v)} value={field(value.icd10MoHoc)} />
+        <SelectField
+          label="Sự phù hợp với chẩn đoán lâm sàng"
+          onChange={(v) => set('phuHopChanDoanLamSang', v as PathologyResult['phuHopChanDoanLamSang'])}
+          options={CONCORDANCE_OPTIONS}
+          value={field(value.phuHopChanDoanLamSang)}
+        />
+        <TextField label="Mã bác sĩ đọc kết quả (userId) *" onChange={(v) => set('bacSiGiaiPhauBenh', v)} value={field(value.bacSiGiaiPhauBenh)} />
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-semibold text-[#3f4851]">Ngày trả kết quả *</span>
+          <input
+            className="h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
+            onChange={(event) => set('ngayTraKetQua', event.target.value ? new Date(event.target.value).toISOString() : undefined)}
+            type="date"
+            value={value.ngayTraKetQua ? value.ngayTraKetQua.slice(0, 10) : ''}
+          />
+        </label>
+      </div>
+    </div>
+  );
+}

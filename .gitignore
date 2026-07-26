@@ -4,7 +4,7 @@ dist/
 coverage/
 .turbo/
 .vercel/
-
+.grok/
 .env
 .env.*
 !.env.example
@@ -19,10 +19,35 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 !backend/uploads/lab-results/
 !backend/uploads/lab-results/.gitkeep
-
+test_plan/
+doc-momo/
 .agents/
+.gemini/
+.claude/
 AGENTS.md
+GEMINI.md
+CLAUDE.md
 
-doc
+doc/*
+!doc/Plan/
+doc/Plan/*
+!doc/Plan/fix_plan.md
 
 *.tsbuildinfo
+
+# Markdown files
+*.md
+!doc/Plan/fix_plan.md
+
+# Temp directory
+temp/
+
+# Database files
+*.sql
+!backend/prisma/migrations/**/migration.sql
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-shm
+*.db-wal

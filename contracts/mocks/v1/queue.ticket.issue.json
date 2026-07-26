@@ -1,0 +1,14 @@
+{
+  "data": {
+    "ticketId": "99999999-9999-4999-8999-999999999999",
+    "number": 33,
+    "date": "2026-07-24",
+    "status": "waiting",
+    "receipt": {
+      "systemName": "HMS-VN",
+      "ticketType": "Khám bệnh",
+      "issuedAt": "2026-07-24T08:00:00+07:00",
+      "instruction": "Vui lòng chờ gọi số."
+    }
+  }
+}

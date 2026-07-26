@@ -39,6 +39,15 @@ const config = {
           '0 10px 15px -3px rgba(0, 96, 150, 0.2), 0 4px 6px -4px rgba(0, 96, 150, 0.2)',
         'hms-card': '0 2px 12px rgba(0, 96, 150, 0.08), 0 1px 3px rgba(0, 96, 150, 0.04)',
       },
+      keyframes: {
+        'blink-red': {
+          '0%, 100%': { boxShadow: '0 0 0 3px rgba(185, 28, 28, 0.7)' },
+          '50%': { boxShadow: '0 0 0 3px rgba(185, 28, 28, 0)' },
+        },
+      },
+      animation: {
+        'blink-red': 'blink-red 0.9s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "code-review-and-quality": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review-and-quality/SKILL.md",
+      "computedHash": "ea683d44ea2cff5950cdc81a88715e0ec7f89d4560ee76ee0819174ded2b9743"
+    },
+    "coding-standards": {
+      "source": "affaan-m/ECC",
+      "sourceType": "github",
+      "skillPath": "skills/coding-standards/SKILL.md",
+      "computedHash": "1bc198a6205b2ba5e39cc835702557772bffbbcb3cb63bf509114c5df5ec4d45"
+    },
+    "universal-coding-convention": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/universal-coding-convention/SKILL.md",
+      "computedHash": "2fa9f9b38b664d074be85bac7026ed9bfadb0129a4dfaebf2081bfc9a401d1e4"
+    },
+    "universal-code-auditor": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/universal-code-auditor/SKILL.md",
+      "computedHash": "c66483fa5507723dd7dbb5b23c67eed002549e55fe3f4ab4c153211f48f6e1dc"
+    },
+    "leader-next-express-mysql-coding": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/leader-next-express-mysql-coding/SKILL.md",
+      "computedHash": "edcd837343026fd09e41d499719338ff338f9bf65e36e9660abadad57851fef7"
+    },
+    "leader-next-express-mysql-auditor": {
+      "source": "local",
+      "sourceType": "local",
+      "skillPath": ".agents/skills/leader-next-express-mysql-auditor/SKILL.md",
+      "computedHash": "fbd858d3d86a75afbf3ebb7393c5b0a75a37787fe95d40a1a38310611f0b0558"
+    }
+  }
+}

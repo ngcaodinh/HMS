@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { LogoutButton } from '@/shared/auth/logout-button';
+
 type IconName =
   | 'activity'
   | 'alert'
@@ -475,13 +477,11 @@ function DirectorSidebar({ activeSection }: { activeSection: DirectorSection }) 
             <p className="truncate text-sm font-bold leading-5">Trần Minh Quân</p>
             <p className="truncate text-xs leading-4 text-white/50">Giám đốc bệnh viện</p>
           </div>
-          <button
-            aria-label="Đăng xuất"
+          <LogoutButton
             className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/80 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
-            type="button"
           >
             <Icon className="h-4 w-4" name="logOut" />
-          </button>
+          </LogoutButton>
         </div>
       </div>
     </aside>

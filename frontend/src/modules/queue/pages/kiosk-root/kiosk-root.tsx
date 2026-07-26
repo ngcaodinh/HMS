@@ -1,12 +1,10 @@
 'use client';
 
-import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { issueTicketRest, reprintQueueTicket } from '../../services/queue.api';
 import { kioskRootStyles as styles } from './kiosk-root.styles';
 
-const TICKET_DATE_KEY = 'kiosk_ticket_date';
-const LAST_TICKET_KEY = 'kiosk_last_ticket';
 const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
 type IconProps = {
@@ -179,69 +177,177 @@ function formatTicketNumber(ticketNumber: number) {
   return String(ticketNumber).padStart(4, '0');
 }
 
-function getNextTicketNumber() {
-  const today = formatDate(new Date());
-  const storedDate = window.localStorage.getItem(TICKET_DATE_KEY);
-  const storedTicketNumber = Number(window.localStorage.getItem(LAST_TICKET_KEY) ?? '0');
-  const lastTicketNumber =
-    storedDate === today && Number.isFinite(storedTicketNumber) ? storedTicketNumber : 0;
-  const nextTicketNumber = lastTicketNumber + 1;
+function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `kiosk-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
-  window.localStorage.setItem(TICKET_DATE_KEY, today);
-  window.localStorage.setItem(LAST_TICKET_KEY, String(nextTicketNumber));
+/**
+ * Đồng hồ — chỉ component này tick mỗi giây (không re-render cả trang).
+ */
+function KioskClock() {
+  const [now, setNow] = useState(() => new Date());
+  const [isMounted, setIsMounted] = useState(false);
 
-  return nextTicketNumber;
+  useEffect(() => {
+    setIsMounted(true);
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  return (
+    <time className={styles.clock} dateTime={isMounted ? now.toISOString() : undefined}>
+      <span className={styles.clockTime}>{isMounted ? formatTime(now) : '--:--:--'}</span>
+      <span className={styles.clockDate}>{isMounted ? formatDate(now) : ''}</span>
+    </time>
+  );
+}
+
+/**
+ * Trạng thái mạng trình duyệt — không mở Socket.IO (tránh long-poll kẹt tab loading).
+ */
+function KioskNetworkBadge() {
+  const [isOnline, setIsOnline] = useState(true);
+
+  useEffect(() => {
+    const sync = () => {
+      const next = window.navigator.onLine;
+      setIsOnline((prev) => (prev === next ? prev : next));
+    };
+    sync();
+    window.addEventListener('online', sync);
+    window.addEventListener('offline', sync);
+    return () => {
+      window.removeEventListener('online', sync);
+      window.removeEventListener('offline', sync);
+    };
+  }, []);
+
+  return (
+    <div
+      aria-live="polite"
+      className={`${styles.network} ${isOnline ? styles.networkOnline : styles.networkOffline}`}
+      role="status"
+    >
+      <span
+        className={`${styles.networkDot} ${
+          isOnline ? styles.networkDotOnline : styles.networkDotOffline
+        }`}
+      />
+      {isOnline ? 'Đã kết nối' : 'Mất kết nối'}
+    </div>
+  );
+}
+
+/**
+ * Logo kiosk — dùng <img> tĩnh, không qua next/image optimizer (tránh kẹt load).
+ */
+function KioskLogo() {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      alt="HMS-VN"
+      className={styles.logo}
+      decoding="async"
+      height={56}
+      src="/hms-login-logo.png"
+      width={56}
+    />
+  );
+}
+
+/**
+ * Chờ React flush số vào DOM print section trước window.print().
+ */
+function waitForPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.setTimeout(resolve, 50);
+      });
+    });
+  });
 }
 
 export function KioskRootPage() {
-  const [now, setNow] = useState<Date>(() => new Date());
-  const [isOnline, setIsOnline] = useState(true);
+  const [isIssuing, setIsIssuing] = useState(false);
+  const [issueError, setIssueError] = useState<string | null>(null);
+  const [ticketId, setTicketId] = useState<string | null>(null);
   const [ticketNumber, setTicketNumber] = useState<number | null>(null);
   const [ticketTimestamp, setTicketTimestamp] = useState('');
+  const issuingRef = useRef(false);
 
   const formattedTicketNumber = useMemo(
     () => (ticketNumber === null ? '0001' : formatTicketNumber(ticketNumber)),
     [ticketNumber],
   );
 
-  useEffect(() => {
-    setIsOnline(window.navigator.onLine);
-
-    const timer = window.setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+  /**
+   * In phiếu: reprint API best-effort + window.print().
+   * Khi dialog in Windows đóng (in hoặc Cancel) → quay lại UI kiosk/modal.
+   */
+  const printTicket = useCallback(async (id: string | null) => {
+    if (id) {
+      try {
+        await reprintQueueTicket(id);
+      } catch {
+        // In vật lý vẫn chạy dù API reprint lỗi.
+      }
+    }
+    window.print();
   }, []);
 
-  const handleGetNumber = () => {
+  /**
+   * Lấy số (REST) → lưu DB → hiện modal xác nhận như luồng cũ → tự mở dialog in.
+   * Sau khi đóng dialog in Windows: vẫn modal cũ (In lại / Đã nhận).
+   */
+  const handleGetNumber = useCallback(async () => {
     if (!window.navigator.onLine) {
-      setIsOnline(false);
+      setIssueError('Mất kết nối mạng. Vui lòng liên hệ Lễ tân.');
       return;
     }
 
-    const nextTicketNumber = getNextTicketNumber();
-    setTicketNumber(nextTicketNumber);
-    setTicketTimestamp(formatTicketTimestamp(new Date()));
-  };
+    if (issuingRef.current) {
+      return;
+    }
 
-  const handleCloseModal = () => {
+    issuingRef.current = true;
+    setIsIssuing(true);
+    setIssueError(null);
+
+    try {
+      const issued = await issueTicketRest(createIdempotencyKey());
+      setTicketId(issued.ticketId);
+      setTicketNumber(issued.number);
+      setTicketTimestamp(
+        formatTicketTimestamp(new Date(issued.receipt.issuedAt || Date.now())),
+      );
+
+      // Modal luồng cũ hiện ngay; rồi in tự động.
+      await waitForPaint();
+      await printTicket(issued.ticketId);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Không lấy được số. Vui lòng thử lại.';
+      setIssueError(message);
+    } finally {
+      issuingRef.current = false;
+      setIsIssuing(false);
+    }
+  }, [printTicket]);
+
+  const handleCloseModal = useCallback(() => {
     setTicketNumber(null);
+    setTicketId(null);
     setTicketTimestamp('');
-  };
+    setIssueError(null);
+  }, []);
 
-  const handlePrint = () => {
-    window.print();
-  };
+  const handlePrint = useCallback(async () => {
+    await printTicket(ticketId);
+  }, [printTicket, ticketId]);
 
   return (
     <>
@@ -256,14 +362,7 @@ export function KioskRootPage() {
           <header className={styles.header}>
             <div className={styles.brand}>
               <div className={styles.logoWrap}>
-                <Image
-                  alt="Bệnh viện Da Liễu Trung ương"
-                  className={styles.logo}
-                  height={56}
-                  priority
-                  src="/hms-login-logo.png"
-                  width={56}
-                />
+                <KioskLogo />
               </div>
               <div className="min-w-0">
                 <p className={styles.brandName}>HMS-VN</p>
@@ -274,24 +373,8 @@ export function KioskRootPage() {
             </div>
 
             <div className={styles.headerRight}>
-              <time className={styles.clock} dateTime={now.toISOString()}>
-                <span className={styles.clockTime}>{formatTime(now)}</span>
-                <span className={styles.clockDate}>{formatDate(now)}</span>
-              </time>
-              <div
-                aria-live="polite"
-                className={`${styles.network} ${
-                  isOnline ? styles.networkOnline : styles.networkOffline
-                }`}
-                role="status"
-              >
-                <span
-                  className={`${styles.networkDot} ${
-                    isOnline ? styles.networkDotOnline : styles.networkDotOffline
-                  }`}
-                />
-                {isOnline ? 'Đã kết nối' : 'Mất kết nối'}
-              </div>
+              <KioskClock />
+              <KioskNetworkBadge />
             </div>
           </header>
 
@@ -313,30 +396,31 @@ export function KioskRootPage() {
               <button
                 aria-label="Lấy số khám bệnh"
                 className={styles.ctaButton}
-                disabled={!isOnline}
-                onClick={handleGetNumber}
+                disabled={isIssuing}
+                onClick={() => {
+                  void handleGetNumber();
+                }}
                 type="button"
               >
                 <span className={styles.ctaRingInner} />
                 <span className={styles.ctaRingOuter} />
                 <span className={styles.ctaContent}>
                   <TicketPlusIcon className={styles.ctaIcon} />
-                  <span className={styles.ctaText}>LẤY SỐ KHÁM BỆNH</span>
+                  <span className={styles.ctaText}>
+                    {isIssuing ? 'ĐANG CẤP SỐ…' : 'LẤY SỐ KHÁM BỆNH'}
+                  </span>
                 </span>
               </button>
 
-              <div
-                className={`${styles.offlineMessage} ${
-                  isOnline ? '' : styles.offlineMessageVisible
-                }`}
-                role="alert"
-              >
-                <WarningIcon className="mt-0.5 h-6 w-6 shrink-0 text-[#ba1a1a]" />
-                <p>
-                  Hệ thống mất kết nối tạm thời. Vui lòng liên hệ{' '}
-                  <strong>Lễ tân tại quầy</strong> để được hỗ trợ.
-                </p>
-              </div>
+              {issueError ? (
+                <div
+                  className={`${styles.offlineMessage} ${styles.offlineMessageVisible}`}
+                  role="alert"
+                >
+                  <WarningIcon className="mt-0.5 h-6 w-6 shrink-0 text-[#ba1a1a]" />
+                  <p>{issueError}</p>
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -352,7 +436,8 @@ export function KioskRootPage() {
           </footer>
         </div>
 
-        {ticketNumber !== null && (
+        {/* Modal luồng cũ — hiện sau lấy số; dialog in Windows đóng vẫn giữ modal này */}
+        {ticketNumber !== null ? (
           <div
             aria-labelledby="ticket-modal-title"
             aria-modal="true"
@@ -378,24 +463,31 @@ export function KioskRootPage() {
               </p>
 
               <div className={styles.modalActions}>
-                <button className={styles.secondaryButton} onClick={handlePrint} type="button">
+                <button
+                  className={styles.secondaryButton}
+                  onClick={() => {
+                    void handlePrint();
+                  }}
+                  type="button"
+                >
                   <SmallPrinterIcon className="h-6 w-6" />
                   In lại phiếu
                 </button>
                 <button className={styles.primaryButton} onClick={handleCloseModal} type="button">
-                  <CheckIcon className="h-6 w-6" />
-                  Đã nhận phiếu · Quay lại
+                  
+                  Đã nhận phiếu
                 </button>
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </main>
 
       <section aria-hidden="true" className={styles.printTicket}>
         <div className={styles.printTicketInner}>
           <div className="mb-[4mm] flex items-center justify-center gap-2">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               alt=""
               className="rounded-full"
               height={26}
@@ -415,7 +507,7 @@ export function KioskRootPage() {
             {formattedTicketNumber}
           </p>
           <p className="mb-[4mm] text-center text-[13px] font-semibold">
-            {ticketTimestamp || formatTicketTimestamp(now)}
+            {ticketTimestamp || formatTicketTimestamp(new Date())}
           </p>
           <hr className="my-[3mm] border-t border-dashed border-[#c0c0c0]" />
           <p className="border-t border-[#e0e0e0] pt-[3mm] text-center text-[11px] leading-5 text-[#555]">

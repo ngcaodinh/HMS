@@ -6,3 +6,1331 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
+enum QueueTicketStatus {
+  waiting
+  called
+  served
+  skipped
+}
+
+enum Gender {
+  male
+  female
+}
+
+enum DepartmentType {
+  clinical
+  paraclinical
+  administrative
+}
+
+enum BloodType {
+  A_PLUS   @map("A+")
+  A_MINUS  @map("A-")
+  B_PLUS   @map("B+")
+  B_MINUS  @map("B-")
+  AB_PLUS  @map("AB+")
+  AB_MINUS @map("AB-")
+  O_PLUS   @map("O+")
+  O_MINUS  @map("O-")
+}
+
+enum RoomType {
+  exam
+  lab
+  inpatient
+  procedure
+  storage
+  other
+}
+
+enum BedStatus {
+  available
+  occupied
+  maintenance
+}
+
+enum MedicalRecordStatus {
+  open
+  waiting_results
+  diagnosed
+  closed
+}
+
+enum ServiceOrderStatus {
+  waiting
+  completed
+  cancelled
+}
+
+enum TreatmentType {
+  outpatient
+  inpatient
+}
+
+enum TreatmentOrderType {
+  medication
+  monitoring
+  care
+  diet
+  procedure
+}
+
+enum TreatmentOrderStatus {
+  active
+  done
+  cancelled
+}
+
+enum ReleaseReason {
+  discharge
+  transfer
+  correction
+}
+
+enum DischargeCondition {
+  recovered
+  improved
+  unchanged
+  worse
+  deceased
+}
+
+enum SignatureMethod {
+  dev_e_confirmation
+}
+
+enum SpecimenStatus {
+  pending
+  collected
+  handed_over
+}
+
+enum LabTestStatus {
+  ordered
+  in_progress
+  resulted
+}
+
+enum LabResultTableKey {
+  xn_cong_thuc_mau
+  xn_nuoc_tieu
+  xn_vi_sinh
+  xn_mo_benh_hoc
+  xn_hoa_sinh_mau
+}
+
+enum LabReferenceRangeCondition {
+  all
+  male
+  female
+}
+
+enum AttachmentOwnerType {
+  medical_record
+  lab_test
+  prescription
+}
+
+enum AttachmentFileType {
+  pdf
+  png
+  jpeg
+  xml
+}
+
+enum AuditLogAction {
+  VIEW
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  RESET_PASSWORD
+  SIGN
+  PAY
+  CANCEL
+  EXPORT
+  OVERRIDE
+  SYNC
+  WRITE_OFF
+  DISPENSE
+}
+
+enum PrescriptionStatus {
+  draft
+  active
+  xml_exported
+  cancelled
+}
+
+enum PrescriptionType {
+  C
+  N
+  H
+}
+
+enum InvoiceStatus {
+  pending
+  paid
+  cancelled
+  write_off
+}
+
+enum HealthInsuranceBenefitLevel {
+  NO_COVERAGE
+  RATE_80
+  RATE_95
+  RATE_100
+}
+
+enum HealthInsuranceRouteType {
+  right_route
+  referral
+  emergency
+  wrong_route
+}
+
+enum HealthInsuranceClaimStatus {
+  draft
+  exported_xml
+  voided
+}
+
+enum PaymentMethod {
+  cash
+  momo
+}
+
+enum PaymentIntentStatus {
+  pending
+  paid
+  expired
+  failed
+}
+
+enum PaymentAdvanceType {
+  deposit
+  refund
+}
+
+enum InvoiceItemCategory {
+  consultation
+  lab
+  medicine
+  bed
+  procedure
+  other
+}
+
+enum medical_records_skinLesionDistribution {
+  localized
+  scattered
+  generalized
+  symmetric
+  dermatomal
+  flexural
+}
+
+enum medical_records_itchSeverity {
+  none
+  mild
+  moderate
+  severe
+}
+
+enum medical_records_icdCodingSystem {
+  TT06_2026
+}
+
+enum medical_records_diagnosisSignatureMethod {
+  dev_e_confirmation
+}
+
+enum medical_records_closeSignatureMethod {
+  dev_e_confirmation
+}
+
+model User {
+  id                 String       @id @default(uuid()) @db.VarChar(36)
+  username           String       @unique @db.VarChar(50)
+  password           String       @db.VarChar(255)
+  fullName           String       @db.VarChar(255)
+  gender             Gender
+  dateOfBirth        DateTime     @db.Date
+  phoneNumber        String       @db.VarChar(10)
+  identityCardNumber String       @unique @db.VarChar(12)
+  departmentId       String       @db.VarChar(36)
+  isActive           Boolean      @default(true)
+  mustChangePassword Boolean      @default(true)
+  authVersion        Int          @default(1)
+  lastLoginAt        DateTime?    @db.DateTime(3)
+  createdAt          DateTime     @default(now()) @db.DateTime(3)
+  updatedAt          DateTime     @updatedAt @db.DateTime(3)
+
+  department                        Department          @relation(fields: [departmentId], references: [id])
+  permissions                       Permission[]
+  medicalRecordsAsDoctor            MedicalRecord[]     @relation("DoctorMedicalRecords")
+  medicalRecordsAsDiagnosedBy       MedicalRecord[]     @relation("DiagnosedByRecords")
+  medicalRecordsAsDiagnosisSignedBy MedicalRecord[]     @relation("DiagnosisSignedByRecords")
+  medicalRecordsAsVitalConfirmedBy  MedicalRecord[]     @relation("VitalConfirmedByRecords")
+  medicalRecordsAsClosedBy          MedicalRecord[]     @relation("ClosedByRecords")
+  bedAssignmentsAsAssignedBy        BedAssignment[]     @relation("AssignedByBedAssignments")
+  bedAssignmentsAsReleasedBy        BedAssignment[]     @relation("ReleasedByBedAssignments")
+  treatmentOrdersAsOrderedBy        TreatmentOrder[]    @relation("OrderedByTreatmentOrders")
+  treatmentOrdersAsExecutedBy       TreatmentOrder[]    @relation("ExecutedByTreatmentOrders")
+  treatmentOrdersAsCancelledBy      TreatmentOrder[]    @relation("CancelledByTreatmentOrders")
+  dischargeSummariesAsSignedBy      DischargeSummary[]  @relation("SignedByDischargeSummaries")
+  labTestsAsOrderedBy               LabTest[]           @relation("OrderedByLabTests")
+  labTestsAsResultedBy              LabTest[]           @relation("ResultedByLabTests")
+  labTestsAsSignedBy                LabTest[]           @relation("SignedByLabTests")
+  attachmentsUploaded               Attachment[]        @relation("UploadedAttachments")
+  pathologyResultsAsDoctor          XnMoBenhHoc[]       @relation("PathologyDoctor")
+  prescriptionsAsPrescribedBy       Prescription[]      @relation("PrescribedByPrescriptions")
+  prescriptionsAsSignedBy           Prescription[]      @relation("SignedByPrescriptions")
+  prescriptionsAsCancelledBy        Prescription[]      @relation("CancelledByPrescriptions")
+  prescriptionsAsDispensedBy        Prescription[]      @relation("DispensedByPrescriptions")
+
+  @@index([departmentId])
+  @@index([isActive])
+  @@index([fullName])
+  @@map("users")
+}
+
+model Role {
+  id              String           @id @default(uuid()) @db.VarChar(36)
+  code            String           @unique @db.VarChar(30)
+  name            String           @db.VarChar(100)
+  description     String?          @db.VarChar(255)
+  isSystem        Boolean          @default(true)
+  isPrivileged    Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now()) @db.DateTime(3)
+  updatedAt       DateTime         @updatedAt @db.DateTime(3)
+  permissions     Permission[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id         String   @id @default(uuid()) @db.VarChar(36)
+  userId     String   @db.VarChar(36)
+  roleCode   String   @db.VarChar(30)
+  assignedAt DateTime @default(now()) @db.DateTime(3)
+  assignedBy String?  @db.VarChar(36)
+
+  role Role @relation(fields: [roleCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([userId, roleCode])
+  @@index([roleCode])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleCode   String   @db.VarChar(30)
+  actionCode String   @db.VarChar(80)
+  createdAt  DateTime @default(now()) @db.DateTime(3)
+
+  role Role @relation(fields: [roleCode], references: [code], onDelete: Cascade, onUpdate: Cascade)
+
+  @@id([roleCode, actionCode])
+  @@map("role_permissions")
+}
+
+model RbacPolicyVersion {
+  revision  String   @id @db.VarChar(40)
+  checksum  String   @db.VarChar(64)
+  appliedAt DateTime @default(now()) @db.DateTime(3)
+
+  @@map("rbac_policy_versions")
+}
+
+model QueueTicket {
+  id        String            @id @default(uuid()) @db.VarChar(36)
+  number    Int
+  date      DateTime          @default(dbgenerated("(curdate())")) @db.Date
+  status    QueueTicketStatus @default(waiting)
+  calledAt  DateTime?
+  servedAt  DateTime?
+  recordId  String?           @unique @db.VarChar(36)
+  createdAt DateTime          @default(now())
+
+  medicalRecord MedicalRecord? @relation(fields: [recordId], references: [id])
+
+  @@unique([date, number], map: "unique_key_queue_ticket_date_number")
+  @@map("queue_tickets")
+}
+
+model QueueDailySequence {
+  date       DateTime @id @db.Date
+  lastNumber Int      @default(0) @map("last_number")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("queue_daily_sequences")
+}
+
+model Patient {
+  id                                 String     @id @default(uuid()) @db.VarChar(36)
+  patientCode                        String     @unique @db.VarChar(20)
+  fullName                           String     @db.VarChar(255)
+  dateOfBirth                        DateTime   @db.Date
+  gender                             Gender
+  phoneNumber                        String?    @db.VarChar(15)
+  phoneNumberUnavailableReason       String?    @db.VarChar(500)
+  identityCardNumber                 String?    @unique @db.VarChar(12)
+  address                            String?    @db.VarChar(500)
+  province                           String?    @db.VarChar(100)
+  ward                               String?    @db.VarChar(100)
+  bloodType                          BloodType?
+  allergies                          String?    @db.Text
+  healthInsuranceCode                String?    @db.VarChar(20)
+  healthInsuranceExpiryDate          DateTime?  @db.Date
+  healthInsuranceInitialFacilityCode String?    @db.VarChar(10)
+  healthInsuranceBenefitRateHint     Decimal?   @db.Decimal(5, 4)
+  emergencyContact                   String?    @db.VarChar(255)
+  emergencyPhoneNumber               String?    @db.VarChar(15)
+  guardianFullName                   String?    @db.VarChar(255)
+  guardianPhoneNumber                String?    @db.VarChar(15)
+  isEmergencyBypass                  Boolean    @default(false)
+  emergencyReason                    String?    @db.VarChar(500)
+  privacyNoticeAccepted              Boolean    @default(false)
+  privacyNoticeAcceptedAt            DateTime?
+  deletedAt                          DateTime?
+  version                            Int        @default(1)
+  createdAt                          DateTime   @default(now())
+  updatedAt                          DateTime   @updatedAt
+
+  beds           Bed[]
+  medicalRecords MedicalRecord[]
+
+  @@index([fullName], map: "index_patient_full_name")
+  @@index([phoneNumber], map: "index_patient_phone")
+  @@index([deletedAt])
+  @@index([province])
+  @@map("patients")
+}
+
+model Doctor {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  fullName     String   @db.VarChar(255)
+  employeeCode String   @unique @db.VarChar(50)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@map("doctors")
+}
+
+model Department {
+  id        String         @id @default(uuid()) @db.VarChar(36)
+  code      String         @unique @db.VarChar(20)
+  name      String         @db.VarChar(255)
+  type      DepartmentType @default(clinical)
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  users          User[]
+  rooms          Room[]
+  labTestTypes   LabTestType[]
+  medicalRecords MedicalRecord[]
+  serviceCatalog ServiceCatalog[]
+
+  @@map("departments")
+}
+
+model ServiceCatalog {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  code         String   @unique @db.VarChar(30)
+  name         String   @db.VarChar(255)
+  price        Decimal  @db.Decimal(15, 2)
+  isActive     Boolean  @default(true)
+  departmentId String?  @db.VarChar(36)
+  createdAt    DateTime @default(now())
+
+  department    Department?    @relation(fields: [departmentId], references: [id])
+  serviceOrders ServiceOrder[]
+
+  @@map("service_catalog")
+}
+
+model MedicalRecord {
+  id                       String                                    @id @default(uuid()) @db.VarChar(36)
+  recordCode               String                                    @unique @db.VarChar(20)
+  patientId                String                                    @db.VarChar(36)
+  doctorId                 String                                    @db.VarChar(36)
+  departmentId             String?                                   @db.VarChar(36)
+  status                   MedicalRecordStatus                       @default(open)
+  isEmergency              Boolean                                   @default(false)
+  emergencyReason          String?                                   @db.VarChar(500)
+  chiefComplaint           String?                                   @db.VarChar(500)
+  vitalSigns               Json?
+  heightCm                 Decimal?                                  @db.Decimal(5, 1)
+  weightKg                 Decimal?                                  @db.Decimal(5, 1)
+  historyOfPresentIllness  String?                                   @db.Text
+  pastMedicalHistory       String?                                   @db.Text
+  familyHistory            String?                                   @db.Text
+  skinLesionTypes          String?                                   @db.VarChar(255)
+  skinLesionDescription    String?                                   @db.Text
+  skinLesionLocation       String?                                   @db.VarChar(500)
+  skinLesionDistribution   medical_records_skinLesionDistribution?
+  bodySurfaceAreaPercent   Decimal?                                  @db.Decimal(5, 2)
+  itchSeverity             medical_records_itchSeverity?
+  vitalConfirmedBy         String?                                   @db.VarChar(36)
+  vitalConfirmedAt         DateTime?
+  icd10                    String?                                   @db.VarChar(10)
+  icdCodingSystem          medical_records_icdCodingSystem?
+  diagnosisText            String?                                   @db.VarChar(1000)
+  diagnosedBy              String?                                   @db.VarChar(36)
+  diagnosedAt              DateTime?
+  diagnosisSignedBy        String?                                   @db.VarChar(36)
+  diagnosisSignedAt        DateTime?
+  diagnosisSignatureMethod medical_records_diagnosisSignatureMethod?
+  treatmentType            TreatmentType                             @default(outpatient)
+  bedId                    String?                                   @db.VarChar(36)
+  notes                    String?                                   @db.Text
+  closedAt                 DateTime?
+  closedBy                 String?                                   @db.VarChar(36)
+  closeSignatureMethod     medical_records_closeSignatureMethod?
+  deletedAt                DateTime?
+  version                  Int                                       @default(1)
+  createdAt                DateTime                                  @default(now())
+  updatedAt                DateTime                                  @updatedAt
+
+  patient                Patient           @relation(fields: [patientId], references: [id])
+  doctor                 User              @relation("DoctorMedicalRecords", fields: [doctorId], references: [id])
+  department             Department?       @relation(fields: [departmentId], references: [id])
+  bed                    Bed?              @relation(fields: [bedId], references: [id])
+  diagnosedByUser        User?             @relation("DiagnosedByRecords", fields: [diagnosedBy], references: [id])
+  diagnosisSignedByUser  User?             @relation("DiagnosisSignedByRecords", fields: [diagnosisSignedBy], references: [id])
+  vitalConfirmedByUser   User?             @relation("VitalConfirmedByRecords", fields: [vitalConfirmedBy], references: [id])
+  closedByUser           User?             @relation("ClosedByRecords", fields: [closedBy], references: [id])
+  serviceOrders          ServiceOrder[]
+  queueTicket            QueueTicket?
+  invoices               Invoice[]
+  paymentAdvances        PaymentAdvance[]
+  labTests               LabTest[]
+  prescriptions          Prescription[]
+  bedAssignments         BedAssignment[]
+  treatmentOrders        TreatmentOrder[]
+  dischargeSummary       DischargeSummary?
+  vitalSignLogs          VitalSignLog[]
+
+  @@index([patientId], map: "index_medical_record_patient")
+  @@index([doctorId], map: "index_medical_record_doctor")
+  @@index([status], map: "index_medical_record_status")
+  @@index([deletedAt])
+  @@index([bedId])
+  @@map("medical_records")
+}
+
+model ServiceOrder {
+  id               String             @id @default(uuid()) @db.VarChar(36)
+  recordId         String             @db.VarChar(36)
+  serviceCatalogId String             @db.VarChar(36)
+  fee              Decimal            @db.Decimal(15, 2)
+  status           ServiceOrderStatus @default(waiting)
+  createdAt        DateTime           @default(now())
+
+  record         MedicalRecord  @relation(fields: [recordId], references: [id])
+  serviceCatalog ServiceCatalog @relation(fields: [serviceCatalogId], references: [id])
+
+  @@index([recordId], map: "index_service_order_record")
+  @@map("service_orders")
+}
+
+model CodeSequence {
+  key        String @id @db.VarChar(30)
+  lastNumber Int    @default(0) @map("last_number")
+
+  @@map("code_sequences")
+}
+
+model Room {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  code         String   @unique @db.VarChar(50)
+  name         String?  @db.VarChar(255)
+  departmentId String?  @db.VarChar(36)
+  roomType     RoomType @default(other)
+  floor        String?  @db.VarChar(20)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  beds       Bed[]
+
+  @@index([departmentId])
+  @@index([isActive])
+  @@map("rooms")
+}
+
+model Bed {
+  id         String    @id @default(uuid()) @db.VarChar(36)
+  roomId     String    @db.VarChar(36)
+  number     String    @db.VarChar(20)
+  dailyRate  Decimal   @default(200000.00) @db.Decimal(15, 2)
+  status     BedStatus @default(available)
+  patientId  String?   @db.VarChar(36)
+  assignedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  room           Room            @relation(fields: [roomId], references: [id])
+  patient        Patient?        @relation(fields: [patientId], references: [id])
+  bedAssignments BedAssignment[]
+  medicalRecords MedicalRecord[]
+
+  @@unique([roomId, number], map: "unique_key_bed_room_number")
+  @@index([patientId])
+  @@index([roomId])
+  @@index([status])
+  @@map("beds")
+}
+
+model BedAssignment {
+  id                String         @id @default(uuid()) @db.VarChar(36)
+  recordId          String         @db.VarChar(36)
+  bedId             String         @db.VarChar(36)
+  dailyRateSnapshot Decimal        @db.Decimal(15, 2)
+  assignedBy        String         @db.VarChar(36)
+  assignedAt        DateTime       @default(now())
+  releasedBy        String?        @db.VarChar(36)
+  releasedAt        DateTime?
+  releaseReason     ReleaseReason?
+  note              String?        @db.VarChar(255)
+  openRecordSlot    String?        @unique @db.VarChar(36)
+  openBedSlot       String?        @unique @db.VarChar(36)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  assignedByUser User          @relation("AssignedByBedAssignments", fields: [assignedBy], references: [id])
+  releasedByUser User?         @relation("ReleasedByBedAssignments", fields: [releasedBy], references: [id])
+  record         MedicalRecord @relation(fields: [recordId], references: [id])
+  bed            Bed           @relation(fields: [bedId], references: [id])
+
+  @@index([assignedBy])
+  @@index([releasedBy])
+  @@index([bedId, assignedAt])
+  @@index([recordId, assignedAt])
+  @@map("bed_assignments")
+}
+
+model TreatmentOrder {
+  id           String               @id @default(uuid()) @db.VarChar(36)
+  recordId     String               @db.VarChar(36)
+  orderedBy    String               @db.VarChar(36)
+  orderType    TreatmentOrderType
+  content      String               @db.VarChar(1000)
+  orderedAt    DateTime             @default(now())
+  status       TreatmentOrderStatus @default(active)
+  executedBy   String?              @db.VarChar(36)
+  executedAt   DateTime?
+  cancelReason String?              @db.VarChar(500)
+  cancelledBy  String?              @db.VarChar(36)
+  cancelledAt  DateTime?
+  note         String?              @db.VarChar(500)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  record          MedicalRecord @relation(fields: [recordId], references: [id])
+  orderedByUser   User          @relation("OrderedByTreatmentOrders", fields: [orderedBy], references: [id])
+  executedByUser  User?         @relation("ExecutedByTreatmentOrders", fields: [executedBy], references: [id])
+  cancelledByUser User?         @relation("CancelledByTreatmentOrders", fields: [cancelledBy], references: [id])
+
+  @@index([recordId])
+  @@index([orderedBy])
+  @@index([status])
+  @@map("treatment_orders")
+}
+
+model DischargeSummary {
+  id                 String             @id @default(uuid()) @db.VarChar(36)
+  recordId           String             @unique @db.VarChar(36)
+  dischargeDiagnosis String             @db.VarChar(1000)
+  icd10              String?            @db.VarChar(10)
+  treatmentSummary   String             @db.Text
+  dischargeCondition DischargeCondition
+  doctorAdvice       String?            @db.Text
+  followUpDate       DateTime?          @db.Date
+  signedBy           String             @db.VarChar(36)
+  signedAt           DateTime           @default(now())
+  signatureMethod    SignatureMethod    @default(dev_e_confirmation)
+  dischargedAt       DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  record       MedicalRecord @relation(fields: [recordId], references: [id])
+  signedByUser User          @relation("SignedByDischargeSummaries", fields: [signedBy], references: [id])
+
+  @@index([signedBy])
+  @@map("discharge_summaries")
+}
+
+model SpecimenCollection {
+  id               String         @id @default(uuid()) @db.VarChar(36)
+  recordId         String         @db.VarChar(36)
+  patientCode      String         @db.VarChar(20)
+  patientName      String         @db.VarChar(255)
+  departmentName   String         @db.VarChar(255)
+  specimenCode     String         @unique @db.VarChar(50)
+  specimenType     String         @db.VarChar(100)
+  orderDescription String         @db.VarChar(1000)
+  priority         Boolean        @default(false)
+  status           SpecimenStatus @default(pending)
+  barcodePrinted   Boolean        @default(false)
+  collectedBy      String?        @db.VarChar(36)
+  collectedAt      DateTime?
+  handedOverBy     String?        @db.VarChar(36)
+  handedOverAt     DateTime?
+  labReceiverName  String?        @db.VarChar(255)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@map("specimen_collections")
+}
+
+model LabTestType {
+  id             String            @id @default(uuid()) @db.VarChar(36)
+  code           String            @unique @db.VarChar(30)
+  name           String            @db.VarChar(255)
+  category       String?           @db.VarChar(100)
+  departmentId   String            @db.VarChar(36)
+  resultTableKey LabResultTableKey
+  specimen       String?           @db.VarChar(100)
+  resultUnit     String?           @db.VarChar(50)
+  method         String?           @db.VarChar(255)
+  referenceRange String?           @db.VarChar(255)
+  price          Decimal           @default(0) @db.Decimal(15, 2)
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  department      Department          @relation(fields: [departmentId], references: [id])
+  labTests        LabTest[]
+  referenceRanges LabReferenceRange[]
+
+  @@index([departmentId])
+  @@index([isActive])
+  @@map("lab_test_types")
+}
+
+model LabReferenceRange {
+  id            String                     @id @default(uuid()) @db.VarChar(36)
+  labTestTypeId String                     @db.VarChar(36)
+  fieldKey      String                     @db.VarChar(100)
+  code          String                     @db.VarChar(20)
+  label         String                     @db.VarChar(255)
+  unit          String?                    @db.VarChar(50)
+  lowerBound    Decimal?                   @db.Decimal(15, 4)
+  upperBound    Decimal?                   @db.Decimal(15, 4)
+  condition     LabReferenceRangeCondition @default(all)
+  isActive      Boolean                    @default(true)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  labTestType LabTestType @relation(fields: [labTestTypeId], references: [id])
+
+  @@index([labTestTypeId, isActive])
+  @@index([code])
+  @@map("lab_reference_ranges")
+}
+
+model LabTest {
+  id                 String          @id @default(uuid()) @db.VarChar(36)
+  recordId           String          @db.VarChar(36)
+  labTestTypeId      String          @db.VarChar(36)
+  testName           String          @db.VarChar(255)
+  fee                Decimal         @default(0) @db.Decimal(15, 2)
+  status             LabTestStatus   @default(ordered)
+  isUrgent           Boolean         @default(false)
+  orderedBy          String          @db.VarChar(36)
+  orderedAt          DateTime        @default(now())
+  specimenType       String?         @db.VarChar(100)
+  specimenReceivedAt DateTime?
+  method             String?         @db.VarChar(255)
+  conclusion         String?         @db.VarChar(1000)
+  reportCode         String?         @db.VarChar(30)
+  resultedBy         String?         @db.VarChar(36)
+  resultedAt         DateTime?
+  signedBy           String?         @db.VarChar(36)
+  signedAt           DateTime?
+  signatureMethod    SignatureMethod?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  medicalRecord    MedicalRecord   @relation(fields: [recordId], references: [id])
+  labTestType      LabTestType     @relation(fields: [labTestTypeId], references: [id])
+  orderedByUser    User            @relation("OrderedByLabTests", fields: [orderedBy], references: [id])
+  resultedByUser   User?           @relation("ResultedByLabTests", fields: [resultedBy], references: [id])
+  signedByUser     User?           @relation("SignedByLabTests", fields: [signedBy], references: [id])
+  cbcResult        XnCongThucMau?
+  urinalysisResult XnNuocTieu?
+  microbiology     XnViSinh?
+  pathology        XnMoBenhHoc?
+  bioChemistry     XnHoaSinhMau?
+
+  @@index([recordId])
+  @@index([labTestTypeId])
+  @@index([status])
+  @@index([orderedAt])
+  @@map("lab_tests")
+}
+
+model Attachment {
+  id             String              @id @default(uuid()) @db.VarChar(36)
+  ownerType      AttachmentOwnerType
+  ownerId        String              @db.VarChar(36)
+  filePath       String              @db.VarChar(1000)
+  fileType       AttachmentFileType
+  originalName   String              @db.VarChar(255)
+  mimeType       String              @db.VarChar(100)
+  sizeBytes      BigInt              @db.UnsignedBigInt
+  checksumSha256 String              @db.Char(64)
+  uploadedBy     String              @db.VarChar(36)
+  uploadedAt     DateTime            @default(now())
+
+  uploadedByUser User @relation("UploadedAttachments", fields: [uploadedBy], references: [id])
+
+  @@index([ownerType, ownerId])
+  @@index([uploadedBy])
+  @@index([checksumSha256])
+  @@map("attachments")
+}
+
+model AuditLog {
+  id         String         @id @default(uuid()) @db.VarChar(36)
+  userId     String?        @db.VarChar(36)
+  userRole   String         @default("public") @db.VarChar(30)
+  userName   String         @default("") @db.VarChar(255)
+  action     AuditLogAction
+  resource   String         @db.VarChar(50)
+  resourceId String?        @db.VarChar(36)
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+
+  @@index([createdAt])
+  @@index([resource, resourceId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
+
+model Medicine {
+  id                       String            @id @default(uuid()) @db.VarChar(36)
+  code                     String?           @unique @db.VarChar(30)
+  name                     String            @db.VarChar(255)
+  activeIngredient         String?           @db.VarChar(255)
+  dosage                   String?           @db.VarChar(100)
+  unit                     String            @db.VarChar(50)
+  unitPrice                Decimal           @db.Decimal(15, 2)
+  coveredByHealthInsurance Boolean           @default(false)
+  isActive                 Boolean           @default(true)
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  medicineBatches  MedicineBatch[]
+  prescriptionItems PrescriptionItem[]
+
+  @@index([name])
+  @@index([activeIngredient])
+  @@index([isActive])
+  @@map("medicines")
+}
+
+model MedicineBatch {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  medicineId  String   @db.VarChar(36)
+  batchNumber String   @db.VarChar(100)
+  expiryDate  DateTime @db.Date
+  quantity    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  medicine Medicine @relation(fields: [medicineId], references: [id])
+
+  @@index([medicineId, expiryDate])
+  @@map("medicine_batches")
+}
+
+model Prescription {
+  id                     String             @id @default(uuid()) @db.VarChar(36)
+  recordId               String             @db.VarChar(36)
+  prescriptionCode       String             @unique @db.VarChar(40)
+  prescribedBy           String             @db.VarChar(36)
+  roundNumber            Int
+  prescriptionType       PrescriptionType
+  status                 PrescriptionStatus @default(draft)
+  isSigned               Boolean            @default(false)
+  signedBy               String?            @db.VarChar(36)
+  signedAt               DateTime?
+  signatureMethod        SignatureMethod?
+  allergyOverrideReason  String?            @db.VarChar(500)
+  allergyOverrideBy      String?            @db.VarChar(36)
+  allergyOverrideAt      DateTime?
+  xmlExportedAt          DateTime?
+  xmlFilePath            String?            @db.VarChar(1000)
+  cancelledBy            String?            @db.VarChar(36)
+  cancelledAt            DateTime?
+  cancelReason           String?            @db.VarChar(500)
+  dispensedBy            String?            @db.VarChar(36)
+  dispensedAt            DateTime?
+  version                Int                @default(1)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  medicalRecord       MedicalRecord      @relation(fields: [recordId], references: [id])
+  prescribedByUser    User               @relation("PrescribedByPrescriptions", fields: [prescribedBy], references: [id])
+  signedByUser        User?              @relation("SignedByPrescriptions", fields: [signedBy], references: [id])
+  cancelledByUser     User?              @relation("CancelledByPrescriptions", fields: [cancelledBy], references: [id])
+  dispensedByUser     User?              @relation("DispensedByPrescriptions", fields: [dispensedBy], references: [id])
+  prescriptionItems   PrescriptionItem[]
+
+  @@index([recordId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id                       String   @id @default(uuid()) @db.VarChar(36)
+  prescriptionId           String   @db.VarChar(36)
+  medicineId               String?  @db.VarChar(36)
+  medicineNameSnapshot     String?  @db.VarChar(255)
+  activeIngredientSnapshot String?  @db.VarChar(255)
+  dosageSnapshot           String?  @db.VarChar(100)
+  quantity                 Int
+  days                     Int
+  dosePerUse               String?  @db.VarChar(50)
+  usesPerDay               Int?
+  useTiming                String?  @db.VarChar(100)
+  dosageInstruction        String   @db.VarChar(500)
+  longTermReason           String?  @db.VarChar(500)
+  unitPrice                Decimal  @db.Decimal(15, 2)
+  total                    Decimal  @db.Decimal(15, 2)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine     Medicine?    @relation(fields: [medicineId], references: [id])
+
+  @@index([prescriptionId])
+  @@index([medicineId])
+  @@map("prescription_items")
+}
+
+model VitalSignLog {
+  id                     String    @id @default(uuid()) @db.VarChar(36)
+  recordId               String    @db.VarChar(36)
+  treatmentOrderId       String?   @db.VarChar(36)
+  measuredAt             DateTime  @default(now())
+  pulse                  Int?
+  temperatureC           Decimal?  @db.Decimal(4, 1)
+  bloodPressureSystolic  Int?
+  bloodPressureDiastolic Int?
+  respiratoryRate        Int?
+  spo2                   Int?
+  weightKg               Decimal?  @db.Decimal(5, 1)
+  note                   String?   @db.VarChar(500)
+  recordedBy             String?   @db.VarChar(36)
+  createdAt              DateTime  @default(now())
+
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+
+  @@index([recordId, measuredAt])
+  @@map("vital_sign_logs")
+}
+
+model XnCongThucMau {
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  labTestId     String   @unique @db.VarChar(36)
+  mayXetNghiem  String?  @db.VarChar(100)
+  mauBenhPham   String?  @db.VarChar(100)
+  wbc           Decimal? @db.Decimal(6, 2)
+  neu           Decimal? @db.Decimal(5, 2)
+  lym           Decimal? @db.Decimal(5, 2)
+  mono          Decimal? @db.Decimal(5, 2)
+  eos           Decimal? @db.Decimal(5, 2)
+  baso          Decimal? @db.Decimal(5, 2)
+  rbc           Decimal? @db.Decimal(6, 2)
+  hgb           Decimal? @db.Decimal(5, 1)
+  hct           Decimal? @db.Decimal(5, 3)
+  mcv           Decimal? @db.Decimal(6, 2)
+  mch           Decimal? @db.Decimal(6, 2)
+  mchc          Decimal? @db.Decimal(6, 2)
+  rdw           Decimal? @db.Decimal(5, 2)
+  plt           Decimal? @db.Decimal(6, 1)
+  mpv           Decimal? @db.Decimal(5, 2)
+  pdw           Decimal? @db.Decimal(5, 2)
+  pct           Decimal? @db.Decimal(6, 4)
+  ghiChuChiSo   String?  @db.VarChar(1000)
+  createdAt     DateTime @default(now())
+
+  labTest LabTest @relation(fields: [labTestId], references: [id], onDelete: Cascade)
+
+  @@map("xn_cong_thuc_mau")
+}
+
+model XnHoaSinhMau {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  labTestId       String   @unique @db.VarChar(36)
+  mayXetNghiem    String?  @db.VarChar(100)
+  mauBenhPham     String?  @db.VarChar(100)
+  ure             Decimal? @db.Decimal(5, 2)
+  glucose         Decimal? @db.Decimal(5, 2)
+  creatinin       Decimal? @db.Decimal(6, 2)
+  acidUric        Decimal? @db.Decimal(6, 2)
+  bilirubinTP     Decimal? @db.Decimal(5, 2)
+  bilirubinTT     Decimal? @db.Decimal(5, 2)
+  bilirubinGT     Decimal? @db.Decimal(5, 2)
+  proteinTP       Decimal? @db.Decimal(5, 2)
+  albumin         Decimal? @db.Decimal(5, 2)
+  globulin        Decimal? @db.Decimal(5, 2)
+  tyLeAG          Decimal? @db.Decimal(4, 2)
+  fibrinogen      Decimal? @db.Decimal(5, 2)
+  cholesterol     Decimal? @db.Decimal(5, 2)
+  triglycerid     Decimal? @db.Decimal(5, 2)
+  hdlCho          Decimal? @db.Decimal(5, 2)
+  ldlCho          Decimal? @db.Decimal(5, 2)
+  natri           Decimal? @db.Decimal(6, 2)
+  kali            Decimal? @db.Decimal(5, 2)
+  clorua          Decimal? @db.Decimal(6, 2)
+  calci           Decimal? @db.Decimal(5, 2)
+  calciIon        Decimal? @db.Decimal(5, 2)
+  phospho         Decimal? @db.Decimal(5, 2)
+  sat             Decimal? @db.Decimal(6, 2)
+  magie           Decimal? @db.Decimal(5, 2)
+  ast             Decimal? @db.Decimal(7, 2)
+  alt             Decimal? @db.Decimal(7, 2)
+  amylase         Decimal? @db.Decimal(8, 2)
+  ck              Decimal? @db.Decimal(7, 2)
+  ckMb            Decimal? @db.Decimal(7, 2)
+  ldh             Decimal? @db.Decimal(7, 2)
+  ggt             Decimal? @db.Decimal(7, 2)
+  cholinesterase  Decimal? @db.Decimal(9, 2)
+  phosphataseKiem Decimal? @db.Decimal(8, 2)
+  phDongMach      Decimal? @db.Decimal(4, 3)
+  pco2            Decimal? @db.Decimal(5, 2)
+  po2DongMach     Decimal? @db.Decimal(6, 2)
+  hco3Chuan       Decimal? @db.Decimal(5, 2)
+  kiemDu          Decimal? @db.Decimal(5, 2)
+  ghiChuChiSo     String?  @db.VarChar(1000)
+  createdAt       DateTime @default(now())
+
+  labTest LabTest @relation(fields: [labTestId], references: [id], onDelete: Cascade)
+
+  @@map("xn_hoa_sinh_mau")
+}
+
+model XnNuocTieu {
+  id                  String   @id @default(uuid()) @db.VarChar(36)
+  labTestId           String   @unique @db.VarChar(36)
+  mayXetNghiem        String?  @db.VarChar(100)
+  phuongPhap          String?  @db.VarChar(100)
+  mauSac              String?  @db.VarChar(50)
+  doTrong             String?  @db.VarChar(20)
+  ph                  Decimal? @db.Decimal(3, 1)
+  tyTrong             Decimal? @db.Decimal(5, 3)
+  glucose             String?  @db.VarChar(20)
+  protein             String?  @db.VarChar(20)
+  ketone              String?  @db.VarChar(20)
+  bilirubin           String?  @db.VarChar(20)
+  urobilinogen        String?  @db.VarChar(20)
+  blood               String?  @db.VarChar(20)
+  leukocyte           String?  @db.VarChar(20)
+  nitrite             String?  @db.VarChar(20)
+  hongCauViTruong     String?  @db.VarChar(100)
+  bachCauViTruong     String?  @db.VarChar(100)
+  teBaoBieuMo         String?  @db.VarChar(100)
+  viKhuan             String?  @db.VarChar(100)
+  truNi               String?  @db.VarChar(100)
+  tinhThe             String?  @db.VarChar(100)
+  moTaCanLang         String?  @db.VarChar(500)
+  duongChat           String?  @db.VarChar(20)
+  porphyrin           String?  @db.VarChar(20)
+  proteinBenceJones   String?  @db.VarChar(20)
+  nt24TheTich         Decimal? @db.Decimal(5, 2)
+  nt24Protein         Decimal? @db.Decimal(7, 4)
+  nt24Glucose         Decimal? @db.Decimal(7, 3)
+  nt24Ure             Decimal? @db.Decimal(7, 2)
+  nt24Creatinin       Decimal? @db.Decimal(7, 3)
+  nt24AcidUric        Decimal? @db.Decimal(7, 3)
+  nt24Amylase         Decimal? @db.Decimal(8, 2)
+  nt24Na              Decimal? @db.Decimal(7, 2)
+  nt24K               Decimal? @db.Decimal(7, 2)
+  phanHuyetSacTo      String?  @db.VarChar(20)
+  phanStercobilin     String?  @db.VarChar(20)
+  phanStercobilinogen String?  @db.VarChar(20)
+  phanMauToanPhan     String?  @db.VarChar(20)
+  phanGhiChu          String?  @db.VarChar(500)
+  dntProtein          Decimal? @db.Decimal(6, 3)
+  dntGlucose          Decimal? @db.Decimal(5, 2)
+  dntClorua           Decimal? @db.Decimal(6, 2)
+  dntPandy            String?  @db.VarChar(20)
+  dntGhiChu           String?  @db.VarChar(500)
+  dichViHClTuDo       Decimal? @db.Decimal(5, 2)
+  dichViHClToanPhan   Decimal? @db.Decimal(5, 2)
+  dichViGhiChu        String?  @db.VarChar(500)
+  dcdRivalta          String?  @db.VarChar(20)
+  dcdProtein          Decimal? @db.Decimal(6, 2)
+  dcdGhiChu           String?  @db.VarChar(500)
+  createdAt           DateTime @default(now())
+
+  labTest LabTest @relation(fields: [labTestId], references: [id], onDelete: Cascade)
+
+  @@map("xn_nuoc_tieu")
+}
+
+model XnViSinh {
+  id                 String   @id @default(uuid()) @db.VarChar(36)
+  labTestId          String   @unique @db.VarChar(36)
+  viTriLayMau        String?  @db.VarChar(255)
+  phuongPhapSoi      String?  @db.VarChar(100)
+  trucTiep           String?  @db.Text
+  soiNam             String?  @db.VarChar(20)
+  teBaoNamMen        String?  @db.VarChar(20)
+  baoTu              String?  @db.VarChar(20)
+  moTaHinhThaiNam    String?  @db.VarChar(500)
+  nuoiCayAiKhi       String?  @db.Text
+  nuoiCayKyKhi       String?  @db.Text
+  phanUngHT          String?  @db.Text
+  chungVkKsd         String?  @db.VarChar(500)
+  ksdPenicilline     String?  @db.VarChar(1)
+  ksdAmpicilline     String?  @db.VarChar(1)
+  ksdAmoAClavulanic  String?  @db.VarChar(1)
+  ksdAztreonam       String?  @db.VarChar(1)
+  ksdMezlocilline    String?  @db.VarChar(1)
+  ksdOxacillinePhe   String?  @db.VarChar(1)
+  ksdOxacillineTu    String?  @db.VarChar(1)
+  ksdCephalotine     String?  @db.VarChar(1)
+  ksdCefuroxime      String?  @db.VarChar(1)
+  ksdCeftazidime     String?  @db.VarChar(1)
+  ksdCefotaxime      String?  @db.VarChar(1)
+  ksdCeftriaxone     String?  @db.VarChar(1)
+  ksdCefoperazone    String?  @db.VarChar(1)
+  ksdCefepime        String?  @db.VarChar(1)
+  ksdVancomycin      String?  @db.VarChar(1)
+  ksdClindamycin     String?  @db.VarChar(1)
+  ksdChloramphenicol String?  @db.VarChar(1)
+  ksdErythromycine   String?  @db.VarChar(1)
+  ksdTetracycline    String?  @db.VarChar(1)
+  ksdDoxycycline     String?  @db.VarChar(1)
+  ksdNalidixicAcid   String?  @db.VarChar(1)
+  ksdNofloxacine     String?  @db.VarChar(1)
+  ksdCiprofloxacine  String?  @db.VarChar(1)
+  ksdOfloxacine      String?  @db.VarChar(1)
+  ksdGentamycine     String?  @db.VarChar(1)
+  ksdTobramycine     String?  @db.VarChar(1)
+  ksdAmikacine       String?  @db.VarChar(1)
+  ksdNetromycine     String?  @db.VarChar(1)
+  ksdCoTrimoxazol    String?  @db.VarChar(1)
+  ksdNitroxoline     String?  @db.VarChar(1)
+  ksdKhacTenA        String?  @db.VarChar(100)
+  ksdKhacKqA         String?  @db.VarChar(1)
+  ksdKhacTenB        String?  @db.VarChar(100)
+  ksdKhacKqB         String?  @db.VarChar(1)
+  ksdKhacTenC        String?  @db.VarChar(100)
+  ksdKhacKqC         String?  @db.VarChar(1)
+  createdAt          DateTime @default(now())
+
+  labTest LabTest @relation(fields: [labTestId], references: [id], onDelete: Cascade)
+
+  @@map("xn_vi_sinh")
+}
+
+model XnMoBenhHoc {
+  id                      String   @id @default(uuid()) @db.VarChar(36)
+  labTestId               String   @unique @db.VarChar(36)
+  phuongPhapSinhThiet     String?  @db.VarChar(20)
+  viTriSinhThiet          String?  @db.VarChar(255)
+  soManh                  Int?
+  chanDoanLamSang         String?  @db.VarChar(1000)
+  tomTatLamSang           String?  @db.Text
+  quaTrinhDieuTri         String?  @db.Text
+  nhanXetDaiTheLayMau     String?  @db.Text
+  ketQuaSinhThietLanTruoc String?  @db.Text
+  dungDichCoDinh          String?  @db.VarChar(100)
+  thoiGianCoDinh          DateTime?
+  nguoiPhaBenhPham        String?  @db.VarChar(36)
+  ngayPha                 DateTime? @db.Date
+  phuongPhapNhuomHE       String?  @default("HE") @db.VarChar(100)
+  ngayLamTieuBan          DateTime? @db.Date
+  nguoiLamTieuBan         String?  @db.VarChar(36)
+  daiThe                  String?  @db.Text
+  viThe                   String?  @db.Text
+  nhuomDacBiet            String?  @db.VarChar(500)
+  chanDoanMoHoc           String?  @db.VarChar(1000)
+  phuHopChanDoanLamSang   String?  @db.VarChar(30)
+  icd10MoHoc              String?  @db.VarChar(10)
+  trangThai               String   @default("cho_ket_qua") @db.VarChar(30)
+  bacSiGiaiPhauBenh       String?  @db.VarChar(36)
+  ngayTraKetQua           DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  labTest LabTest @relation(fields: [labTestId], references: [id], onDelete: Cascade)
+  doctor  User?   @relation("PathologyDoctor", fields: [bacSiGiaiPhauBenh], references: [id])
+
+  @@index([bacSiGiaiPhauBenh])
+  @@index([trangThai])
+  @@map("xn_mo_benh_hoc")
+}
+
+model Invoice {
+  id                                 String                      @id @default(uuid()) @db.VarChar(36)
+  recordId                           String                      @db.VarChar(36) @map("record_id")
+  status                             InvoiceStatus               @default(pending)
+  healthInsuranceBenefitLevel        HealthInsuranceBenefitLevel @map("health_insurance_benefit_level")
+  healthInsuranceRouteType           HealthInsuranceRouteType?   @map("health_insurance_route_type")
+  healthInsuranceBenefitRateSnapshot String?                     @db.VarChar(10) @map("health_insurance_benefit_rate_snapshot")
+  healthInsuranceRuleSource          String?                     @db.VarChar(255) @map("health_insurance_rule_source")
+  subtotal                           Decimal                     @db.Decimal(18, 2)
+  healthInsuranceBaseAmount          Decimal                     @default(0) @db.Decimal(18, 2) @map("health_insurance_base_amount")
+  healthInsuranceDiscountAmount      Decimal                     @default(0) @db.Decimal(18, 2) @map("health_insurance_discount_amount")
+  totalAmount                        Decimal                     @db.Decimal(18, 2) @map("total_amount")
+  advanceAppliedAmount               Decimal                     @default(0) @db.Decimal(18, 2) @map("advance_applied_amount")
+  amountDue                          Decimal                     @db.Decimal(18, 2) @map("amount_due")
+  paymentMethod                      PaymentMethod?              @map("payment_method")
+  receiptNumber                      String?                     @unique @db.VarChar(40) @map("receipt_number")
+  paidAt                             DateTime?                   @map("paid_at")
+  momoOrderId                        String?                     @unique @db.VarChar(80) @map("momo_order_id")
+  statementStatus                    String                      @default("draft") @db.VarChar(20) @map("statement_status")
+  statementNumber                    String?                     @db.VarChar(40) @map("statement_number")
+  statementSignedAt                  DateTime?                   @map("statement_signed_at")
+  statementSignedBy                  String?                     @db.VarChar(36) @map("statement_signed_by")
+  cancelReason                       String?                     @db.VarChar(500) @map("cancel_reason")
+  cancelledAt                        DateTime?                   @map("cancelled_at")
+  writeOffReason                     String?                     @db.VarChar(500) @map("write_off_reason")
+  writeOffAt                         DateTime?                   @map("write_off_at")
+  version                            Int                         @default(1)
+  createdAt                          DateTime                    @map("created_at")
+  updatedAt                          DateTime                    @map("updated_at")
+
+  medicalRecord    MedicalRecord                  @relation(fields: [recordId], references: [id])
+  items            InvoiceItem[]
+  claim            HealthInsuranceClaim?
+  paymentIntents   PaymentIntent[]
+  writeOffApproval EmergencyWriteOffApproval?
+
+  @@index([recordId], map: "index_invoice_record")
+  @@index([status], map: "index_invoice_status")
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                                 String                       @id @default(uuid()) @db.VarChar(36)
+  invoiceId                          String                       @db.VarChar(36) @map("invoice_id")
+  description                        String                       @db.VarChar(255)
+  category                           InvoiceItemCategory
+  quantity                           Decimal                      @db.Decimal(12, 2)
+  unitPrice                          Decimal                      @db.Decimal(18, 2) @map("unit_price")
+  amount                             Decimal                      @db.Decimal(18, 2)
+  coveredByHealthInsurance           Boolean                      @default(false) @map("covered_by_health_insurance")
+  healthInsuranceBenefitLevel        HealthInsuranceBenefitLevel? @map("health_insurance_benefit_level")
+  healthInsuranceBenefitRateSnapshot String?                      @db.VarChar(10) @map("health_insurance_benefit_rate_snapshot")
+  healthInsuranceEligibleAmount      Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_eligible_amount")
+  healthInsuranceCeilingAmount       Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_ceiling_amount")
+  healthInsuranceFundAmount          Decimal                      @default(0) @db.Decimal(18, 2) @map("health_insurance_fund_amount")
+  patientCoPayAmount                 Decimal                      @default(0) @db.Decimal(18, 2) @map("patient_co_pay_amount")
+  sortOrder                          Int                          @default(0) @map("sort_order")
+  createdAt                          DateTime                     @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "index_invoice_item_invoice")
+  @@map("invoice_items")
+}
+
+model HealthInsuranceClaim {
+  id         String                     @id @default(uuid()) @db.VarChar(36)
+  invoiceId  String                     @unique @db.VarChar(36) @map("invoice_id")
+  status     HealthInsuranceClaimStatus @default(draft)
+  voidReason String?                    @db.VarChar(100) @map("void_reason")
+  voidedAt   DateTime?                  @map("voided_at")
+  createdAt  DateTime                   @map("created_at")
+  updatedAt  DateTime                   @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("health_insurance_claims")
+}
+
+model PaymentIntent {
+  id             String              @id @default(uuid()) @db.VarChar(36)
+  invoiceId      String              @db.VarChar(36) @map("invoice_id")
+  momoOrderId    String              @unique @db.VarChar(80) @map("momo_order_id")
+  requestId      String              @db.VarChar(120) @map("request_id")
+  amount         Decimal             @db.Decimal(18, 2)
+  status         PaymentIntentStatus @default(pending)
+  payUrl         String?             @db.VarChar(1000) @map("pay_url")
+  expiresAt      DateTime            @map("expires_at")
+  idempotencyKey String              @unique @db.VarChar(36) @map("idempotency_key")
+  transId        String?             @db.VarChar(80) @map("trans_id")
+  paidAt         DateTime?           @map("paid_at")
+  createdAt      DateTime            @map("created_at")
+  updatedAt      DateTime            @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId], map: "index_payment_intent_invoice")
+  @@map("payment_intents")
+}
+
+model PaymentIpnLog {
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  orderId        String?  @db.VarChar(80) @map("order_id")
+  transId        String?  @db.VarChar(80) @map("trans_id")
+  resultCode     Int?     @map("result_code")
+  signatureValid Boolean  @default(false) @map("signature_valid")
+  processing     String   @db.VarChar(40)
+  rawPayload     Json     @map("raw_payload")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([orderId], map: "index_payment_ipn_order")
+  @@index([transId], map: "index_payment_ipn_trans")
+  @@map("payment_ipn_logs")
+}
+
+model IdempotencyRequest {
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  key          String   @unique @db.VarChar(36)
+  route        String   @db.VarChar(120)
+  requestHash  String?  @db.VarChar(64) @map("request_hash")
+  statusCode   Int      @map("status_code")
+  responseJson Json     @map("response_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_requests")
+}
+
+model PaymentAdvance {
+  id            String             @id @default(uuid()) @db.VarChar(36)
+  recordId      String             @db.VarChar(36) @map("record_id")
+  type          PaymentAdvanceType
+  amount        Decimal            @db.Decimal(18, 2)
+  method        PaymentMethod
+  reason        String?            @db.VarChar(500)
+  receiptNumber String?            @unique @db.VarChar(40) @map("receipt_number")
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
+
+  @@index([recordId], map: "index_payment_advance_record")
+  @@map("payment_advances")
+}
+
+model EmergencyWriteOffApproval {
+  id                     String   @id @default(uuid()) @db.VarChar(36)
+  invoiceId              String   @unique @db.VarChar(36) @map("invoice_id")
+  recordId               String   @db.VarChar(36) @map("record_id")
+  approvedInvoiceVersion Int      @map("approved_invoice_version")
+  approvedByUserId       String   @db.VarChar(36) @map("approved_by_user_id")
+  writeOffReason         String   @db.VarChar(500) @map("write_off_reason")
+  approvedAt             DateTime @map("approved_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_write_off_approvals")
+}

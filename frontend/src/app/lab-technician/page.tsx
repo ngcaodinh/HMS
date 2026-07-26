@@ -1,4 +1,4 @@
-import { LabDashboardPage } from '@/modules/lab';
+import { LabWorkspacePage } from '@/modules/lab';
 
 export const metadata = {
   title: 'Lab Technician | HMS',
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function LabTechnicianPage() {
-  return <LabDashboardPage />;
+  return <LabWorkspacePage />;
 }
