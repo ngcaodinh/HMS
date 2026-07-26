@@ -12,7 +12,13 @@ interface HistoryListProps {
 }
 
 export function HistoryList({ isLoading, keyword, list, onChangeKeyword, onSelect, selectedId }: HistoryListProps) {
-  const filtered = list.filter((item) => item.patient.fullName.toLowerCase().includes(keyword.trim().toLowerCase()));
+  const filtered = list.filter((item) => {
+    const term = keyword.trim().toLowerCase();
+    if (!term) return true;
+    return (
+      item.patient.fullName.toLowerCase().includes(term) || item.patient.patientCode.toLowerCase().includes(term)
+    );
+  });
 
   return (
     <div className={styles.card}>

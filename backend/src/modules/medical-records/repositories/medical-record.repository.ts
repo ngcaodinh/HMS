@@ -93,11 +93,17 @@ export async function createLabTestOrders(
   orderedBy: string,
   items: OrderLabTestsInput['items'],
   resolvedTypes: Map<string, { testName: string; fee: string }>,
+  currentStatus: string,
 ) {
   return prisma.$transaction(async (tx) => {
     const updated = await tx.medicalRecord.updateMany({
       where: { id: recordId, version: expectedVersion, deletedAt: null },
-      data: { status: 'waiting_results', version: { increment: 1 } },
+      // Chỉ định thêm xét nghiệm trên hồ sơ đã chẩn đoán không được đẩy hồ sơ quay lại hàng đợi
+      // "waiting_results" — chỉ chuyển trạng thái này khi hồ sơ chưa được chẩn đoán.
+      data: {
+        ...(currentStatus === 'diagnosed' ? {} : { status: 'waiting_results' as const }),
+        version: { increment: 1 },
+      },
     });
     if (updated.count !== 1) return null;
 

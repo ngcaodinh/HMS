@@ -1,3 +1,4 @@
+import type { Principal } from '../../auth/types/auth.types';
 import { AppError } from '../../../core/errors/app-error';
 import { recordAuditLog } from '../../audit/services/audit.service';
 import { findIcd10ByCode } from '../constants/icd10-catalog';
@@ -32,16 +33,20 @@ async function loadAssignedOpenRecord(recordId: string, doctorId: string) {
 /**
  * @route POST /api/v1/medical-records/:recordId/vital-signs
  * @desc Log one vitals measurement (canonical write, Gate G3) and refresh the latest snapshot.
- * @access doctor, nurse
- * @throws {AppError} 400 RECORD_ALREADY_CLOSED, 404 MEDICAL_RECORD_NOT_FOUND
+ * @access doctor (chỉ hồ sơ được giao), nurse (mọi hồ sơ đang mở)
+ * @throws {AppError} 400 RECORD_ALREADY_CLOSED, 404 MEDICAL_RECORD_NOT_FOUND, 403 FORBIDDEN_ACCESS
  */
-export async function recordVitalSigns(recordId: string, recordedBy: string, input: VitalSignsInput) {
+export async function recordVitalSigns(recordId: string, principal: Principal, input: VitalSignsInput) {
   const record = await findMedicalRecordById(recordId);
   if (!record) throw AppError.notFound('MEDICAL_RECORD_NOT_FOUND', 'Không tìm thấy hồ sơ khám.');
   if (record.status === 'closed') {
     throw AppError.badRequest('RECORD_ALREADY_CLOSED', 'Hồ sơ khám đã đóng.');
   }
+  if (principal.roleCodes.includes('doctor') && record.doctorId !== principal.userId) {
+    throw AppError.forbidden('FORBIDDEN_ACCESS', 'Bạn không có quyền thao tác trên hồ sơ này.');
+  }
 
+  const recordedBy = principal.userId;
   const log = await createVitalSignLog(recordId, recordedBy, input);
   await snapshotVitalSigns(
     recordId,
@@ -100,7 +105,7 @@ export async function updateClinicalAssessment(
  * @throws {AppError} 400 LAB_TEST_TYPE_INACTIVE, 409 VERSION_CONFLICT, 400 RECORD_ALREADY_CLOSED
  */
 export async function orderLabTests(recordId: string, doctorId: string, input: OrderLabTestsInput) {
-  await loadAssignedOpenRecord(recordId, doctorId);
+  const record = await loadAssignedOpenRecord(recordId, doctorId);
 
   const resolvedTypes = new Map<string, { testName: string; fee: string }>();
   for (const item of input.items) {
@@ -117,6 +122,7 @@ export async function orderLabTests(recordId: string, doctorId: string, input: O
     doctorId,
     input.items,
     resolvedTypes,
+    record.status,
   );
   if (!result) {
     throw AppError.conflict('VERSION_CONFLICT', 'Hồ sơ đã bị thay đổi bởi thao tác khác.');

@@ -99,7 +99,7 @@ export function DoctorWorkspacePage() {
   }
 
   return (
-    <main className={styles.page}>
+    <main className={cn(styles.page, 'print:hidden')}>
       <Sidebar
         doctorName={principal?.fullName ?? 'Bác sĩ'}
         onLogout={logout}

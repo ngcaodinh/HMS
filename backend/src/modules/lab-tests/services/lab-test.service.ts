@@ -143,14 +143,26 @@ function shapeLabTestDetail(
   };
 }
 
+/** Bác sĩ phải là người phụ trách hồ sơ; KTV xét nghiệm phải thuộc khoa chỉ định. */
+function assertLabTestAccess(labTest: LabTestWithDetails, principal: Principal) {
+  if (principal.roleCodes.includes('doctor') && labTest.medicalRecord.doctorId === principal.userId) {
+    return;
+  }
+  if (principal.roleCodes.includes('lab_tech') && labTest.labTestType.departmentId === principal.departmentId) {
+    return;
+  }
+  throw AppError.forbidden('FORBIDDEN_ACCESS', 'Bạn không có quyền thao tác trên phiếu xét nghiệm này.');
+}
+
 /**
  * @route GET /api/v1/lab-tests/:labTestId
- * @access doctor, lab_tech
- * @throws {AppError} 404 LAB_TEST_NOT_FOUND
+ * @access doctor (chủ hồ sơ), lab_tech (cùng khoa)
+ * @throws {AppError} 404 LAB_TEST_NOT_FOUND, 403 FORBIDDEN_ACCESS
  */
-export async function getLabResultDetail(labTestId: string) {
+export async function getLabResultDetail(labTestId: string, principal: Principal) {
   const labTest = await findLabTestById(labTestId);
   if (!labTest) throw AppError.notFound('LAB_TEST_NOT_FOUND', 'Không tìm thấy phiếu xét nghiệm.');
+  assertLabTestAccess(labTest, principal);
   const [attachments, referenceRanges] = await Promise.all([
     findAttachmentsForLabTest(labTestId),
     findReferenceRangesByType(labTest.labTestTypeId),
@@ -159,9 +171,10 @@ export async function getLabResultDetail(labTestId: string) {
 }
 
 /** Accepts both `ordered` and `in_progress` — only a already-`resulted` test is rejected. */
-async function loadOrderedLabTest(labTestId: string): Promise<LabTestWithDetails> {
+async function loadOrderedLabTest(labTestId: string, principal: Principal): Promise<LabTestWithDetails> {
   const labTest = await findLabTestById(labTestId);
   if (!labTest) throw AppError.notFound('LAB_TEST_NOT_FOUND', 'Không tìm thấy phiếu xét nghiệm.');
+  assertLabTestAccess(labTest, principal);
   if (labTest.status === 'resulted') {
     throw AppError.badRequest('TEST_ALREADY_RESULTED', 'Phiếu xét nghiệm đã có kết quả trước đó.');
   }
@@ -176,7 +189,7 @@ async function loadOrderedLabTest(labTestId: string): Promise<LabTestWithDetails
  * @throws {AppError} 404 LAB_TEST_NOT_FOUND, 400 TEST_ALREADY_RESULTED
  */
 export async function receiveSpecimen(labTestId: string, principal: Principal) {
-  const labTest = await loadOrderedLabTest(labTestId);
+  const labTest = await loadOrderedLabTest(labTestId, principal);
   if (labTest.status === 'in_progress') {
     return { labTestId, status: labTest.status, specimenReceivedAt: labTest.specimenReceivedAt };
   }
@@ -212,7 +225,7 @@ async function assertAttachmentBelongsToLabTest(attachmentId: string, labTestId:
  * 409 ATTACHMENT_OWNER_MISMATCH, 409 VERSION_CONFLICT
  */
 export async function recordLabResult(labTestId: string, input: RecordLabResultInput, principal: Principal) {
-  const labTest = await loadOrderedLabTest(labTestId);
+  const labTest = await loadOrderedLabTest(labTestId, principal);
   if (labTest.labTestType.resultTableKey !== input.resultTableKey) {
     throw AppError.badRequest('LAB_RESULT_TYPE_MISMATCH', 'Loại kết quả không khớp với danh mục xét nghiệm.');
   }
@@ -262,7 +275,7 @@ export async function savePathologyWorkupDraft(
   input: SavePathologyWorkupDraftInput,
   principal: Principal,
 ) {
-  const labTest = await loadOrderedLabTest(labTestId);
+  const labTest = await loadOrderedLabTest(labTestId, principal);
   if (labTest.labTestType.resultTableKey !== 'xn_mo_benh_hoc') {
     throw AppError.badRequest('LAB_RESULT_TYPE_MISMATCH', 'Loại kết quả không khớp với danh mục xét nghiệm.');
   }

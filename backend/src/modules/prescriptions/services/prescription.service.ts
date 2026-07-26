@@ -12,7 +12,6 @@ import {
   findActiveMedicinesByIds,
   findDispensablePrescriptions,
   findLatestPrescriptionForRecord,
-  findNextRoundNumber,
   findPrescriptionById,
   findRecordForPrescription,
   markXmlExportedTx,
@@ -147,11 +146,9 @@ export async function createPrescriptionDraft(recordId: string, doctorId: string
   }
 
   const resolvedItems = input.items.length > 0 ? await resolveAndValidateItems(input, record.patient.allergies) : [];
-  const roundNumber = await findNextRoundNumber(recordId);
   const { prescription, items } = await createDraftPrescription(
     recordId,
     doctorId,
-    roundNumber,
     input.prescriptionType ?? 'C',
     resolvedItems,
     input.allergyOverrideReason,
@@ -194,7 +191,9 @@ export async function createPrescriptionDraft(recordId: string, doctorId: string
  */
 export async function getLatestPrescriptionForRecord(recordId: string, doctorId: string) {
   await loadAssignedOutpatientRecord(recordId, doctorId).catch((error) => {
-    if (error instanceof AppError && error.code === 'RECORD_NOT_OUTPATIENT') return;
+    if (error instanceof AppError && (error.code === 'RECORD_NOT_OUTPATIENT' || error.code === 'RECORD_ALREADY_CLOSED')) {
+      return;
+    }
     throw error;
   });
 
@@ -208,6 +207,8 @@ export async function getLatestPrescriptionForRecord(recordId: string, doctorId:
     isSigned: prescription.isSigned,
     signedAt: prescription.signedAt,
     xmlExportedAt: prescription.xmlExportedAt,
+    dispensedAt: prescription.dispensedAt,
+    dispensedBy: prescription.dispensedBy,
     allergyOverrideReason: prescription.allergyOverrideReason,
     items: prescription.prescriptionItems.map((item) => ({
       prescriptionItemId: item.id,
@@ -273,13 +274,16 @@ export async function signPrescription(prescriptionId: string, doctorId: string,
 
 /**
  * @route POST /api/v1/prescriptions/:prescriptionId/cancel
- * @access doctor
- * @throws {AppError} 409 INVALID_PRESCRIPTION_TRANSITION, 409 VERSION_CONFLICT
+ * @access doctor, pharmacist
+ * @throws {AppError} 409 INVALID_PRESCRIPTION_TRANSITION, 400 PRESCRIPTION_ALREADY_DISPENSED, 409 VERSION_CONFLICT
  */
 export async function cancelPrescription(prescriptionId: string, principal: Principal, input: CancelPrescriptionInput) {
   const prescription = await loadPrescriptionForStaffAccess(prescriptionId, principal);
   if (prescription.status === 'cancelled') {
     throw AppError.conflict('INVALID_PRESCRIPTION_TRANSITION', 'Đơn thuốc đã bị hủy trước đó.');
+  }
+  if (prescription.dispensedAt) {
+    throw AppError.badRequest('PRESCRIPTION_ALREADY_DISPENSED', 'Đơn thuốc đã được cấp phát, không thể hủy.');
   }
 
   const updated = await cancelPrescriptionTx(prescriptionId, input.expectedVersion, principal.userId, input.cancelReason);

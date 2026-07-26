@@ -40,7 +40,7 @@ export function HistoryDetail({ labTestId }: { labTestId: string | null }) {
           </p>
         </div>
         {detail.status === 'resulted' ? (
-          <span className={cn(styles.chip, styles.chipDanger)}>Đã ký</span>
+          <span className={cn(styles.chip, styles.chipDone)}>Đã ký</span>
         ) : (
           <span className={cn(styles.chip, styles.chipPending)}>Chờ kết quả</span>
         )}

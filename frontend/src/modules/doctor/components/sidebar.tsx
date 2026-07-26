@@ -62,7 +62,9 @@ export function Sidebar({
     { title: 'Đã khám xong', items: notSelected.filter((item) => item.status === 'closed') },
   ];
 
-  const doneCount = worklist.filter((item) => item.status === 'closed').length;
+  // Chưa có luồng nào trên nhánh này chuyển hồ sơ sang 'closed', nên đếm theo trạng thái đó sẽ
+  // luôn ra 0 — 'diagnosed' là tín hiệu "đã xong" gần đúng nhất hiện có.
+  const doneCount = worklist.filter((item) => item.status === 'diagnosed').length;
   const waitingCount = worklist.filter((item) => item.status === 'open' || item.status === 'waiting_results').length;
   const stats: Array<[string, string, string]> = [
     [String(doneCount), 'Đã khám', 'text-[#6ee7b7]'],
@@ -163,7 +165,7 @@ function QueueItem({
       <span className="min-w-0 flex-1">
         <span className={styles.queueName}>{item.patient.fullName}</span>
         <span className={styles.queueMeta}>
-          {calculateAge(item.patient.dateOfBirth)} tuổi · {genderLabel(item.patient.gender)}
+          {calculateAge(item.patient.dateOfBirth) ?? '—'} tuổi · {genderLabel(item.patient.gender)}
         </span>
       </span>
       {badge.blink && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[#fbbf24]" />}

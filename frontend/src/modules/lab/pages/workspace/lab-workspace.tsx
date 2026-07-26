@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useLogout } from '@/shared/hooks/use-logout';
 import { useRequireAuth } from '@/shared/hooks/use-require-auth';
@@ -29,9 +29,19 @@ export function LabWorkspacePage() {
   const [selectedLabTestId, setSelectedLabTestId] = useState<string | null>(null);
   const [keyword, setKeyword] = useState('');
   const [filterTab, setFilterTab] = useState<QueueFilterTab>('all');
+  const [pendingPrintLabTestId, setPendingPrintLabTestId] = useState<string | null>(null);
 
   const { data: queueData, isLoading: isQueueLoading } = usePendingLabTests({});
   const { data: pendingCountData } = usePendingLabTests({ status: 'ordered' });
+
+  // Chờ màn hình nhập kết quả render đúng phiếu xét nghiệm được yêu cầu trước khi in, vì chuyển
+  // màn hình và in là hai lần cập nhật state riêng biệt.
+  useEffect(() => {
+    if (pendingPrintLabTestId && screen === 'result-entry' && selectedLabTestId === pendingPrintLabTestId) {
+      window.print();
+      setPendingPrintLabTestId(null);
+    }
+  }, [pendingPrintLabTestId, screen, selectedLabTestId]);
 
   if (isAuthLoading || isAuthError) {
     return (
@@ -75,7 +85,11 @@ export function LabWorkspacePage() {
               list={queueData?.data ?? []}
               onChangeFilterTab={setFilterTab}
               onChangeKeyword={setKeyword}
-              onPrint={() => window.print()}
+              onPrint={(labTestId) => {
+                setSelectedLabTestId(labTestId);
+                setScreen('result-entry');
+                setPendingPrintLabTestId(labTestId);
+              }}
               onSelect={(labTestId) => {
                 setSelectedLabTestId(labTestId);
                 setScreen('result-entry');

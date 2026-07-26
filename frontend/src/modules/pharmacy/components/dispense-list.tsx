@@ -96,7 +96,7 @@ export function DispenseList({
                     <p className="font-semibold">{prescription.patient.fullName}</p>
                     <p className="text-xs text-[#707882]">
                       {prescription.patient.patientCode} · {genderLabel(prescription.patient.gender)}{' '}
-                      {calculateAge(prescription.patient.dateOfBirth)}t
+                      {calculateAge(prescription.patient.dateOfBirth) ?? '—'}t
                       {prescription.patient.healthInsuranceCode ? ' · Có BHYT' : ' · Không BHYT'}
                     </p>
                   </td>

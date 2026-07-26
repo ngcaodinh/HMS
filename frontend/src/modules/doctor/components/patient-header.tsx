@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { MedicalRecordDetail } from '../types/medical-record.types';
 import { AssetIcon, calculateAge, cn, formatDateVN, genderLabel } from './shared';
@@ -74,7 +75,7 @@ export function PatientSummary({
   const age = calculateAge(record.patient.dateOfBirth);
   const metrics = [
     ['Ngày sinh', formatDateVN(record.patient.dateOfBirth)],
-    ['Tuổi', `${age} tuổi`],
+    ['Tuổi', age !== null ? `${age} tuổi` : '—'],
     ['Giới tính', genderLabel(record.patient.gender)],
     ['Mã BN', record.patient.patientCode],
     ['Lý do khám', record.chiefComplaint ?? 'Chưa ghi nhận'],
@@ -141,7 +142,7 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
   const admittedAt = new Date(record.createdAt);
   const chiefComplaintLower = record.chiefComplaint ? record.chiefComplaint.toLowerCase() : 'lý do chưa ghi nhận';
   const summaryParts: string[] = [
-    `Bệnh nhân ${genderLabel(record.patient.gender).toLowerCase()}, ${calculateAge(record.patient.dateOfBirth)} tuổi, vào viện vì ${chiefComplaintLower}.`,
+    `Bệnh nhân ${genderLabel(record.patient.gender).toLowerCase()}, ${calculateAge(record.patient.dateOfBirth) ?? '—'} tuổi, vào viện vì ${chiefComplaintLower}.`,
   ];
   if (record.patient.allergies) summaryParts.push(`Tiền sử dị ứng: ${record.patient.allergies}.`);
   summaryParts.push(
@@ -151,7 +152,9 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
   );
   const summary = summaryParts.join(' ');
 
-  return (
+  // Portal ra ngoài <main> để khi in chỉ hiện nội dung bệnh án — <main> đã bị ẩn qua print:hidden,
+  // nếu modal vẫn nằm lồng trong đó thì cũng bị ẩn theo, không in được.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#3a3f47]/70 p-4 print:static print:bg-transparent print:p-0 sm:p-8">
       <div className="flex max-h-[92vh] w-full max-w-[900px] flex-col overflow-hidden rounded-[4px] bg-white shadow-2xl print:max-h-none print:overflow-visible print:rounded-none print:shadow-none">
         <div className="flex shrink-0 items-center justify-between bg-[#171c1f] px-5 py-3 print:hidden">
@@ -200,7 +203,7 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
             <BaRow label="1. Họ và tên (Chữ in hoa)" value={record.patient.fullName.toUpperCase()} />
             <div className="flex flex-wrap gap-x-6">
               <BaRow label="2. Ngày sinh" value={formatDateVN(record.patient.dateOfBirth)} />
-              <BaRow label="3. Tuổi" value={String(calculateAge(record.patient.dateOfBirth))} />
+              <BaRow label="3. Tuổi" value={calculateAge(record.patient.dateOfBirth)?.toString() ?? '—'} />
               <BaRow label="4. Giới tính" value={genderLabel(record.patient.gender)} />
             </div>
             <BaRow label="7. Địa chỉ" value={record.patient.address ?? 'Chưa ghi nhận'} />
@@ -284,7 +287,8 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

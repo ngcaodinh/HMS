@@ -225,7 +225,7 @@ export function ReferenceRangeConfig() {
         <div className={styles.cardHeader}>
           <div>
             <p className={styles.cardTitle}>Bảng trị số tham chiếu bình thường</p>
-            <p className="mt-1 text-xs text-[#707882]">Quản lý ngưỡng so sánh kết quả xét nghiệm — chỉ Trưởng khoa mới được cập nhật.</p>
+            <p className="mt-1 text-xs text-[#707882]">Quản lý ngưỡng so sánh kết quả xét nghiệm — chỉ kỹ thuật viên xét nghiệm và quản trị viên mới được cập nhật.</p>
           </div>
           <div className="flex items-center gap-2">
             <input

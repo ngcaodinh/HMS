@@ -32,6 +32,8 @@ export interface Prescription {
   isSigned: boolean;
   signedAt: string | null;
   xmlExportedAt: string | null;
+  dispensedAt: string | null;
+  dispensedBy: string | null;
   allergyOverrideReason: string | null;
   items: PrescriptionItem[];
   version: number;

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
+import { AppError } from '../../../core/errors/app-error';
 import { prisma } from '../../../core/db/prisma-client';
 
 export function findRecordForPrescription(recordId: string) {
@@ -23,12 +24,6 @@ export function findLatestPrescriptionForRecord(recordId: string) {
   });
 }
 
-export function findNextRoundNumber(recordId: string) {
-  return prisma.prescription
-    .findFirst({ where: { recordId }, orderBy: { roundNumber: 'desc' } })
-    .then((last) => (last?.roundNumber ?? 0) + 1);
-}
-
 interface ItemToCreate {
   medicineId: string;
   medicineNameSnapshot: string;
@@ -48,40 +43,53 @@ interface ItemToCreate {
 export async function createDraftPrescription(
   recordId: string,
   prescribedBy: string,
-  roundNumber: number,
   prescriptionType: 'C' | 'N' | 'H',
   items: ItemToCreate[],
   allergyOverrideReason: string | undefined,
 ) {
-  return prisma.$transaction(async (tx) => {
-    const existingCount = await tx.prescription.count();
-    const prescriptionCode = `RX-${new Date().getFullYear()}-${String(existingCount + 1).padStart(4, '0')}`;
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const [existingCount, lastRound] = await Promise.all([
+        tx.prescription.count(),
+        tx.prescription.findFirst({ where: { recordId }, orderBy: { roundNumber: 'desc' } }),
+      ]);
+      const prescriptionCode = `RX-${new Date().getFullYear()}-${String(existingCount + 1).padStart(4, '0')}`;
+      const roundNumber = (lastRound?.roundNumber ?? 0) + 1;
 
-    const prescription = await tx.prescription.create({
-      data: {
-        id: randomUUID(),
-        recordId,
-        prescriptionCode,
-        prescribedBy,
-        roundNumber,
-        prescriptionType,
-        status: 'draft',
-        allergyOverrideReason,
-        allergyOverrideBy: allergyOverrideReason ? prescribedBy : undefined,
-        allergyOverrideAt: allergyOverrideReason ? new Date() : undefined,
-      },
-    });
-
-    const createdItems = [];
-    for (const item of items) {
-      const created = await tx.prescriptionItem.create({
-        data: { id: randomUUID(), prescriptionId: prescription.id, ...item },
+      const prescription = await tx.prescription.create({
+        data: {
+          id: randomUUID(),
+          recordId,
+          prescriptionCode,
+          prescribedBy,
+          roundNumber,
+          prescriptionType,
+          status: 'draft',
+          allergyOverrideReason,
+          allergyOverrideBy: allergyOverrideReason ? prescribedBy : undefined,
+          allergyOverrideAt: allergyOverrideReason ? new Date() : undefined,
+        },
       });
-      createdItems.push(created);
-    }
 
-    return { prescription, items: createdItems };
-  });
+      const createdItems = [];
+      for (const item of items) {
+        const created = await tx.prescriptionItem.create({
+          data: { id: randomUUID(), prescriptionId: prescription.id, ...item },
+        });
+        createdItems.push(created);
+      }
+
+      return { prescription, items: createdItems };
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw AppError.conflict(
+        'PRESCRIPTION_ROUND_CONFLICT',
+        'Đã có đơn thuốc khác được tạo cho hồ sơ này cùng lúc, vui lòng thử lại.',
+      );
+    }
+    throw error;
+  }
 }
 
 export function findPrescriptionById(prescriptionId: string) {
@@ -127,7 +135,7 @@ export async function cancelPrescriptionTx(
   cancelReason: string,
 ) {
   const result = await prisma.prescription.updateMany({
-    where: { id: prescriptionId, version: expectedVersion, status: { not: 'cancelled' } },
+    where: { id: prescriptionId, version: expectedVersion, status: { not: 'cancelled' }, dispensedAt: null },
     data: { status: 'cancelled', cancelledBy, cancelledAt: new Date(), cancelReason, version: { increment: 1 } },
   });
   if (result.count !== 1) return null;

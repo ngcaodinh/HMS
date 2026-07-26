@@ -24,7 +24,7 @@ export interface DispensablePrescription {
     patientId: string;
     patientCode: string;
     fullName: string;
-    dateOfBirth: string;
+    dateOfBirth: string | null;
     gender: 'male' | 'female';
     allergies: string | null;
     healthInsuranceCode: string | null;

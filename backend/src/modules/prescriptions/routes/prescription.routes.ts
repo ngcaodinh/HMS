@@ -75,14 +75,14 @@ prescriptionRouter.post(
 
 prescriptionRouter.post(
   '/:prescriptionId/xml-exports',
-  authorizeAndAudit('prescription.export'),
+  authorizeAndAudit('prescription.export.write'),
   validateRequest({ params: prescriptionIdParamsSchema, body: exportPrescriptionXmlSchema }),
   exportPrescriptionXmlController,
 );
 
 prescriptionRouter.get(
   '/:prescriptionId/xml-file',
-  authorizeAndAudit('prescription.export'),
+  authorizeAndAudit('prescription.export.read'),
   validateRequest({ params: prescriptionIdParamsSchema }),
   downloadPrescriptionXmlController,
 );

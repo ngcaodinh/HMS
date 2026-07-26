@@ -76,7 +76,7 @@ export async function recordVitalSignsController(req: Request, res: Response, ne
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
-    const result = await recordVitalSigns(recordId, principal.userId, req.body);
+    const result = await recordVitalSigns(recordId, principal, req.body);
     sendSuccess(res, result, { status: 201 });
   } catch (error) {
     next(error);

@@ -10,7 +10,8 @@ export function AssetIcon({ className = 'h-4 w-4', name }: { className?: string;
   return <Image alt="" className={className} height={24} src={`${assetPath}/${name}`} unoptimized width={24} />;
 }
 
-export function calculateAge(dateOfBirth: string): number {
+export function calculateAge(dateOfBirth: string | null): number | null {
+  if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);
   const today = new Date();
   let age = today.getFullYear() - dob.getFullYear();
@@ -21,7 +22,8 @@ export function calculateAge(dateOfBirth: string): number {
   return age;
 }
 
-export function formatDateVN(dateOfBirth: string): string {
+export function formatDateVN(dateOfBirth: string | null): string {
+  if (!dateOfBirth) return '—';
   return new Date(dateOfBirth).toLocaleDateString('vi-VN');
 }
 

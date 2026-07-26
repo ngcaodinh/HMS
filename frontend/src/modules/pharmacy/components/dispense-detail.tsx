@@ -35,7 +35,7 @@ export function DispenseDetail({ isDispensing, isRejecting, onDispense, onReject
         <div>
           <p className={styles.metricLabel}>Bệnh nhân</p>
           <p className={styles.metricValue}>
-            {prescription.patient.fullName} ({calculateAge(prescription.patient.dateOfBirth)} tuổi ·{' '}
+            {prescription.patient.fullName} ({calculateAge(prescription.patient.dateOfBirth) ?? '—'} tuổi ·{' '}
             {genderLabel(prescription.patient.gender)})
           </p>
         </div>

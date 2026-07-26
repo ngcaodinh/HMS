@@ -51,9 +51,9 @@ export async function listPendingLabTestsController(req: Request, res: Response,
  */
 export async function getLabResultDetailController(req: Request, res: Response, next: NextFunction) {
   try {
-    requirePrincipal(req);
+    const principal = requirePrincipal(req);
     const { labTestId } = req.params as { labTestId: string };
-    const result = await getLabResultDetail(labTestId);
+    const result = await getLabResultDetail(labTestId, principal);
     sendSuccess(res, result);
   } catch (error) {
     next(error);

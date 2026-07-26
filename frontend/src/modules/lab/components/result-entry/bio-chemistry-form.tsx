@@ -19,8 +19,8 @@ const SECTIONS: Array<{ fields: Array<{ key: keyof BioChemistryResult; label: st
     fields: [
       { key: 'ure', label: 'Urê', unit: 'mmol/L' },
       { key: 'glucose', label: 'Glucose', unit: 'mmol/L' },
-      { key: 'creatinin', label: 'Creatinin', unit: 'mmol/L' },
-      { key: 'acidUric', label: 'Acid Uric', unit: 'mmol/L' },
+      { key: 'creatinin', label: 'Creatinin', unit: 'µmol/L' },
+      { key: 'acidUric', label: 'Acid Uric', unit: 'µmol/L' },
     ],
   },
   {

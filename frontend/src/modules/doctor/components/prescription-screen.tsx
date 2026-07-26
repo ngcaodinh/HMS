@@ -449,7 +449,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
               </button>
             </>
           )}
-          {isSigned && (
+          {isSigned && !latest?.dispensedAt && (
             <button
               className="rounded-md border border-[#ba1a1a] px-4 py-2 text-xs font-bold text-[#ba1a1a]"
               disabled={isBusy}
@@ -464,9 +464,11 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
         {isSigned && latest && (
           <div className={cn(styles.alertInfo, 'mt-4 flex flex-wrap items-center justify-between gap-3')}>
             <span>
-              {latest.xmlExportedAt
-                ? `Đã xuất XML lúc ${new Date(latest.xmlExportedAt).toLocaleString('vi-VN')}.`
-                : 'Đơn đã ký — bấm để kết xuất XML đơn thuốc điện tử.'}
+              {latest.dispensedAt
+                ? `Đơn đã được cấp phát lúc ${new Date(latest.dispensedAt).toLocaleString('vi-VN')} — không thể hủy.`
+                : latest.xmlExportedAt
+                  ? `Đã xuất XML lúc ${new Date(latest.xmlExportedAt).toLocaleString('vi-VN')}.`
+                  : 'Đơn đã ký — bấm để kết xuất XML đơn thuốc điện tử.'}
             </span>
             <button className={styles.mutedButton} disabled={isBusy} onClick={handleXml} type="button">
               Tải XML đơn thuốc

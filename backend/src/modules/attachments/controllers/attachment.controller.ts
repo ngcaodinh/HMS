@@ -33,9 +33,12 @@ export async function uploadAttachmentController(req: Request, res: Response, ne
  */
 export async function downloadAttachmentFileController(req: Request, res: Response, next: NextFunction) {
   try {
-    requirePrincipal(req);
+    const principal = requirePrincipal(req);
     const { attachmentId } = req.params as { attachmentId: string };
-    const { content, mimeType, originalName, checksumSha256 } = await downloadAttachmentFile(attachmentId);
+    const { content, mimeType, originalName, checksumSha256 } = await downloadAttachmentFile(
+      attachmentId,
+      principal,
+    );
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `attachment; filename="${originalName}"`);
     res.setHeader('X-Content-SHA256', checksumSha256);

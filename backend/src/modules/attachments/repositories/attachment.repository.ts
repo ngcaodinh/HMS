@@ -19,6 +19,24 @@ export async function verifyOwnerExists(ownerType: AttachmentOwnerType, ownerId:
   }
 }
 
+export function findMedicalRecordOwnerScope(medicalRecordId: string) {
+  return prisma.medicalRecord.findUnique({ where: { id: medicalRecordId }, select: { doctorId: true } });
+}
+
+export function findLabTestOwnerScope(labTestId: string) {
+  return prisma.labTest.findUnique({
+    where: { id: labTestId },
+    select: { medicalRecord: { select: { doctorId: true } }, labTestType: { select: { departmentId: true } } },
+  });
+}
+
+export function findPrescriptionOwnerScope(prescriptionId: string) {
+  return prisma.prescription.findUnique({
+    where: { id: prescriptionId },
+    select: { medicalRecord: { select: { doctorId: true } } },
+  });
+}
+
 export function createAttachment(data: {
   id: string;
   ownerType: AttachmentOwnerType;

@@ -128,7 +128,6 @@ export function QueueList({
           <thead>
             <tr>
               <th className={styles.th}>STT / Mã phiếu</th>
-              <th className={styles.th}>Barcode</th>
               <th className={styles.th}>Bệnh nhân</th>
               <th className={styles.th}>Loại xét nghiệm</th>
               <th className={styles.th}>Nguồn chỉ định</th>
@@ -140,30 +139,26 @@ export function QueueList({
           <tbody className="divide-y divide-[#e5e7eb]">
             {isLoading && (
               <tr>
-                <td className={styles.td} colSpan={8}>
+                <td className={styles.td} colSpan={7}>
                   Đang tải hàng đợi...
                 </td>
               </tr>
             )}
             {!isLoading && filtered.length === 0 && (
               <tr>
-                <td className={cn(styles.td, 'text-center text-[#707882]')} colSpan={8}>
+                <td className={cn(styles.td, 'text-center text-[#707882]')} colSpan={7}>
                   Không có phiếu xét nghiệm nào phù hợp.
                 </td>
               </tr>
             )}
             {!isLoading &&
-              filtered.map((item, index) => (
+              filtered.map((item) => (
                 <tr className={cn(item.isUrgent && 'bg-[#fff5f4]')} key={item.labTestId}>
                   <td className={styles.td}>
                     <p className="font-bold text-[#006096]">
                       #{item.reportCode ?? item.labTestId.slice(0, 8).toUpperCase()}
                     </p>
                     {item.isUrgent && <span className={cn(styles.chip, styles.chipDanger, 'mt-1')}>Cấp cứu</span>}
-                  </td>
-                  {/* Chưa có cột barcode thật trong schema — dùng labTestId làm mã hiển thị tạm thời. */}
-                  <td className={styles.td}>
-                    <span className="font-mono text-xs text-[#707882]">LAB{String(index + 1).padStart(4, '0')}</span>
                   </td>
                   <td className={styles.td}>
                     <p className="font-semibold">{item.patient.fullName}</p>

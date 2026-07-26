@@ -5,7 +5,7 @@ export type ItchSeverity = 'none' | 'mild' | 'moderate' | 'severe';
 export interface WorklistItem {
   recordId: string;
   recordCode: string;
-  patient: { patientId: string; fullName: string; dateOfBirth: string; gender: 'male' | 'female' };
+  patient: { patientId: string; fullName: string; dateOfBirth: string | null; gender: 'male' | 'female' };
   chiefComplaint: string | null;
   status: RecordStatus;
   hasReadyResults: boolean;
@@ -15,7 +15,7 @@ export interface RecordPatient {
   patientId: string;
   patientCode: string;
   fullName: string;
-  dateOfBirth: string;
+  dateOfBirth: string | null;
   gender: 'male' | 'female';
   allergies: string | null;
   healthInsuranceCode: string | null;
@@ -96,7 +96,7 @@ export interface LabTestResultDetail {
     patientId: string;
     patientCode: string;
     fullName: string;
-    dateOfBirth: string;
+    dateOfBirth: string | null;
     gender: 'male' | 'female';
     healthInsuranceCode: string | null;
   };
