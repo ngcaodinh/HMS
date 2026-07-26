@@ -29,6 +29,58 @@ import {
 
 const prisma = new PrismaClient();
 
+/**
+ * Chuẩn hóa tên khoa để ghép các bản ghi danh mục cũ/mới cùng chuyên khoa.
+ */
+const normalizeDepartmentName = (name: string) =>
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+/**
+ * Trả về phạm vi khoa tương đương, chỉ mở rộng trong cùng loại khoa và cùng tên đã chuẩn hóa.
+ */
+const resolveEquivalentDepartmentIds = async (departmentId?: string) => {
+  if (!departmentId) return [];
+
+  const department = await prisma.department.findUnique({
+    select: {
+      id: true,
+      name: true,
+      type: true,
+    },
+    where: {
+      id: departmentId,
+    },
+  });
+
+  if (!department) return [departmentId];
+
+  const normalizedName = normalizeDepartmentName(department.name);
+  if (!normalizedName) return [department.id];
+
+  const equivalentDepartments = await prisma.department.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+    where: {
+      isActive: true,
+      type: department.type,
+    },
+  });
+
+  const equivalentIds = equivalentDepartments
+    .filter((item) => normalizeDepartmentName(item.name) === normalizedName)
+    .map((item) => item.id);
+
+  return Array.from(new Set([department.id, ...equivalentIds]));
+};
+
 export class InpatientController {
   // 1. GET /api/v1/inpatient/admission-board
   static async listInpatientAdmissionBoard(req: Request, res: Response) {
@@ -444,14 +496,15 @@ export class InpatientController {
     if (!recordId && !bedId && !effectiveDepartmentId) {
       throw new AppError(400, 'ORDER_SCOPE_REQUIRED', 'Cần ít nhất một trong recordId, bedId hoặc departmentId');
     }
+    const departmentScopeIds = await resolveEquivalentDepartmentIds(effectiveDepartmentId);
 
     const where: Prisma.TreatmentOrderWhereInput = {};
     if (recordId) where.recordId = recordId;
     if (status) where.status = status;
-    if (bedId || effectiveDepartmentId) {
+    if (bedId || departmentScopeIds.length > 0) {
       where.record = {
         ...(bedId ? { bedId } : {}),
-        ...(effectiveDepartmentId ? { departmentId: effectiveDepartmentId } : {}),
+        ...(departmentScopeIds.length > 0 ? { departmentId: { in: departmentScopeIds } } : {}),
       };
     }
 
@@ -654,13 +707,14 @@ export class InpatientController {
   // 11. GET /api/v1/inpatient/vitals-queue
   static async listVitalsQueue(req: Request, res: Response) {
     const departmentId = (req.query.departmentId as string | undefined) || req.user?.departmentId;
+    const departmentScopeIds = await resolveEquivalentDepartmentIds(departmentId);
 
     // Clinical worklist - medical_records where vitalConfirmedAt IS NULL
     const worklistRecords = await prisma.medicalRecord.findMany({
       where: {
         vitalConfirmedAt: null,
         status: { not: MedicalRecordStatus.closed },
-        ...(departmentId ? { departmentId } : {}),
+        ...(departmentScopeIds.length > 0 ? { departmentId: { in: departmentScopeIds } } : {}),
       },
       include: { patient: true },
       orderBy: { createdAt: 'asc' },
@@ -714,7 +768,7 @@ export class InpatientController {
     const measuredTodayRecords = await prisma.medicalRecord.findMany({
       where: {
         vitalConfirmedAt: { gte: todayStart },
-        ...(departmentId ? { departmentId } : {}),
+        ...(departmentScopeIds.length > 0 ? { departmentId: { in: departmentScopeIds } } : {}),
       },
       select: {
         createdAt: true,
@@ -726,7 +780,7 @@ export class InpatientController {
     const measuredYesterdayCount = await prisma.medicalRecord.count({
       where: {
         vitalConfirmedAt: { gte: yesterdayStart, lt: todayStart },
-        ...(departmentId ? { departmentId } : {}),
+        ...(departmentScopeIds.length > 0 ? { departmentId: { in: departmentScopeIds } } : {}),
       },
     });
 

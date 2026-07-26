@@ -14,6 +14,8 @@ import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-w
 interface PharmacySidebarProps {
   /** Màn hình đang active */
   activeScreen: PharmacyScreen;
+  /** Tên dược sĩ đăng nhập (tùy chọn) */
+  pharmacistName?: string;
   /** Hàm callback khi người dùng chọn chuyển màn hình */
   onSelectScreen: (screen: PharmacyScreen) => void;
   /** Hàm callback mở modal đăng xuất */
@@ -21,10 +23,17 @@ interface PharmacySidebarProps {
 }
 
 /**
- * Component Sidebar Phân hệ Quản lý Dược (Đồng nhất với hệ thống HMS)
+ * Hiển thị thanh điều hướng Sidebar Dark Midnight đồng nhất hệ thống HMS-VN.
+ *
+ * @param activeScreen Màn hình phân hệ dược đang được chọn
+ * @param pharmacistName Tên hiển thị của Dược sĩ đăng nhập
+ * @param onSelectScreen Callback điều hướng màn hình
+ * @param onOpenLogoutModal Callback mở hộp thoại xác nhận đăng xuất
+ * @returns Component React hiển thị thanh điều hướng bên trái với đồng hồ thời gian thực
  */
 export const PharmacySidebar: React.FC<PharmacySidebarProps> = ({
   activeScreen,
+  pharmacistName,
   onSelectScreen,
   onOpenLogoutModal,
 }) => {
@@ -197,9 +206,11 @@ export const PharmacySidebar: React.FC<PharmacySidebarProps> = ({
         </div>
         <div className={styles.sidebarUserRow}>
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <div className={styles.sidebarUserAvatar}>DS</div>
+            <div className={styles.sidebarUserAvatar}>
+              {(pharmacistName || 'DS').trim().charAt(0).toUpperCase() || 'D'}
+            </div>
             <div className={styles.sidebarUserInfo}>
-              <div className={styles.sidebarUserName}>DS. Phạm Thanh Hà</div>
+              <div className={styles.sidebarUserName}>{pharmacistName || 'DS. Phạm Thanh Hà'}</div>
               <div className={styles.sidebarUserRole}>Dược sĩ lâm sàng / Kho Dược</div>
             </div>
           </div>

@@ -1,6 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { httpClient } from '../../../shared/api-client/http-client';
 
+type ApiEnvelope<T> = {
+  data: T;
+  meta?: unknown;
+};
+
+// Chuẩn hóa response từ BFF/backend envelope để UI luôn nhận đúng payload nghiệp vụ.
+export const extractApiData = <T>(payload: ApiEnvelope<T> | T): T => {
+  if (payload && typeof payload === 'object' && 'data' in payload) {
+    return (payload as ApiEnvelope<T>).data;
+  }
+
+  return payload as T;
+};
+
+// Chuẩn hóa payload danh sách để các màn nurse không vỡ khi API trả envelope hoặc phân trang.
+export const extractApiListData = <T>(
+  payload: ApiEnvelope<T[] | { items?: T[] }> | T[] | { items?: T[] },
+): T[] => {
+  const data = extractApiData<T[] | { items?: T[] }>(payload);
+
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === 'object' && Array.isArray(data.items)) return data.items;
+
+  return [];
+};
+
 // Types
 export interface BedDto {
   id: string;
@@ -75,8 +101,11 @@ export const useBeds = () => {
   return useQuery({
     queryKey: ['beds'],
     queryFn: async () => {
-      const res = await httpClient.get<any, { data: BedDto[] }>('/beds');
-      return res.data;
+      const res = await httpClient.get<
+        unknown,
+        { data: ApiEnvelope<BedDto[]> | BedDto[] }
+      >('/beds');
+      return extractApiListData<BedDto>(res.data);
     },
   });
 };
@@ -89,10 +118,14 @@ export const useOrders = (params?: { recordId?: string; bedId?: string; departme
       if (params?.bedId) queryParams.append('bedId', params.bedId);
       if (params?.departmentId) queryParams.append('departmentId', params.departmentId);
       const queryString = queryParams.toString();
-      const res = await httpClient.get<any, { data: any[] }>(
+      const res = await httpClient.get<
+        unknown,
+        { data: ApiEnvelope<any[]> | any[] }
+      >(
         queryString ? `/treatment-orders?${queryString}` : '/treatment-orders'
       );
-      return (res.data || []).map((o: any) => {
+      const orders = extractApiListData<any>(res.data);
+      return orders.map((o: any) => {
         const tone: 'danger' | 'purple' | 'blue' | 'green' =
           o.status === 'cancelled' ? 'danger' : o.status === 'done' ? 'blue' : 'purple';
         return {
@@ -121,10 +154,16 @@ export const useAdmissionBoard = () => {
   return useQuery({
     queryKey: ['admission-board'],
     queryFn: async () => {
-      const res = await httpClient.get<any, { data: { waitingForBedRecords: AdmissionBoardDto[] } }>(
-        '/inpatient/admission-board'
-      );
-      return res.data.waitingForBedRecords;
+      const res = await httpClient.get<
+        unknown,
+        {
+          data: ApiEnvelope<{ waitingForBedRecords: AdmissionBoardDto[] }>
+            | { waitingForBedRecords: AdmissionBoardDto[] };
+        }
+      >('/inpatient/admission-board');
+      return extractApiData<{ waitingForBedRecords: AdmissionBoardDto[] }>(
+        res.data,
+      ).waitingForBedRecords;
     },
   });
 };
@@ -294,9 +333,17 @@ export const useVitalsQueue = () =>
     queryKey: ['vitals-queue'],
     queryFn: async () => {
       const res = await httpClient.get<
-        any,
+        unknown,
         {
-          data: {
+          data: ApiEnvelope<{
+            worklist: VitalsWorklistItemDto[];
+            ticketQueue: {
+              currentCalled: QueueTicketDto | null;
+              waitingCount: number;
+              waitingNumbers: number[];
+            };
+            stats: VitalsQueueStatsDto;
+          }> | {
             worklist: VitalsWorklistItemDto[];
             ticketQueue: {
               currentCalled: QueueTicketDto | null;
@@ -307,7 +354,7 @@ export const useVitalsQueue = () =>
           };
         }
       >('/inpatient/vitals-queue');
-      return res.data;
+      return extractApiData(res.data);
     },
   });
 
@@ -381,10 +428,13 @@ export const useSpecimens = (status?: string) => {
       const queryParams = new URLSearchParams();
       if (status) queryParams.append('status', status);
       const queryString = queryParams.toString();
-      const res = await httpClient.get<any, { data: SpecimenDto[] }>(
+      const res = await httpClient.get<
+        unknown,
+        { data: ApiEnvelope<SpecimenDto[]> | SpecimenDto[] }
+      >(
         queryString ? `/specimens?${queryString}` : '/specimens'
       );
-      return res.data || [];
+      return extractApiListData<SpecimenDto>(res.data);
     },
   });
 };
@@ -466,10 +516,13 @@ export const useUnidentifiedEmergencyPatients = () => {
   return useQuery({
     queryKey: ['unidentified-emergency-patients'],
     queryFn: async () => {
-      const res = await httpClient.get<any, { data: UnidentifiedEmergencyPatientDto[] }>(
-        '/inpatient/emergency-unidentified-patients'
-      );
-      return res.data || [];
+      const res = await httpClient.get<
+        unknown,
+        {
+          data: ApiEnvelope<UnidentifiedEmergencyPatientDto[]> | UnidentifiedEmergencyPatientDto[];
+        }
+      >('/inpatient/emergency-unidentified-patients');
+      return extractApiListData<UnidentifiedEmergencyPatientDto>(res.data);
     },
   });
 };

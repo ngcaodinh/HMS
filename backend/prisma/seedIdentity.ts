@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { PrismaClient } from '@prisma/client';
+import { DepartmentType, PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 import { config } from '../src/config/unifiedConfig';
@@ -38,6 +38,16 @@ const roleActions: Record<RoleCode, string[]> = {
 };
 
 const revision = 'identity-rbac-staff-v1';
+
+const developmentDepartments = [
+  { code: 'clinical', name: 'Khoa Khám bệnh', type: DepartmentType.clinical },
+  { code: 'dermatology', name: 'Khoa Da liễu', type: DepartmentType.clinical },
+  { code: 'laboratory', name: 'Khoa Xét nghiệm', type: DepartmentType.paraclinical },
+  { code: 'pharmacy', name: 'Khoa Dược', type: DepartmentType.administrative },
+  { code: 'accounting', name: 'Phòng Kế toán', type: DepartmentType.administrative },
+  { code: 'reception', name: 'Quầy Tiếp nhận', type: DepartmentType.administrative },
+  { code: 'it', name: 'Phòng Công nghệ thông tin', type: DepartmentType.administrative },
+] as const;
 
 /**
  * Seed role, action permission và checksum phiên bản RBAC cho Lane 1.
@@ -99,6 +109,29 @@ const seedRbacPolicy = async () => {
 };
 
 /**
+ * Seed các khoa/phòng dev có id trùng mã form IT để tài khoản nhân viên thỏa FK users.departmentId.
+ */
+const seedDevelopmentDepartments = async () => {
+  for (const department of developmentDepartments) {
+    await prisma.department.upsert({
+      create: {
+        ...department,
+        id: department.code,
+        isActive: true,
+      },
+      update: {
+        isActive: true,
+        name: department.name,
+        type: department.type,
+      },
+      where: {
+        id: department.code,
+      },
+    });
+  }
+};
+
+/**
  * Tạo tài khoản IT dev cục bộ để kiểm thử flow /it-technician ngoài production.
  */
 const seedDevelopmentItUser = async () => {
@@ -150,6 +183,7 @@ const seedDevelopmentItUser = async () => {
 };
 
 void seedRbacPolicy()
+  .then(seedDevelopmentDepartments)
   .then(seedDevelopmentItUser)
   .finally(async () => {
     await prisma.$disconnect();

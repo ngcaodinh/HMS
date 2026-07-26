@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const recordIdParamsSchema = z.object({ recordId: z.string().min(1) });
 export const prescriptionIdParamsSchema = z.object({ prescriptionId: z.string().min(1) });
+export const idempotencyKeySchema = z.string().uuid();
 
 export const medicineQuerySchema = z.object({ keyword: z.string().optional() });
 
@@ -42,6 +43,7 @@ export const exportPrescriptionXmlSchema = z.object({
 
 export const listDispensablePrescriptionsQuerySchema = z.object({
   keyword: z.string().optional(),
+  warehouseId: z.string().trim().optional(),
   // z.coerce.boolean() would coerce the literal string "false" to `true` — match the string instead.
   dispensed: z.enum(['true', 'false']).optional().transform((value) => value === 'true'),
   page: z.coerce.number().int().min(1).default(1),

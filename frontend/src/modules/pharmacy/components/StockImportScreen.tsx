@@ -11,13 +11,30 @@ import type { StockReceipt, StockReceiptItem } from '../types/pharmacy.types';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface StockImportScreenProps {
+  /** Thông tin phiếu nhập kho */
   stockReceipt: StockReceipt;
+  /** Callback mở modal Import XML hóa đơn nhà cung cấp */
   onOpenImportXmlModal: () => void;
+  /** Callback xuất tệp phiếu nhập kho */
   onExportStockReceipt: () => void;
+  /** Callback chuyển sang màn hình danh mục tồn kho */
   onNavigateToInventory: () => void;
+  /** Callback lưu phiếu nhập kho và khởi tạo các lô thuốc mới */
   onSaveReceipt: (receipt: StockReceipt) => void;
 }
 
+/**
+ * Màn hình Nhập kho dược (Screen 3):
+ * Cho phép Dược sĩ lập phiếu nhập kho thuốc từ nhà cung cấp, nhập thông tin số hóa đơn,
+ * thêm các dòng thuốc, cấu hình số lô, ngày sản xuất, hạn sử dụng, giá nhập và giá bán.
+ *
+ * @param stockReceipt Dữ liệu phiếu nhập kho khởi tạo
+ * @param onOpenImportXmlModal Callback mở modal tải tệp XML hóa đơn
+ * @param onExportStockReceipt Callback xuất tệp phiếu nhập
+ * @param onNavigateToInventory Callback chuyển sang xem kho thuốc
+ * @param onSaveReceipt Callback lưu thông tin phiếu nhập kho và nhập lô
+ * @returns Component React màn hình Nhập kho dược
+ */
 export const StockImportScreen: React.FC<StockImportScreenProps> = ({
   stockReceipt,
   onOpenImportXmlModal,

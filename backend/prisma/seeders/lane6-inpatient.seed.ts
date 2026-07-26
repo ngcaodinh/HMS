@@ -10,7 +10,7 @@ import {
   TreatmentOrderStatus,
   SpecimenStatus,
   medical_records_icdCodingSystem,
-  medical_records_diagnosisSignatureMethod
+  medical_records_diagnosisSignatureMethod,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -31,6 +31,44 @@ const diagnoses = [
   { icd10: 'L20.8', text: 'Viêm da dị ứng thể chàm' },
 ];
 
+const cleanupTables = [
+  'vital_sign_logs',
+  'specimen_collections',
+  'queue_tickets',
+  'attachments',
+  'xn_cong_thuc_mau',
+  'xn_hoa_sinh_mau',
+  'xn_nuoc_tieu',
+  'xn_vi_sinh',
+  'xn_mo_benh_hoc',
+  'lab_tests',
+  'lab_reference_ranges',
+  'lab_test_types',
+  'stock_movements',
+  'prescription_items',
+  'prescriptions',
+  'emergency_write_off_approvals',
+  'payment_intents',
+  'health_insurance_claims',
+  'invoice_items',
+  'invoices',
+  'payment_advances',
+  'service_orders',
+  'treatment_orders',
+  'discharge_summaries',
+  'bed_assignments',
+  'medical_records',
+  'beds',
+  'rooms',
+  'patients',
+  'service_catalog',
+  'permissions',
+  'role_permissions',
+  'users',
+  'roles',
+  'departments',
+] as const;
+
 function getRandomItem<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!;
 }
@@ -39,6 +77,28 @@ function pad(num: number, size: number): string {
   let s = num + '';
   while (s.length < size) s = '0' + s;
   return s;
+}
+
+// Xóa bảng theo allowlist nội bộ, bỏ qua bảng chưa có trong DB local chưa migrate đủ.
+async function deleteTableRowsIfExists(tableName: (typeof cleanupTables)[number]) {
+  const existingTables = await prisma.$queryRaw<Array<{ tableName: string }>>`
+    SELECT TABLE_NAME AS tableName
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = ${tableName}
+    LIMIT 1
+  `;
+
+  if (existingTables.length === 0) return;
+
+  await prisma.$executeRawUnsafe(`DELETE FROM \`${tableName}\``);
+}
+
+// Xóa các bảng phụ thuộc trước để seed demo Lane 6 không vướng khóa ngoại MySQL.
+async function clearLane6DemoData() {
+  for (const tableName of cleanupTables) {
+    await deleteTableRowsIfExists(tableName);
+  }
 }
 
 async function main() {
@@ -63,19 +123,7 @@ async function main() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
   `;
 
-  try {
-    await prisma.$executeRaw`DELETE FROM vital_sign_logs`;
-  } catch {}
-  await prisma.treatmentOrder.deleteMany();
-  await prisma.dischargeSummary.deleteMany();
-  await prisma.bedAssignment.deleteMany();
-  await prisma.medicalRecord.deleteMany();
-  await prisma.bed.deleteMany();
-  await prisma.room.deleteMany();
-  await prisma.patient.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.role.deleteMany();
-  await prisma.department.deleteMany();
+  await clearLane6DemoData();
 
   // 1. Department
   const dept = await prisma.department.create({

@@ -267,14 +267,16 @@ export class IdentityService {
   }) {
     await this.assertAction(input.actor, 'staff.create');
     assertCanManageTargetRoles(input.actor, input.input.roleCodes);
-    await this.dependencies.departmentDirectory.assertDepartmentExists(input.input.departmentId);
+    const departmentId = await this.dependencies.departmentDirectory.resolveDepartmentId(
+      input.input.departmentId,
+    );
 
     const temporaryPassword = this.dependencies.randomPassword();
     const user = await this.dependencies.repository.createStaffUser({
       assignedBy: input.actor.id,
       data: {
         dateOfBirth: toDateOnly(input.input.dateOfBirth),
-        departmentId: input.input.departmentId,
+        departmentId,
         fullName: input.input.fullName,
         gender: input.input.gender,
         identityCardNumber: input.input.identityCardNumber,
@@ -360,9 +362,9 @@ export class IdentityService {
 
     assertCanManageTargetRoles(input.actor, input.input.roleCodes ?? target.roleCodes);
 
-    if (input.input.departmentId) {
-      await this.dependencies.departmentDirectory.assertDepartmentExists(input.input.departmentId);
-    }
+    const departmentId = input.input.departmentId
+      ? await this.dependencies.departmentDirectory.resolveDepartmentId(input.input.departmentId)
+      : undefined;
 
     if (
       target.roleCodes.includes('admin') &&
@@ -384,7 +386,7 @@ export class IdentityService {
         dateOfBirth: input.input.dateOfBirth
           ? toDateOnly(input.input.dateOfBirth)
           : undefined,
-        departmentId: input.input.departmentId,
+        departmentId,
         fullName: input.input.fullName,
         gender: input.input.gender,
         identityCardNumber: input.input.identityCardNumber,

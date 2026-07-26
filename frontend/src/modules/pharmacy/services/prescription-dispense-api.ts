@@ -1,16 +1,46 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiGetPaginated, apiPost } from '@/shared/api-client';
+import { apiGetPaginated, apiPost, httpClient } from '@/shared/api-client';
 import type { DispensablePrescription } from '../types/prescription-dispense.types';
 
 const LIST_QUERY_KEY = ['prescriptions', 'dispensable'] as const;
 
-export function useDispensablePrescriptions(filters: { keyword: string; dispensed: boolean }) {
+interface DispensePrescriptionResult {
+  dispensedAt: string | null;
+  dispensedBy: string | null;
+  prescriptionId: string;
+  version: number;
+}
+
+interface ExportPrescriptionXmlResult {
+  prescriptionId: string;
+  status: 'xml_exported';
+  xmlExportedAt: string | null;
+  version: number;
+}
+
+export function createIdempotencyKey(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `dispense-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function useDispensablePrescriptions(filters: {
+  dispensed: boolean;
+  keyword: string;
+  page?: number;
+  pageSize?: number;
+  warehouseId?: string;
+}) {
   return useQuery({
-    queryKey: [...LIST_QUERY_KEY, filters.keyword, filters.dispensed],
+    queryKey: [...LIST_QUERY_KEY, filters.keyword, filters.dispensed, filters.page, filters.pageSize, filters.warehouseId],
     queryFn: () =>
       apiGetPaginated<DispensablePrescription>('/prescriptions', {
-        params: { keyword: filters.keyword || undefined, dispensed: filters.dispensed, pageSize: 100 },
+        params: {
+          dispensed: filters.dispensed,
+          keyword: filters.keyword || undefined,
+          page: filters.page ?? 1,
+          pageSize: filters.pageSize ?? 20,
+          warehouseId: filters.warehouseId || undefined,
+        },
       }),
   });
 }
@@ -24,7 +54,11 @@ export function useDispensePrescription() {
   const invalidate = useInvalidateDispensableList();
   return useMutation({
     mutationFn: ({ prescriptionId, expectedVersion }: { prescriptionId: string; expectedVersion: number }) =>
-      apiPost(`/prescriptions/${prescriptionId}/dispenses`, { expectedVersion, dispenseConfirmation: true }),
+      apiPost<DispensePrescriptionResult>(
+        `/prescriptions/${prescriptionId}/dispenses`,
+        { expectedVersion, dispenseConfirmation: true },
+        { headers: { 'Idempotency-Key': createIdempotencyKey() } },
+      ),
     onSuccess: invalidate,
   });
 }
@@ -36,4 +70,30 @@ export function useRejectPrescription() {
       apiPost(`/prescriptions/${prescriptionId}/cancel`, { expectedVersion, cancelReason }),
     onSuccess: invalidate,
   });
+}
+
+export function useExportPrescriptionXml() {
+  const invalidate = useInvalidateDispensableList();
+  return useMutation({
+    mutationFn: ({ prescriptionId, expectedVersion }: { prescriptionId: string; expectedVersion: number }) =>
+      apiPost<ExportPrescriptionXmlResult>(`/prescriptions/${prescriptionId}/xml-exports`, { expectedVersion }),
+    onSuccess: invalidate,
+  });
+}
+
+export async function downloadPrescriptionXmlFile(prescriptionId: string): Promise<void> {
+  const response = await httpClient.get<Blob>(`/prescriptions/${prescriptionId}/xml-file`, {
+    responseType: 'blob',
+  });
+  const disposition = response.headers['content-disposition'];
+  const matchedFileName = typeof disposition === 'string'
+    ? disposition.match(/filename="?([^"]+)"?/)?.[1]
+    : undefined;
+  const fileName = matchedFileName ?? `don-thuoc-${prescriptionId.slice(0, 8)}.xml`;
+  const url = URL.createObjectURL(response.data);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

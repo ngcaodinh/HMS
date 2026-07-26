@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { Prisma } from '@prisma/client';
+
 import { AppError } from '../../../core/errors/app-error';
 import { config } from '../../../config/unifiedConfig';
 import { recordAuditLog } from '../../audit/services/audit.service';
@@ -11,11 +13,13 @@ import {
   dispensePrescriptionTx,
   findActiveMedicinesByIds,
   findDispensablePrescriptions,
+  findIdempotencyResult,
   findLatestPrescriptionForRecord,
   findNextRoundNumber,
   findPrescriptionById,
   findRecordForPrescription,
   markXmlExportedTx,
+  saveIdempotencyResult,
   signPrescriptionTx,
   type DispensablePrescription,
   type PrescriptionWithDetails,
@@ -30,6 +34,7 @@ import type {
 const MIN_OVERRIDE_REASON_LENGTH = 15;
 const CHRONIC_DAYS_THRESHOLD = 30;
 const MAX_DAYS = 90;
+const DISPENSE_IDEMPOTENCY_ROUTE = 'POST /prescriptions/:prescriptionId/dispenses';
 
 async function loadAssignedOutpatientRecord(recordId: string, doctorId: string) {
   const record = await findRecordForPrescription(recordId);
@@ -55,14 +60,15 @@ async function loadOwnedPrescription(prescriptionId: string, doctorId: string): 
   return prescription;
 }
 
-/** Cancel is reachable from two roles: the prescribing doctor, or any pharmacist reviewing the
- * order at the dispense screen ("Từ chối / Trả đơn") — not scoped to a single owner like sign/export. */
+/** Cho phép bác sĩ sở hữu, nhân sự dược hoặc admin thao tác hậu ký như hủy/xuất XML.
+ */
 async function loadPrescriptionForStaffAccess(prescriptionId: string, principal: Principal): Promise<PrescriptionWithDetails> {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
   const isOwnerDoctor = prescription.medicalRecord.doctorId === principal.userId;
   const isPharmacist = principal.roleCodes.includes('pharmacist');
-  if (!isOwnerDoctor && !isPharmacist) {
+  const isAdmin = principal.roleCodes.includes('admin');
+  if (!isOwnerDoctor && !isPharmacist && !isAdmin) {
     throw AppError.forbidden('FORBIDDEN_ACCESS', 'Bạn không có quyền thao tác trên đơn thuốc này.');
   }
   return prescription;
@@ -273,7 +279,7 @@ export async function signPrescription(prescriptionId: string, doctorId: string,
 
 /**
  * @route POST /api/v1/prescriptions/:prescriptionId/cancel
- * @access doctor
+ * @access doctor, pharmacist, admin
  * @throws {AppError} 409 INVALID_PRESCRIPTION_TRANSITION, 409 VERSION_CONFLICT
  */
 export async function cancelPrescription(prescriptionId: string, principal: Principal, input: CancelPrescriptionInput) {
@@ -337,11 +343,11 @@ ${itemsXml}
 /**
  * @route POST /api/v1/prescriptions/:prescriptionId/xml-exports
  * @desc Generate the local prescription XML file (QĐ 425/QĐ-BYT format) and move active -> xml_exported.
- * @access doctor
+ * @access doctor, pharmacist, admin
  * @throws {AppError} 400 PRESCRIPTION_NOT_SIGNED, 409 VERSION_CONFLICT
  */
-export async function exportPrescriptionXml(prescriptionId: string, doctorId: string, expectedVersion: number) {
-  const prescription = await loadOwnedPrescription(prescriptionId, doctorId);
+export async function exportPrescriptionXml(prescriptionId: string, principal: Principal, expectedVersion: number) {
+  const prescription = await loadPrescriptionForStaffAccess(prescriptionId, principal);
   if (prescription.status !== 'active') {
     throw AppError.badRequest('PRESCRIPTION_NOT_SIGNED', 'Chỉ xuất XML sau khi đơn đã ký.');
   }
@@ -357,9 +363,9 @@ export async function exportPrescriptionXml(prescriptionId: string, doctorId: st
   if (!updated) throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
 
   await recordAuditLog({
-    userId: doctorId,
-    userRole: 'doctor',
-    userName: doctorId,
+    userId: principal.userId,
+    userRole: principal.roleCodes[0] ?? 'unknown',
+    userName: principal.fullName,
     action: 'EXPORT',
     resource: 'Prescription',
     resourceId: prescriptionId,
@@ -376,7 +382,7 @@ export async function exportPrescriptionXml(prescriptionId: string, doctorId: st
 
 /**
  * @route GET /api/v1/prescriptions/:prescriptionId/xml-file
- * @access doctor, pharmacist
+ * @access doctor, pharmacist, admin
  * @throws {AppError} 400 PRESCRIPTION_XML_NOT_EXPORTED
  */
 export async function downloadPrescriptionXml(prescriptionId: string, principal: Principal) {
@@ -390,14 +396,48 @@ export async function downloadPrescriptionXml(prescriptionId: string, principal:
 
 function shapeDispensablePrescription(prescription: DispensablePrescription) {
   const record = prescription.medicalRecord;
+  const allocationsByItemId = prescription.stockMovements.reduce((current, movement) => {
+    if (!movement.prescriptionItemId) return current;
+
+    const allocations = current.get(movement.prescriptionItemId) ?? [];
+    allocations.push({
+      balanceAfter: movement.balanceAfter,
+      batchId: movement.batchId,
+      batchNumber: movement.batch.batchNumber,
+      expiryDate: movement.batch.expiryDate,
+      quantityAllocated: Math.abs(movement.quantityChange),
+      warehouse: {
+        code: movement.warehouse.code,
+        name: movement.warehouse.name,
+        warehouseId: movement.warehouse.id,
+      },
+    });
+    current.set(movement.prescriptionItemId, allocations);
+
+    return current;
+  }, new Map<string, Array<{
+    balanceAfter: number;
+    batchId: string;
+    batchNumber: string;
+    expiryDate: Date;
+    quantityAllocated: number;
+    warehouse: { code: string; name: string; warehouseId: string };
+  }>>());
+  const firstWarehouse = prescription.stockMovements[0]?.warehouse;
+
   return {
     prescriptionId: prescription.id,
     prescriptionCode: prescription.prescriptionCode,
     status: prescription.status,
     signedAt: prescription.signedAt,
     dispensedAt: prescription.dispensedAt,
+    dispensedBy: prescription.dispensedBy,
     allergyOverrideReason: prescription.allergyOverrideReason,
     allergyOverrideAt: prescription.allergyOverrideAt,
+    xmlExportedAt: prescription.xmlExportedAt,
+    warehouse: firstWarehouse
+      ? { code: firstWarehouse.code, name: firstWarehouse.name, warehouseId: firstWarehouse.id }
+      : null,
     patient: {
       patientId: record.patient.id,
       patientCode: record.patient.patientCode,
@@ -420,6 +460,7 @@ function shapeDispensablePrescription(prescription: DispensablePrescription) {
       dosePerUse: item.dosePerUse,
       useTiming: item.useTiming,
       dosageInstruction: item.dosageInstruction,
+      fefoAllocations: allocationsByItemId.get(item.id) ?? [],
     })),
     version: prescription.version,
   };
@@ -428,19 +469,21 @@ function shapeDispensablePrescription(prescription: DispensablePrescription) {
 /**
  * @route GET /api/v1/prescriptions
  * @desc Pharmacist worklist — signed, non-cancelled prescriptions pending (or already) dispensed.
- * @access pharmacist
+ * @access pharmacist, admin
  */
 export async function listDispensablePrescriptions(query: {
   keyword?: string;
   dispensed?: boolean;
   page: number;
   pageSize: number;
+  warehouseId?: string;
 }) {
   const [prescriptions, totalItems] = await findDispensablePrescriptions({
     keyword: query.keyword,
     dispensed: query.dispensed ?? false,
     page: query.page,
     pageSize: query.pageSize,
+    warehouseId: query.warehouseId,
   });
 
   return {
@@ -452,10 +495,10 @@ export async function listDispensablePrescriptions(query: {
 /**
  * @route POST /api/v1/prescriptions/:prescriptionId/dispenses
  * @desc Pharmacist records dispensing actor/time for a signed, not-yet-dispensed prescription.
- * @access pharmacist
+ * @access pharmacist, admin
  * @throws {AppError} 400 PRESCRIPTION_NOT_SIGNED, 400 PRESCRIPTION_ALREADY_DISPENSED, 409 VERSION_CONFLICT
  */
-export async function dispensePrescription(prescriptionId: string, pharmacistId: string, expectedVersion: number) {
+async function dispensePrescriptionWithoutIdempotency(prescriptionId: string, pharmacistId: string, expectedVersion: number) {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
   if (prescription.status !== 'active' && prescription.status !== 'xml_exported') {
@@ -483,4 +526,35 @@ export async function dispensePrescription(prescriptionId: string, pharmacistId:
     dispensedAt: updated.dispensedAt,
     version: updated.version,
   };
+}
+
+/**
+ * Ghi nhận cấp phát theo Idempotency-Key để thao tác retry/double-click không tạo kết quả mâu thuẫn.
+ */
+export async function dispensePrescription(
+  prescriptionId: string,
+  pharmacistId: string,
+  expectedVersion: number,
+  idempotencyKey?: string,
+) {
+  if (idempotencyKey) {
+    const cached = await findIdempotencyResult<Awaited<ReturnType<typeof dispensePrescriptionWithoutIdempotency>>>(
+      idempotencyKey,
+      DISPENSE_IDEMPOTENCY_ROUTE,
+    );
+    if (cached) return cached;
+  }
+
+  const response = await dispensePrescriptionWithoutIdempotency(prescriptionId, pharmacistId, expectedVersion);
+
+  if (idempotencyKey) {
+    await saveIdempotencyResult({
+      key: idempotencyKey,
+      route: DISPENSE_IDEMPOTENCY_ROUTE,
+      statusCode: 201,
+      responseJson: response as unknown as Prisma.InputJsonValue,
+    });
+  }
+
+  return response;
 }

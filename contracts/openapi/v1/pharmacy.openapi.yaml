@@ -1,0 +1,387 @@
+openapi: 3.0.3
+info:
+  title: HMS-VN Pharmacy API
+  version: v1
+servers:
+  - url: /api/v1
+paths:
+  /pharmacy/inventory:
+    get:
+      operationId: listInventory
+      summary: List active medicine batches by warehouse with FEFO-oriented fields
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: warehouseId
+          schema:
+            type: string
+        - in: query
+          name: keyword
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+        - in: query
+          name: pageSize
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        '200':
+          description: Paginated inventory batches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedInventoryResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /pharmacy/inventory/summary:
+    get:
+      operationId: getInventorySummary
+      summary: Return server-derived inventory KPIs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: warehouseId
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory summary
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/InventorySummary'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /pharmacy/stock-movements:
+    get:
+      operationId: listStockMovements
+      summary: List immutable stock movement logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: warehouseId
+          schema:
+            type: string
+        - in: query
+          name: medicineId
+          schema:
+            type: string
+        - in: query
+          name: movementType
+          schema:
+            $ref: '#/components/schemas/StockMovementType'
+        - in: query
+          name: from
+          schema:
+            format: date-time
+            type: string
+        - in: query
+          name: to
+          schema:
+            format: date-time
+            type: string
+        - in: query
+          name: page
+          schema:
+            default: 1
+            minimum: 1
+            type: integer
+        - in: query
+          name: pageSize
+          schema:
+            default: 20
+            maximum: 100
+            minimum: 1
+            type: integer
+      responses:
+        '200':
+          description: Paginated movement logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedStockMovementResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  responses:
+    Forbidden:
+      description: Missing pharmacist/admin permission
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    ErrorEnvelope:
+      required:
+        - error
+      type: object
+      properties:
+        error:
+          required:
+            - code
+            - message
+            - requestId
+          type: object
+          properties:
+            code:
+              type: string
+            details:
+              type: array
+              items:
+                type: object
+            message:
+              type: string
+            requestId:
+              type: string
+    InventoryBatch:
+      required:
+        - batchId
+        - batchNumber
+        - daysToExpiry
+        - expiryDate
+        - importPrice
+        - isExpired
+        - isExpiringSoon
+        - isLowStock
+        - medicine
+        - quantity
+        - version
+        - warehouse
+      type: object
+      properties:
+        batchId:
+          type: string
+        batchNumber:
+          type: string
+        daysToExpiry:
+          type: integer
+        expiryDate:
+          format: date-time
+          type: string
+        importPrice:
+          pattern: '^\\d+(\\.\\d{2})$'
+          type: string
+        isExpired:
+          type: boolean
+        isExpiringSoon:
+          type: boolean
+        isLowStock:
+          type: boolean
+        medicine:
+          $ref: '#/components/schemas/MedicineSummary'
+        quantity:
+          type: integer
+        version:
+          type: integer
+        warehouse:
+          $ref: '#/components/schemas/WarehouseSummary'
+    InventorySummary:
+      required:
+        - expiredBatches
+        - expiringSoonBatches
+        - lowStockBatches
+        - totalBatches
+        - totalQuantity
+      type: object
+      properties:
+        expiredBatches:
+          type: integer
+        expiringSoonBatches:
+          type: integer
+        lowStockBatches:
+          type: integer
+        totalBatches:
+          type: integer
+        totalQuantity:
+          type: integer
+    MedicineSummary:
+      required:
+        - coveredByHealthInsurance
+        - medicineId
+        - name
+        - unit
+      type: object
+      properties:
+        activeIngredient:
+          nullable: true
+          type: string
+        code:
+          nullable: true
+          type: string
+        coveredByHealthInsurance:
+          type: boolean
+        dosage:
+          nullable: true
+          type: string
+        medicineId:
+          type: string
+        name:
+          type: string
+        unit:
+          type: string
+    PaginatedInventoryResponse:
+      required:
+        - data
+        - pagination
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryBatch'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    PaginatedStockMovementResponse:
+      required:
+        - data
+        - pagination
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockMovement'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    Pagination:
+      required:
+        - page
+        - pageSize
+        - totalItems
+        - totalPages
+      type: object
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer
+    StockMovement:
+      required:
+        - balanceAfter
+        - batch
+        - createdAt
+        - medicine
+        - movementId
+        - movementType
+        - quantityChange
+        - warehouse
+      type: object
+      properties:
+        actorUserId:
+          nullable: true
+          type: string
+        balanceAfter:
+          type: integer
+        batch:
+          $ref: '#/components/schemas/StockMovementBatch'
+        createdAt:
+          format: date-time
+          type: string
+        medicine:
+          $ref: '#/components/schemas/StockMovementMedicine'
+        movementId:
+          type: string
+        movementType:
+          $ref: '#/components/schemas/StockMovementType'
+        prescriptionId:
+          nullable: true
+          type: string
+        quantityChange:
+          type: integer
+        referenceId:
+          nullable: true
+          type: string
+        referenceType:
+          nullable: true
+          type: string
+        warehouse:
+          $ref: '#/components/schemas/WarehouseSummary'
+    StockMovementBatch:
+      required:
+        - batchId
+        - batchNumber
+        - expiryDate
+      type: object
+      properties:
+        batchId:
+          type: string
+        batchNumber:
+          type: string
+        expiryDate:
+          format: date-time
+          type: string
+    StockMovementMedicine:
+      required:
+        - medicineId
+        - name
+      type: object
+      properties:
+        code:
+          nullable: true
+          type: string
+        medicineId:
+          type: string
+        name:
+          type: string
+    StockMovementType:
+      enum:
+        - receipt
+        - prescription_sign
+        - prescription_cancel
+        - adjustment
+      type: string
+    SuccessEnvelope:
+      required:
+        - data
+        - meta
+      type: object
+      properties:
+        data: {}
+        meta:
+          required:
+            - occurredAt
+            - requestId
+          type: object
+          properties:
+            occurredAt:
+              type: string
+            requestId:
+              type: string
+    WarehouseSummary:
+      required:
+        - code
+        - name
+        - warehouseId
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        warehouseId:
+          type: string
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http

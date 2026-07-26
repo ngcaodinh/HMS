@@ -15,6 +15,20 @@ export const ROLE_POLICY: Record<string, string[]> = {
   'icd10.read': ['doctor'],
   'diagnosis.write': ['doctor'],
 
+  // Inpatient nursing (Lane 6)
+  'inpatient.read': ['doctor', 'nurse'],
+  'bed.assign': ['nurse'],
+  'bed.change': ['nurse'],
+  'queue_ticket.call': ['nurse'],
+  'treatment_order.read': ['doctor', 'nurse'],
+  'treatment_order.execute': ['nurse'],
+  'treatment_order.cancel': ['nurse'],
+  'discharge_summary.sign': ['doctor'],
+  'discharge.execute': ['nurse'],
+  'specimen.read': ['nurse', 'lab_tech'],
+  'specimen.collect': ['nurse'],
+  'specimen.handoff': ['nurse'],
+
   // Laboratory & File (Lane 4)
   'lab_test.read_worklist': ['lab_tech'],
   'lab_test.result.write': ['lab_tech'],
@@ -26,15 +40,18 @@ export const ROLE_POLICY: Record<string, string[]> = {
   'lab_test.stats.read': ['lab_tech'],
 
   // Pharmacy & Prescription (Lane 5)
-  'medicine.read': ['doctor', 'pharmacist'],
+  'medicine.read': ['doctor', 'pharmacist', 'admin'],
   'medicine.manage': ['pharmacist', 'admin'],
   'prescription.create': ['doctor'],
   'prescription.sign': ['doctor'],
-  'prescription.cancel': ['doctor', 'pharmacist'],
-  'prescription.export': ['doctor', 'pharmacist'],
-  'prescription.read': ['doctor', 'pharmacist'],
-  'prescription.dispense.read': ['pharmacist'],
-  'prescription.dispense': ['pharmacist'],
+  'prescription.cancel': ['doctor', 'pharmacist', 'admin'],
+  'prescription.export': ['doctor', 'pharmacist', 'admin'],
+  'prescription.read': ['doctor', 'pharmacist', 'admin'],
+  'prescription.dispense.read': ['pharmacist', 'admin'],
+  'prescription.dispense': ['pharmacist', 'admin'],
+  'pharmacy.inventory.read': ['pharmacist', 'admin'],
+  'pharmacy.inventory.manage': ['pharmacist', 'admin'],
+  'pharmacy.report.read': ['pharmacist', 'admin'],
 };
 
 export function getAllowedRoles(action: string): string[] {

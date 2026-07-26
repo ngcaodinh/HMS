@@ -29,6 +29,7 @@ import {
   type EditStaffFormField,
   type EditStaffFormFieldErrors,
 } from '../../types/staff-form.schema';
+import { canAssignRoleCode, getManageableRoleOptions } from '../../types/staff-role-options';
 import type { DepartmentCode, RoleCode, StaffUser as ApiStaffUser } from '../../types/staff.schema';
 
 type PageKind = 'monitoring' | 'audit' | 'users' | 'rbac' | 'backup';
@@ -123,12 +124,6 @@ type PopupNotification = {
 
 type ItPrincipal = {
   roleCodes: string[];
-};
-
-type RoleOption = {
-  code: RoleCode;
-  label: string;
-  value: RoleCode;
 };
 
 type DepartmentOption = {
@@ -1044,22 +1039,6 @@ const chipClassByRoleCode: Record<string, string> = {
   receptionist: 'ktv-chip-green',
 };
 
-const managedRoleOptions: RoleOption[] = [
-  { code: 'doctor', label: 'Bác sĩ (doctor)', value: 'doctor' },
-  { code: 'nurse', label: 'Điều dưỡng (nurse)', value: 'nurse' },
-  { code: 'pharmacist', label: 'Dược sĩ (pharmacist)', value: 'pharmacist' },
-  { code: 'accountant', label: 'Kế toán (accountant)', value: 'accountant' },
-  { code: 'receptionist', label: 'Tiếp tân (receptionist)', value: 'receptionist' },
-  { code: 'lab_tech', label: 'KTV xét nghiệm (lab_tech)', value: 'lab_tech' },
-];
-
-const adminRoleOptions: RoleOption[] = [
-  { code: 'admin', label: 'Quản trị viên (admin)', value: 'admin' },
-  ...managedRoleOptions,
-  { code: 'it_tech', label: 'KTV IT (it_tech)', value: 'it_tech' },
-  { code: 'director', label: 'Giám đốc (director)', value: 'director' },
-];
-
 const departmentOptions: DepartmentOption[] = [
   { label: 'Khoa Da liễu', value: 'dermatology' },
   { label: 'Khoa Lâm sàng', value: 'clinical' },
@@ -1105,13 +1084,6 @@ const editStaffFieldIds: Record<EditStaffFormField, string> = {
   roleCode: 'edit-staff-role-code',
   username: 'edit-staff-username',
 };
-
-/**
- * Xác định danh sách role actor được phép gán trên UI.
- * Nhận principal từ server guard, trả role đầy đủ cho admin hoặc subset nghiệp vụ cho it_tech.
- */
-const getManageableRoleOptions = (principal: ItPrincipal) =>
-  principal.roleCodes.includes('admin') ? adminRoleOptions : managedRoleOptions;
 
 /**
  * Định dạng thời điểm đăng nhập cuối cho bảng nhân viên.
@@ -1514,8 +1486,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
       return;
     }
 
-    const selectedRole = roleOptions.some((option) => option.value === parsedForm.data.roleCode);
-    if (!selectedRole) {
+    if (!canAssignRoleCode(roleOptions, parsedForm.data.roleCode)) {
       setAddFieldErrors({
         roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
       });
@@ -1583,8 +1554,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
         return;
       }
 
-      const selectedRole = roleOptions.some((option) => option.value === parsedForm.data.roleCode);
-      if (!selectedRole) {
+      if (!canAssignRoleCode(roleOptions, parsedForm.data.roleCode)) {
         setEditFieldErrors({
           roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
         });
@@ -2340,8 +2310,8 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                   >
                     <option value="">-- Chọn vai trò --</option>
                     {roleOptions.map((option) => (
-                      <option key={option.code} value={option.value}>
-                        {option.label}
+                      <option disabled={option.isDisabled} key={option.code} value={option.value}>
+                        {option.label}{option.isDisabled ? ' - chỉ admin' : ''}
                       </option>
                     ))}
                   </select>
@@ -2724,8 +2694,8 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     value={editUser.roleCode}
                   >
                     {roleOptions.map((option) => (
-                      <option key={option.code} value={option.value}>
-                        {option.label}
+                      <option disabled={option.isDisabled} key={option.code} value={option.value}>
+                        {option.label}{option.isDisabled ? ' - chỉ admin' : ''}
                       </option>
                     ))}
                   </select>

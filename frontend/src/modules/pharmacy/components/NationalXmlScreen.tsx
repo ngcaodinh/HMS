@@ -10,10 +10,21 @@ import React from 'react';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface NationalXmlScreenProps {
+  /** Nội dung XML đơn thuốc mẫu */
   xmlContent: string;
+  /** Callback tải về tệp XML đơn thuốc quốc gia */
   onDownloadXml: () => void;
 }
 
+/**
+ * Màn hình Đơn thuốc & XML Quốc gia (Screen 4):
+ * Cho phép Dược sĩ kiểm tra định dạng dữ liệu XML 1/2/3/4/5 liên thông Cổng Dược Quốc Gia,
+ * xem trước mã XML mẫu và tải về tệp tin phục vụ thanh quyết toán BHYT & báo cáo BYT.
+ *
+ * @param xmlContent Chuỗi nội dung XML cấu trúc chuẩn
+ * @param onDownloadXml Callback tải tệp XML về máy tính
+ * @returns Component React màn hình Đơn thuốc & XML Quốc gia
+ */
 export const NationalXmlScreen: React.FC<NationalXmlScreenProps> = ({
   xmlContent,
   onDownloadXml,

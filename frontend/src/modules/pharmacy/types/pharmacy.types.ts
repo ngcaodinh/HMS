@@ -35,6 +35,13 @@ export interface PrescriptionItem {
   availableStock: number; // Số lượng tồn kho lô đề xuất
   expiryDate: string; // Hạn sử dụng lô đề xuất (DD/MM/YYYY)
   isStockSufficient: boolean; // Đủ tồn kho hay không
+  fefoAllocations?: Array<{
+    balanceAfter: number;
+    batchNumber: string;
+    expiryDate: string;
+    quantityAllocated: number;
+    warehouseName: string;
+  }>;
 }
 
 /**
@@ -42,6 +49,9 @@ export interface PrescriptionItem {
  */
 export interface Prescription {
   id: string; // Mã đơn thuốc (VD: RX-2026-0891)
+  backendPrescriptionId?: string; // UUID thật dùng cho API command
+  backendVersion?: number; // Version optimistic lock do backend trả về
+  prescriptionCode?: string | null;
   patientId: string; // Mã BN (VD: BN-2026-0089)
   patientName: string; // Họ tên bệnh nhân
   patientAge: number;
@@ -64,6 +74,8 @@ export interface Prescription {
   items: PrescriptionItem[];
   status: PrescriptionStatus;
   warehouseId: string; // Kho xuất
+  warehouseName?: string;
+  xmlExportedAt?: string | null;
 }
 
 /**

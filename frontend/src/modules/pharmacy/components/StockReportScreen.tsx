@@ -11,10 +11,21 @@ import type { StockMovementLog } from '../types/pharmacy.types';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface StockReportScreenProps {
+  /** Danh sách nhật ký biến động kho thuốc */
   logs: StockMovementLog[];
+  /** Callback xuất tệp báo cáo biến động kho Excel */
   onExportExcel: () => void;
 }
 
+/**
+ * Màn hình Báo cáo biến động kho (Screen 5):
+ * Cho phép Dược sĩ kiểm toán các giao dịch nhập kho, xuất cấp phát, điều chỉnh số lượng,
+ * trả đơn và theo dõi vết hoạt động (Audit log) cùng người thực hiện theo thời gian thực.
+ *
+ * @param logs Danh sách các bản ghi nhật ký biến động xuất nhập tồn
+ * @param onExportExcel Callback xuất dữ liệu ra file Excel
+ * @returns Component React màn hình Báo cáo biến động kho
+ */
 export const StockReportScreen: React.FC<StockReportScreenProps> = ({ logs, onExportExcel }) => {
   return (
     <div className="space-y-6">

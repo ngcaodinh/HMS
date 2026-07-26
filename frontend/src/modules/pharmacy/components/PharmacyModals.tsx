@@ -12,7 +12,7 @@ import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-w
 
 interface PharmacyModalsProps {
   /** Modal đang mở hoặc null nếu đóng */
-  activeModal: 'dispense' | 'reject' | 'import-xml' | 'logout' | null;
+  activeModal: 'dispense' | 'reject' | 'import-xml' | 'logout' | 'fefo-sync' | null;
   /** Đơn thuốc đang được xử lý trong modal */
   prescription: Prescription | null;
   /** Hàm đóng modal */
@@ -25,8 +25,40 @@ interface PharmacyModalsProps {
   onConfirmXmlImport: () => void;
   /** Hàm xác nhận đăng xuất */
   onConfirmLogout: () => void;
+  /** Hàm xác nhận đồng bộ FEFO (tùy chọn) */
+  onConfirmFefoSync?: () => void;
+  isDispensing?: boolean;
+  isRejecting?: boolean;
 }
 
+/**
+ * Kiem tra ly do tu choi don thuoc truoc khi gui ve bac si.
+ *
+ * @param reason Noi dung ly do duoc duoc si nhap trong modal
+ * @returns Thong bao loi neu khong hop le, nguoc lai tra ve null
+ */
+export function validateRejectReason(reason: string): string | null {
+  if (reason.trim().length < 10) {
+    return 'Vui lòng nhập lý do từ chối tối thiểu 10 ký tự.';
+  }
+
+  return null;
+}
+
+/**
+ * Hiển thị tập hợp các hộp thoại tương tác Modal cho Phân hệ Quản lý Dược & Nhà thuốc.
+ * Bao gồm các modal: Xác nhận phát thuốc, Từ chối đơn, Import XML, Đồng bộ FEFO và Đăng xuất.
+ *
+ * @param activeModal Loại modal đang kích hoạt hiển thị
+ * @param prescription Đơn thuốc đang được thao tác (nếu có)
+ * @param onCloseModal Callback đóng modal
+ * @param onConfirmDispense Callback xác nhận phát thuốc và trừ kho FEFO
+ * @param onConfirmReject Callback gửi lý do từ chối đơn thuốc về bác sĩ
+ * @param onConfirmXmlImport Callback nhập dữ liệu XML phiếu nhập kho
+ * @param onConfirmLogout Callback thực hiện đăng xuất hệ thống
+ * @param onConfirmFefoSync Callback thực hiện đồng bộ kho FEFO
+ * @returns Component React hiển thị hộp thoại Modal phù hợp
+ */
 export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
   activeModal,
   prescription,
@@ -35,6 +67,9 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
   onConfirmReject,
   onConfirmXmlImport,
   onConfirmLogout,
+  onConfirmFefoSync,
+  isDispensing = false,
+  isRejecting = false,
 }) => {
   const [rejectReason, setRejectReason] = useState<string>('');
   const [rejectError, setRejectError] = useState<string>('');
@@ -42,10 +77,12 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
   if (!activeModal) return null;
 
   const handleRejectSubmit = () => {
-    if (rejectReason.trim().length < 10) {
-      setRejectError('Vui lòng nhập lý do từ chối tối thiểu 10 ký tự.');
+    const validationError = validateRejectReason(rejectReason);
+    if (validationError) {
+      setRejectError(validationError);
       return;
     }
+
     setRejectError('');
     onConfirmReject(rejectReason);
     setRejectReason('');
@@ -143,10 +180,11 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
               <button
                 type="button"
                 className={`${styles.btn} ${styles.btnPrimary}`}
+                disabled={isDispensing}
                 onClick={onConfirmDispense}
                 aria-label="Xác nhận cấp phát đơn thuốc"
               >
-                Xác nhận phát thuốc
+                {isDispensing ? 'Đang ghi nhận...' : 'Xác nhận phát thuốc'}
               </button>
             </div>
           </div>
@@ -202,10 +240,11 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
               <button
                 type="button"
                 className={`${styles.btn} ${styles.btnError}`}
+                disabled={isRejecting}
                 onClick={handleRejectSubmit}
                 aria-label="Xác nhận gửi phản hồi từ chối"
               >
-                Gửi phản hồi cho Bác sĩ
+                {isRejecting ? 'Đang gửi...' : 'Gửi phản hồi cho Bác sĩ'}
               </button>
             </div>
           </div>
@@ -307,7 +346,63 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
         </div>
       )}
 
-      {/* Modal 4: Logout */}
+      {/* Modal 4: FEFO Sync */}
+      {activeModal === 'fefo-sync' && (
+        <div className={styles.modalOverlay} onClick={onCloseModal}>
+          <div className={`${styles.modal} max-w-[480px]`} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#cee5ff] text-[#006096]">
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="1,4 1,10 7,10" />
+                  <polyline points="23,20 23,14 17,14" />
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" />
+                </svg>
+              </div>
+              <div>
+                <div className={styles.modalTitle}>Đồng bộ chỉ số tồn kho FEFO</div>
+                <div className={styles.modalSub}>Tái tính toán thứ tự ưu tiên gán lô xuất theo hạn dùng</div>
+              </div>
+            </div>
+
+            <div className={styles.modalBody}>
+              <div className={`${styles.alert} ${styles.alertInfo}`}>
+                <svg className="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <div>
+                  Hệ thống sẽ quét toàn bộ lô thuốc trong Kho Ngoại Trú A &amp; Kho Nội Trú B, cập nhật chỉ số Hạn dùng ngắn nhất (First Expired, First Out) cho 145 đầu thuốc.
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnGhost}`}
+                onClick={onCloseModal}
+                aria-label="Hủy bỏ"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className={`${styles.btn} ${styles.btnPrimary}`}
+                onClick={() => {
+                  onConfirmFefoSync?.();
+                  onCloseModal();
+                }}
+                aria-label="Xác nhận đồng bộ"
+              >
+                Xác nhận đồng bộ FEFO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 5: Logout */}
       {activeModal === 'logout' && (
         <div className={styles.modalOverlay} onClick={onCloseModal}>
           <div className={`${styles.modal} max-w-[360px]`} onClick={(e) => e.stopPropagation()}>

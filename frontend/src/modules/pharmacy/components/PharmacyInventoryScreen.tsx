@@ -11,13 +11,26 @@ import type { InventoryItem, PharmacyKpiSummary, PharmacyScreen } from '../types
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface PharmacyInventoryScreenProps {
+  /** Danh sách các mặt hàng và lô thuốc tồn kho */
   inventoryItems: InventoryItem[];
+  /** Thống kê KPI tồn kho (Tổng mặt hàng, sắp hết, sắp hết hạn, hết hạn) */
   kpi: PharmacyKpiSummary;
+  /** Callback chuyển sang màn hình Nhập kho dược */
   onNavigateToStockImport: () => void;
 }
 
 type CategoryChip = 'all' | 'topical' | 'antibiotic' | 'antihistamine' | 'special';
 
+/**
+ * Màn hình Quản lý kho thuốc & Lô FEFO (Screen 2):
+ * Cho phép Dược sĩ theo dõi các thẻ thống kê KPI tồn kho, tìm kiếm và lọc danh mục thuốc,
+ * kiểm tra các lô thuốc cận hạn (FEFO warning) và vị trí lưu trữ trên kệ.
+ *
+ * @param inventoryItems Danh sách các lô thuốc tồn kho
+ * @param kpi Dữ liệu tổng hợp KPI tồn kho
+ * @param onNavigateToStockImport Callback chuyển nhanh sang màn hình tạo phiếu nhập kho
+ * @returns Component React màn hình Quản lý kho thuốc & Lô
+ */
 export const PharmacyInventoryScreen: React.FC<PharmacyInventoryScreenProps> = ({
   inventoryItems,
   kpi,

@@ -20,6 +20,25 @@ const createResponse = () => {
 };
 
 describe('authorize legacy middleware', () => {
+  it('allows inpatient.read by nurse role when JWT permissions are empty', () => {
+    const request = {
+      user: {
+        id: 'nurse-1',
+        permissions: [],
+        role: 'nurse',
+        roleCodes: ['nurse'],
+        username: 'nurse.demo',
+      },
+    } as unknown as Request;
+    const response = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    authorize('inpatient.read')(request, response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toHaveBeenCalled();
+  });
+
   it('allows vital_signs.record by doctor role when JWT permissions are empty', () => {
     const request = {
       user: {
@@ -37,6 +56,64 @@ describe('authorize legacy middleware', () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(response.status).not.toHaveBeenCalled();
+  });
+
+  it('allows specimen.collect by nurse role when JWT permissions are empty', () => {
+    const request = {
+      user: {
+        id: 'nurse-1',
+        permissions: [],
+        role: 'nurse',
+        roleCodes: ['nurse'],
+        username: 'nurse.demo',
+      },
+    } as unknown as Request;
+    const response = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    authorize('specimen.collect')(request, response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toHaveBeenCalled();
+  });
+
+  it('allows bed.assign by nurse role when JWT permissions are empty', () => {
+    const request = {
+      user: {
+        id: 'nurse-1',
+        permissions: [],
+        role: 'nurse',
+        roleCodes: ['nurse'],
+        username: 'nurse.demo',
+      },
+    } as unknown as Request;
+    const response = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    authorize('bed.assign')(request, response, next);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(response.status).not.toHaveBeenCalled();
+  });
+
+  it('denies discharge_summary.sign for nurse role because doctor approval is required', () => {
+    const request = {
+      user: {
+        id: 'nurse-1',
+        permissions: [],
+        role: 'nurse',
+        roleCodes: ['nurse'],
+        username: 'nurse.demo',
+      },
+    } as unknown as Request;
+    const response = createResponse();
+    const next = vi.fn() as NextFunction;
+
+    authorize('discharge_summary.sign')(request, response, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(response.status).toHaveBeenCalledWith(403);
+    expect(response.json.mock.calls[0]?.[0].error.code).toBe('FORBIDDEN_ACCESS');
   });
 
   it('denies vital_signs.record for unrelated roles without explicit permission', () => {

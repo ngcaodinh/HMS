@@ -16,6 +16,14 @@ interface PharmacyTopHeaderProps {
   onShowNotifications: () => void;
 }
 
+/**
+ * Hiển thị thanh Top Header phía trên phân hệ Dược sĩ & Nhà thuốc.
+ * Bao gồm tên phân hệ, thông tin ca trực, huy hiệu bệnh viện và các nút chức năng nhanh (Đồng bộ FEFO, Thông báo).
+ *
+ * @param onSyncFefo Hàm xử lý đồng bộ dữ liệu tồn kho FEFO
+ * @param onShowNotifications Hàm hiển thị danh sách thông báo hệ thống
+ * @returns Component React Top Header
+ */
 export const PharmacyTopHeader: React.FC<PharmacyTopHeaderProps> = ({
   onSyncFefo,
   onShowNotifications,

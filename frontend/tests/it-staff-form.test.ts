@@ -11,6 +11,10 @@ import {
   toCreateStaffInput,
   toUpdateStaffInput,
 } from '../src/modules/it/types/staff-form.schema';
+import {
+  canAssignRoleCode,
+  getManageableRoleOptions,
+} from '../src/modules/it/types/staff-role-options';
 import { staffUserSchema } from '../src/modules/it/types/staff.schema';
 
 const validFormValues = {
@@ -29,6 +33,40 @@ const toDateInput = (date: Date) => {
 
   return localDate.toISOString().slice(0, 10);
 };
+
+describe('getManageableRoleOptions', () => {
+  it('shows the full role catalog to IT technicians while keeping privileged roles disabled', () => {
+    const roleOptions = getManageableRoleOptions({ roleCodes: ['it_tech'] });
+
+    assert.deepEqual(
+      roleOptions.map((option) => option.value),
+      [
+        'admin',
+        'director',
+        'doctor',
+        'nurse',
+        'pharmacist',
+        'accountant',
+        'receptionist',
+        'lab_tech',
+        'it_tech',
+      ],
+    );
+    assert.equal(
+      roleOptions.find((option) => option.value === 'director')?.isDisabled,
+      true,
+    );
+    assert.equal(canAssignRoleCode(roleOptions, 'director'), false);
+    assert.equal(canAssignRoleCode(roleOptions, 'doctor'), true);
+  });
+
+  it('allows admins to assign director accounts from the IT staff form', () => {
+    const roleOptions = getManageableRoleOptions({ roleCodes: ['admin'] });
+
+    assert.equal(roleOptions.every((option) => !option.isDisabled), true);
+    assert.equal(canAssignRoleCode(roleOptions, 'director'), true);
+  });
+});
 
 describe('createStaffFormSchema', () => {
   it('normalizes valid form values before mapping to the backend payload', () => {

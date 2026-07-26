@@ -8,20 +8,125 @@
 
 import React, { useMemo, useState } from 'react';
 import type { Prescription } from '../types/pharmacy.types';
+import type { PharmacyWarehouse } from '../types/pharmacy-inventory.schema';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface PrescriptionDispenseScreenProps {
+  /** Danh sách các đơn thuốc điện tử */
   prescriptions: Prescription[];
+  /** ID của đơn thuốc đang được chọn chi tiết */
   selectedPrescriptionId: string;
+  /** Callback khi chọn một đơn thuốc trong hàng chờ */
   onSelectPrescription: (id: string) => void;
+  /** Callback khi người dùng nhấn nút Tải đơn mới */
   onReloadQueue: () => void;
+  /** Callback mở modal xác nhận phát thuốc & trừ kho FEFO */
   onOpenDispenseModal: (rx: Prescription) => void;
+  /** Callback mở modal từ chối đơn thuốc về bác sĩ */
   onOpenRejectModal: (rx: Prescription) => void;
+  /** Callback in nhãn hướng dẫn sử dụng thuốc */
   onPrintLabel: (rx: Prescription) => void;
+  onDownloadXml: (rx: Prescription) => void;
+  onExportXml: (rx: Prescription) => void;
+  isDownloadingXml?: boolean;
+  isExportingXml?: boolean;
+  isLoading?: boolean;
+  selectedWarehouseId: string;
+  warehouses: PharmacyWarehouse[];
+  onSelectWarehouse: (warehouseId: string) => void;
 }
 
-type ChipFilter = 'pending' | 'dispensed' | 'outpatient' | 'inpatient' | 'allergy' | 'all';
+export type PrescriptionChipFilter = 'pending' | 'dispensed' | 'outpatient' | 'inpatient' | 'allergy' | 'all';
 
+interface FilterPrescriptionOptions {
+  activeChip: PrescriptionChipFilter;
+  prescriptions: Prescription[];
+  searchQuery: string;
+  selectedWarehouseId: string;
+}
+
+interface PendingPrescriptionActionHandlers {
+  onOpenDispenseModal: (rx: Prescription) => void;
+  onSelectPrescription: (id: string) => void;
+}
+
+/**
+ * Loc danh sach don thuoc theo kho, trang thai va tu khoa tim kiem cua man cap phat.
+ *
+ * @param options Tap tham so loc tu UI hien tai
+ * @returns Danh sach don thuoc phu hop voi bo loc
+ */
+export function filterPrescriptionsByDispenseView({
+  activeChip,
+  prescriptions,
+  searchQuery,
+  selectedWarehouseId,
+}: FilterPrescriptionOptions): Prescription[] {
+  return prescriptions.filter((rx) => {
+    if (selectedWarehouseId !== 'all' && rx.warehouseId !== selectedWarehouseId) {
+      return false;
+    }
+
+    if (activeChip === 'pending' && rx.status !== 'pending') return false;
+    if (activeChip === 'dispensed' && rx.status !== 'dispensed') return false;
+    if (activeChip === 'outpatient' && rx.patientType !== 'outpatient') return false;
+    if (activeChip === 'inpatient' && rx.patientType !== 'inpatient') return false;
+    if (activeChip === 'allergy' && !rx.hasAllergyWarning) return false;
+
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.toLowerCase();
+      const matchesId = rx.id.toLowerCase().includes(q) || `rx-2026-${rx.id}`.includes(q);
+      const matchesPatient = rx.patientName.toLowerCase().includes(q) || rx.patientId.toLowerCase().includes(q);
+      const matchesDoctor = rx.doctorName.toLowerCase().includes(q);
+      return matchesId || matchesPatient || matchesDoctor;
+    }
+
+    return true;
+  });
+}
+
+/**
+ * Chon don thuoc hien tai; neu ID khong con trong hang cho thi fallback ve don dau tien.
+ *
+ * @param prescriptions Danh sach don thuoc dang co tren UI
+ * @param selectedPrescriptionId ID don thuoc dang duoc chon
+ * @returns Don thuoc dung de hien thi chi tiet hoac undefined khi danh sach rong
+ */
+export function resolveSelectedPrescription(
+  prescriptions: Prescription[],
+  selectedPrescriptionId: string,
+): Prescription | undefined {
+  return prescriptions.find((p) => p.id === selectedPrescriptionId) || prescriptions[0];
+}
+
+/**
+ * Xu ly nut "Xu ly phat thuoc": chon dong hien tai va mo modal xac nhan phat thuoc.
+ *
+ * @param rx Don thuoc nguoi dung vua bam xu ly
+ * @param handlers Callback dieu phoi state/modal cua man pharmacy
+ */
+export function openPendingPrescriptionDispense(
+  rx: Prescription,
+  handlers: PendingPrescriptionActionHandlers,
+): void {
+  handlers.onSelectPrescription(rx.id);
+  handlers.onOpenDispenseModal(rx);
+}
+
+/**
+ * Màn hình Cấp phát thuốc theo đơn (Screen 1):
+ * Cho phép Dược sĩ duyệt đơn thuốc điện tử đã ký bác sĩ, kiểm tra tiền sử dị ứng,
+ * lọc theo kho xuất / trạng thái / loại bệnh nhân, và xử lý trừ tồn kho theo nguyên tắc FEFO.
+ *
+ * @param prescriptions Danh sách các đơn thuốc điện tử trong hàng chờ
+ * @param selectedPrescriptionId Mã đơn thuốc đang mở xem chi tiết
+ * @param onSelectPrescription Callback chọn đơn thuốc xem chi tiết
+ * @param onReloadQueue Callback làm mới danh sách đơn
+ * @param onOpenDispenseModal Callback mở modal xác nhận phát thuốc
+ * @param onOpenRejectModal Callback mở modal từ chối đơn
+ * @param onPrintLabel Callback in nhãn hướng dẫn sử dụng thuốc
+ * @returns Component React màn hình Cấp phát thuốc theo đơn
+ */
 export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProps> = ({
   prescriptions,
   selectedPrescriptionId,
@@ -30,42 +135,31 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
   onOpenDispenseModal,
   onOpenRejectModal,
   onPrintLabel,
+  onDownloadXml,
+  onExportXml,
+  isDownloadingXml = false,
+  isExportingXml = false,
+  isLoading = false,
+  selectedWarehouseId,
+  warehouses,
+  onSelectWarehouse,
 }) => {
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('kho-a');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeChip, setActiveChip] = useState<ChipFilter>('pending');
+  const [activeChip, setActiveChip] = useState<PrescriptionChipFilter>('pending');
 
   // Lọc danh sách đơn thuốc theo từ khóa, kho và chip
   const filteredPrescriptions = useMemo(() => {
-    return prescriptions.filter((rx) => {
-      // Lọc theo kho xuất
-      if (selectedWarehouse !== 'all' && rx.warehouseId !== selectedWarehouse) {
-        return false;
-      }
-
-      // Lọc theo chip filter
-      if (activeChip === 'pending' && rx.status !== 'pending') return false;
-      if (activeChip === 'dispensed' && rx.status !== 'dispensed') return false;
-      if (activeChip === 'outpatient' && rx.patientType !== 'outpatient') return false;
-      if (activeChip === 'inpatient' && rx.patientType !== 'inpatient') return false;
-      if (activeChip === 'allergy' && !rx.hasAllergyWarning) return false;
-
-      // Lọc theo từ khóa tìm kiếm
-      if (searchQuery.trim() !== '') {
-        const q = searchQuery.toLowerCase();
-        const matchesId = rx.id.toLowerCase().includes(q) || `rx-2026-${rx.id}`.includes(q);
-        const matchesPatient = rx.patientName.toLowerCase().includes(q) || rx.patientId.toLowerCase().includes(q);
-        const matchesDoctor = rx.doctorName.toLowerCase().includes(q);
-        return matchesId || matchesPatient || matchesDoctor;
-      }
-
-      return true;
+    return filterPrescriptionsByDispenseView({
+      activeChip,
+      prescriptions,
+      searchQuery,
+      selectedWarehouseId,
     });
-  }, [prescriptions, selectedWarehouse, activeChip, searchQuery]);
+  }, [prescriptions, selectedWarehouseId, activeChip, searchQuery]);
 
   // Đơn thuốc đang được chọn chi tiết
   const selectedRx = useMemo(() => {
-    return prescriptions.find((p) => p.id === selectedPrescriptionId) || prescriptions[0];
+    return resolveSelectedPrescription(prescriptions, selectedPrescriptionId);
   }, [prescriptions, selectedPrescriptionId]);
 
   return (
@@ -81,13 +175,16 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
         <div className={styles.screenActions}>
           <select
             className={styles.selectField}
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
+            value={selectedWarehouseId}
+            onChange={(e) => onSelectWarehouse(e.target.value)}
             aria-label="Chọn kho xuất"
           >
             <option value="all">Tất cả kho xuất</option>
-            <option value="kho-a">Kho Ngoại Trú A</option>
-            <option value="kho-b">Kho Nội Trú B</option>
+            {warehouses.map((warehouse) => (
+              <option key={warehouse.warehouseId} value={warehouse.warehouseId}>
+                {warehouse.name}
+              </option>
+            ))}
           </select>
           <button
             type="button"
@@ -186,7 +283,21 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
               </tr>
             </thead>
             <tbody>
-              {filteredPrescriptions.map((rx) => {
+              {isLoading && (
+                <tr>
+                  <td className={`${styles.td} text-center text-[#3f4851]`} colSpan={6}>
+                    Đang tải hàng chờ cấp phát...
+                  </td>
+                </tr>
+              )}
+              {!isLoading && filteredPrescriptions.length === 0 && (
+                <tr>
+                  <td className={`${styles.td} text-center text-[#3f4851]`} colSpan={6}>
+                    Không có đơn thuốc phù hợp với bộ lọc hiện tại.
+                  </td>
+                </tr>
+              )}
+              {!isLoading && filteredPrescriptions.map((rx) => {
                 const isSelected = selectedRx && selectedRx.id === rx.id;
                 return (
                   <tr
@@ -256,7 +367,10 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                         <button
                           type="button"
                           className={`${styles.btn} ${styles.btnPrimary} ${styles.btnSm}`}
-                          onClick={() => onSelectPrescription(rx.id)}
+                          onClick={() => openPendingPrescriptionDispense(rx, {
+                            onOpenDispenseModal,
+                            onSelectPrescription,
+                          })}
                           aria-label={`Xử lý phát thuốc đơn ${rx.id}`}
                         >
                           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -426,6 +540,18 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                           Vị trí: {item.shelfLocation} · Tồn:{' '}
                           <span className="font-mono">{item.availableStock.toLocaleString()}</span> {item.unit}
                         </div>
+                        {item.fefoAllocations && item.fefoAllocations.length > 1 && (
+                          <div className="mt-1 space-y-0.5 text-[11.5px] text-[#3f4851]">
+                            {item.fefoAllocations.map((allocation) => (
+                              <div key={`${item.drugId}-${allocation.batchNumber}`}>
+                                <span className="font-mono font-semibold text-[#006096]">
+                                  {allocation.batchNumber}
+                                </span>{' '}
+                                - {allocation.quantityAllocated} {item.unit} từ {allocation.warehouseName}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </td>
                       <td className={`${styles.td} text-center`}>
                         <span className="font-mono">{item.expiryDate}</span>
@@ -477,6 +603,28 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                   </svg>
                   In nhãn hướng dẫn
                 </button>
+
+                {!selectedRx.xmlExportedAt ? (
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnGhost}`}
+                    disabled={isExportingXml}
+                    onClick={() => onExportXml(selectedRx)}
+                    aria-label="Kết xuất XML đơn thuốc"
+                  >
+                    {isExportingXml ? 'Đang kết xuất XML...' : 'Kết xuất XML'}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`${styles.btn} ${styles.btnGhost}`}
+                    disabled={isDownloadingXml}
+                    onClick={() => onDownloadXml(selectedRx)}
+                    aria-label="Tải XML đơn thuốc đã kết xuất"
+                  >
+                    {isDownloadingXml ? 'Đang tải XML...' : 'Tải XML'}
+                  </button>
+                )}
 
                 {selectedRx.status === 'pending' ? (
                   <button

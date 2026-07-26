@@ -160,7 +160,7 @@ const createRepository = (
 });
 
 const departmentDirectory: DepartmentDirectoryPort = {
-  assertDepartmentExists: () => Promise.resolve(),
+  resolveDepartmentId: (departmentId) => Promise.resolve(departmentId),
 };
 
 const auditPort: AuditPort = {
@@ -346,6 +346,45 @@ describe('IdentityService staff policy', () => {
       expect(result.user.roleCodes).toEqual([managedRoleCode]);
     },
   );
+
+  it('creates staff with the canonical department id returned by the department directory', async () => {
+    const actor = createUser();
+    let createPayload: Parameters<IdentityRepository['createStaffUser']>[0] | undefined;
+    const service = createService([actor], {
+      departmentDirectory: {
+        resolveDepartmentId: () => Promise.resolve('dept-laboratory-uuid'),
+      },
+      repository: {
+        createStaffUser: (input) => {
+          createPayload = input;
+
+          return Promise.resolve(createUser({
+            ...input.data,
+            id: '33333333-3333-4333-8333-333333333333',
+            password: input.passwordHash,
+            roleCodes: input.data.roleCodes,
+          }));
+        },
+      },
+    });
+
+    await service.createStaffAccount({
+      actor: toPrincipal(actor),
+      input: {
+        dateOfBirth: '1992-02-02',
+        departmentId: 'laboratory',
+        fullName: 'Managed Lab Tech',
+        gender: 'female',
+        identityCardNumber: '001199200008',
+        phoneNumber: '0901234574',
+        roleCodes: ['lab_tech'],
+        username: 'lab.created.department',
+      },
+      requestId: 'req-create-department-id',
+    });
+
+    expect(createPayload?.data.departmentId).toBe('dept-laboratory-uuid');
+  });
 
   it('allows admins to create privileged staff accounts without an IT support reference', async () => {
     const admin = createUser({
@@ -871,7 +910,7 @@ describe('IdentityService staff policy', () => {
   it('checks department existence before creating a staff account', async () => {
     const service = createService([createUser()], {
       departmentDirectory: {
-        assertDepartmentExists: () =>
+        resolveDepartmentId: () =>
           Promise.reject(new Error('department lookup failed')),
       },
     });
@@ -926,7 +965,7 @@ describe('IdentityService staff policy', () => {
     });
     const service = createService([createUser(), target], {
       departmentDirectory: {
-        assertDepartmentExists: () =>
+        resolveDepartmentId: () =>
           Promise.reject(new Error('department update failed')),
       },
     });

@@ -13,6 +13,7 @@ import {
 } from '../modules/medical-records/routes/medical-record.routes';
 import { patientRouter } from '../modules/patients/routes/patient.routes';
 import { paymentRouter } from '../modules/payments/routes/payment.routes';
+import { pharmacyRouter } from '../modules/pharmacy/routes/pharmacy.routes';
 import {
   medicineRouter,
   prescriptionRouter,
@@ -40,6 +41,7 @@ apiV1Router.use(inpatientRoutes);
 apiV1Router.use(specimenRoutes);
 apiV1Router.use('/auth', authRouter);
 apiV1Router.use('/attachments', attachmentRouter);
+apiV1Router.use('/pharmacy', pharmacyRouter);
 apiV1Router.use('/medical-records', medicalRecordRouter);
 apiV1Router.use('/medical-records', recordPrescriptionRouter);
 apiV1Router.use('/clinical-catalogs', clinicalCatalogRouter);

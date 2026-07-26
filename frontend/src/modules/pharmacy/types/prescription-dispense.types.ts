@@ -1,5 +1,18 @@
 export type DispensablePrescriptionStatus = 'active' | 'xml_exported';
 
+export interface FefoAllocation {
+  balanceAfter: number;
+  batchId: string;
+  batchNumber: string;
+  expiryDate: string;
+  quantityAllocated: number;
+  warehouse: {
+    code: string;
+    name: string;
+    warehouseId: string;
+  };
+}
+
 export interface DispensablePrescriptionItem {
   prescriptionItemId: string;
   medicineNameSnapshot: string | null;
@@ -10,6 +23,7 @@ export interface DispensablePrescriptionItem {
   dosePerUse?: string | null;
   useTiming?: string | null;
   dosageInstruction: string;
+  fefoAllocations: FefoAllocation[];
 }
 
 export interface DispensablePrescription {
@@ -18,8 +32,15 @@ export interface DispensablePrescription {
   status: DispensablePrescriptionStatus;
   signedAt: string | null;
   dispensedAt: string | null;
+  dispensedBy: string | null;
   allergyOverrideReason: string | null;
   allergyOverrideAt: string | null;
+  xmlExportedAt: string | null;
+  warehouse: {
+    code: string;
+    name: string;
+    warehouseId: string;
+  } | null;
   patient: {
     patientId: string;
     patientCode: string;

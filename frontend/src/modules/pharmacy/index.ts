@@ -5,5 +5,7 @@
  */
 
 export * from './types/pharmacy.types';
+export * from './types/pharmacy-inventory.schema';
 export * from './constants/pharmacy-mock.data';
+export * from './services/pharmacy-inventory-api';
 export * from './pages/workspace/pharmacy-workspace';

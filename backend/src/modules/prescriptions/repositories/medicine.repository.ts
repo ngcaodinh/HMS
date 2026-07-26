@@ -9,7 +9,10 @@ export function listActiveMedicines(keyword?: string) {
         : {}),
     },
     include: {
-      medicineBatches: { where: { expiryDate: { gt: new Date() } }, orderBy: { expiryDate: 'asc' } },
+      medicineBatches: {
+        where: { expiryDate: { gt: new Date() }, isActive: true, quantity: { gt: 0 } },
+        orderBy: { expiryDate: 'asc' },
+      },
     },
     orderBy: { name: 'asc' },
     take: 30,

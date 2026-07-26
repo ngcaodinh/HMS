@@ -24,7 +24,6 @@ import {
   useAdmissionBoard,
   useAssignBed,
   useChangeBedAssignment,
-  useSignDischargeSummary,
   useProcessDischarge,
   useUpdateOrderStatus,
   useCancelOrder,
@@ -106,9 +105,9 @@ function Sidebar({
   const { data: unidentifiedEmergencyPatients = [] } = useUnidentifiedEmergencyPatients();
 
   const badgeCounts: Partial<Record<NurseScreen, number>> = {
-    vitals: vitalsQueueData?.stats.waitingCount ?? 0,
+    vitals: vitalsQueueData?.worklist.length ?? vitalsQueueData?.stats.waitingCount ?? 0,
     samples: specimens.filter((s) => s.status !== 'handed_over').length,
-    orders: apiOrders.filter((o) => o.status === 'active' || o.status === 'pending').length,
+    orders: apiOrders.length,
     emergency: unidentifiedEmergencyPatients.length,
   };
 
@@ -1721,11 +1720,9 @@ function normalizeBedStatus(bed: BedDto, isEmergencyOverlay: boolean): BedFilter
 function BedsScreen() {
   const { data: apiBeds, isLoading } = useBeds();
   const { data: admissionBoard } = useAdmissionBoard();
-  const { mutate: signDischargeSummary, isPending: isSigning } = useSignDischargeSummary();
   const { mutate: changeBed, isPending: isChanging } = useChangeBedAssignment();
 
   const [selectedRecordId, setSelectedRecordId] = useState<string>('');
-  const [selectedDischargeRecordId, setSelectedDischargeRecordId] = useState<string>('');
   const [selectedEmergencyBedId, setSelectedEmergencyBedId] = useState<string>('');
   const [emergencyBedIds, setEmergencyBedIds] = useState<string[]>([]);
   const [transferSourceBedId, setTransferSourceBedId] = useState<string | null>(null);
@@ -1789,8 +1786,6 @@ function BedsScreen() {
     return acc;
   }, {});
 
-  const occupiedBeds = bedsList.filter((b) => b.status === 'occupied' && b.recordId);
-
   return (
     <div className="space-y-6">
       <StatGrid stats={stats} />
@@ -1812,40 +1807,6 @@ function BedsScreen() {
                 </option>
               ))}
             </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#1e293b]">Ký tổng kết ra viện:</span>
-            <select
-              className={cn(styles.input, 'w-64 text-xs')}
-              value={selectedDischargeRecordId}
-              onChange={(e) => setSelectedDischargeRecordId(e.target.value)}
-            >
-              <option value="">-- Chọn giường/bệnh nhân --</option>
-              {occupiedBeds.map((b) => (
-                <option key={b.id} value={b.recordId!}>
-                  Giường {b.bed} - {b.patient}
-                </option>
-              ))}
-            </select>
-            <button
-              className={cn(styles.primaryButton, 'bg-green-600 hover:bg-green-700 text-xs h-9 px-3')}
-              type="button"
-              disabled={!selectedDischargeRecordId || isSigning}
-              onClick={() => {
-                if (selectedDischargeRecordId) {
-                  const b = occupiedBeds.find((item) => item.recordId === selectedDischargeRecordId);
-                  signDischargeSummary({
-                    recordId: selectedDischargeRecordId,
-                    dischargeDiagnosis: b?.diagnosis || 'Viêm da tiếp xúc dị ứng - Đã ổn định',
-                    treatmentSummary: 'Bệnh nhân điều trị nội trú tiến triển tốt, đủ điều kiện ra viện.',
-                    dischargeCondition: 'improved',
-                  });
-                }
-              }}
-            >
-              {isSigning ? 'Đang ký...' : 'Cho phép xuất viện'}
-            </button>
           </div>
 
           <div className="flex items-center gap-2">

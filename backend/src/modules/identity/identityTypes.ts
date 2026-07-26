@@ -121,7 +121,7 @@ export type IdentityRepository = {
 };
 
 export type DepartmentDirectoryPort = {
-  assertDepartmentExists(departmentId: string): Promise<void>;
+  resolveDepartmentId(departmentId: string): Promise<string>;
 };
 
 export type AuditPort = {
