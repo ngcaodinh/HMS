@@ -7,6 +7,7 @@ import {
   forbiddenOrigin,
   setSessionCookie,
 } from '@/shared/auth/backend';
+import { resolveRoleHomePath } from '@/shared/auth/role-routing';
 
 /**
  * @route   PUT /api/auth/password
@@ -21,11 +22,13 @@ export async function PUT(request: Request) {
     method: 'PUT',
   });
   const payload = await response.json();
+  const principal = payload?.data?.principal;
   const nextResponse = NextResponse.json(
     response.ok
       ? {
           data: {
-            principal: payload.data.principal,
+            homePath: resolveRoleHomePath(principal?.roleCodes ?? []),
+            principal,
           },
         }
       : payload,

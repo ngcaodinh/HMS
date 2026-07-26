@@ -12,6 +12,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         id: nurse.id,
         username: nurse.username,
         role: 'nurse',
+        roleCodes: ['nurse'],
         permissions: ['inpatient.read', 'bed.assign', 'bed.change', 'treatment_order.read', 'treatment_order.execute', 'treatment_order.cancel', 'discharge.execute'],
         departmentId: nurse.departmentId
       };
@@ -42,6 +43,7 @@ declare global {
         id: string;
         username: string;
         role: string;
+        roleCodes: string[];
         permissions: string[];
         departmentId?: string;
       };

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { ChangePasswordForm } from '@/modules/auth/components/change-password-form';
 import { backendFetch } from '@/shared/auth/backend';
+import { resolveRoleHomePath } from '@/shared/auth/role-routing';
 
 /**
  * Trang đổi mật khẩu bắt buộc, chỉ hiển thị khi principal có mustChangePassword.
@@ -17,11 +18,7 @@ export default async function ChangePasswordPage() {
   const roleCodes = Array.isArray(principal?.roleCodes) ? principal.roleCodes : [];
 
   if (!principal?.mustChangePassword) {
-    if (roleCodes.includes('it_tech') || roleCodes.includes('admin')) {
-      redirect('/it-technician');
-    }
-
-    redirect('/');
+    redirect(resolveRoleHomePath(roleCodes) ?? '/login');
   }
 
   return (

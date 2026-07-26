@@ -11,6 +11,7 @@ type IconProps = {
 };
 
 type LoginResponse = {
+  homePath: string | null;
   principal: {
     mustChangePassword: boolean;
     roleCodes: string[];
@@ -161,12 +162,12 @@ export function LoginForm() {
         return;
       }
 
-      if (result.principal.roleCodes.includes('it_tech')) {
-        router.replace('/it-technician');
+      if (result.homePath) {
+        router.replace(result.homePath);
         return;
       }
 
-      router.replace('/');
+      setError('Tài khoản chưa được cấu hình trang làm việc phù hợp');
     } catch (caught) {
       setError(getLoginErrorMessage(caught));
     } finally {

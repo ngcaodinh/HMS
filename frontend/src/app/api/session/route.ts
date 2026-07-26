@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
+import { buildBackendApiV1Url } from '@/shared/auth/backend-url';
+
 const SESSION_COOKIE = 'hms_session';
 
 /**
@@ -11,7 +12,7 @@ const SESSION_COOKIE = 'hms_session';
 export async function POST(req: NextRequest) {
   const body = await req.text();
 
-  const backendResponse = await fetch(`${BACKEND_BASE_URL}/auth/sessions`, {
+  const backendResponse = await fetch(buildBackendApiV1Url('/auth/sessions'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,

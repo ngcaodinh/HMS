@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { sendError } from '../core/http/response-envelope';
+import { isActionAllowed } from '../modules/rbac/services/rbac.service';
 
 export const authorize = (requiredPermission: string) => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -8,7 +9,11 @@ export const authorize = (requiredPermission: string) => {
     }
 
     const userPermissions = req.user.permissions || [];
-    if (!userPermissions.includes(requiredPermission) && req.user.role !== 'admin') {
+    const userRoles = [req.user.role, ...(req.user.roleCodes ?? [])].filter(Boolean);
+    const hasPermission = userPermissions.includes(requiredPermission);
+    const hasRoleAccess = isActionAllowed(userRoles, requiredPermission);
+
+    if (!hasPermission && req.user.role !== 'admin' && !hasRoleAccess) {
       return sendError(
         res,
         403,

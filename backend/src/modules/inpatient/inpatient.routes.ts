@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { InpatientController } from './inpatient.controller';
 import { asyncHandler } from '../../core/middlewares/asyncHandler';
 import { authenticate } from '../../middlewares/authenticate';
@@ -7,6 +7,23 @@ import { authorize } from '../../middlewares/authorize';
 const router = Router();
 
 router.use(authenticate);
+
+// Chỉ lane nội trú xử lý payload có ticketId; payload khám ngoại trú được chuyển sang EMR router chuẩn.
+export const shouldHandleInpatientVitalSignsRoute = (body: unknown): boolean =>
+  typeof body === 'object'
+  && body !== null
+  && typeof (body as { ticketId?: unknown }).ticketId === 'string'
+  && (body as { ticketId: string }).ticketId.trim().length > 0;
+
+const routeOutpatientVitalSignsToMedicalRecordModule = (
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+) => {
+  if (!shouldHandleInpatientVitalSignsRoute(req.body)) return next('router');
+
+  return next();
+};
 
 // Inpatient Admission Board
 router.get(
@@ -84,6 +101,7 @@ router.post(
 );
 router.post(
   '/medical-records/:recordId/vital-signs',
+  routeOutpatientVitalSignsToMedicalRecordModule,
   authorize('vital_signs.record'),
   asyncHandler((req, res) => InpatientController.recordVitalSigns(req, res))
 );

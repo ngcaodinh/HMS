@@ -9,6 +9,7 @@ export const ROLE_POLICY: Record<string, string[]> = {
   'medical_record.worklist.read': ['doctor'],
   'medical_record.read': ['doctor', 'nurse', 'lab_tech', 'pharmacist', 'accountant'],
   'vital_sign.write': ['doctor', 'nurse'],
+  'vital_signs.record': ['doctor', 'nurse'],
   'clinical_assessment.write': ['doctor'],
   'lab_test.order.write': ['doctor'],
   'icd10.read': ['doctor'],

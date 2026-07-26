@@ -10,21 +10,26 @@ import type {
   VitalSignsFormInput,
   WorklistItem,
 } from '../types/medical-record.types';
+import {
+  doctorWorklistQueryKey,
+  medicalRecordDetailQueryKey,
+  shouldInvalidateMedicalRecordQuery,
+} from './medical-record-cache';
 
-export function useDoctorWorklist(enabled: boolean) {
+export function useDoctorWorklist(doctorId: string | null, enabled: boolean) {
   return useQuery({
-    queryKey: ['medical-records', 'worklist'],
+    queryKey: doctorWorklistQueryKey(doctorId),
     queryFn: () => apiGetPaginated<WorklistItem>('/medical-records/worklist', { params: { pageSize: 50 } }),
     refetchInterval: 30_000,
-    enabled,
+    enabled: Boolean(doctorId) && enabled,
   });
 }
 
-export function useMedicalRecordDetail(recordId: string | null, enabled: boolean) {
+export function useMedicalRecordDetail(recordId: string | null, viewerId: string | null, enabled: boolean) {
   return useQuery({
-    queryKey: ['medical-records', recordId],
+    queryKey: medicalRecordDetailQueryKey(viewerId, recordId),
     queryFn: () => apiGet<{ viewType: string; record: MedicalRecordDetail }>(`/medical-records/${recordId}`),
-    enabled: Boolean(recordId) && enabled,
+    enabled: Boolean(recordId) && Boolean(viewerId) && enabled,
   });
 }
 
@@ -61,8 +66,9 @@ export function downloadAttachmentUrl(attachmentId: string): string {
 function useInvalidateRecord(recordId: string) {
   const queryClient = useQueryClient();
   return () => {
-    queryClient.invalidateQueries({ queryKey: ['medical-records', recordId] });
-    queryClient.invalidateQueries({ queryKey: ['medical-records', 'worklist'] });
+    queryClient.invalidateQueries({
+      predicate: (query) => shouldInvalidateMedicalRecordQuery(recordId, query.queryKey),
+    });
   };
 }
 

@@ -1,25 +1,27 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { assertSameOrigin, forbiddenOrigin } from '@/shared/auth/backend';
+import { buildBackendApiV1Url } from '@/shared/auth/backend-url';
 
-const BACKEND_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
 const SESSION_COOKIE = 'hms_session';
+const FORWARDED_REQUEST_HEADERS = ['content-type', 'accept', 'idempotency-key', 'x-request-id'];
 const PASSTHROUGH_RESPONSE_HEADERS = ['content-type', 'content-disposition'];
 
 /**
- * Backend-for-frontend proxy: forwards every `/api/proxy/*` call to the real backend with
- * the JWT read from the httpOnly session cookie, so client code never touches the raw
- * token. Also used for binary upload/download (attachments, prescription XML).
+ * BFF proxy chuyển request `/api/proxy/*` sang backend thật, tự gắn JWT từ cookie httpOnly.
+ * Chỉ forward whitelist header nghiệp vụ để giữ idempotency/upload mà không lộ cookie trình duyệt.
  */
 async function forward(req: NextRequest, path: string[]) {
   if (!['GET', 'HEAD'].includes(req.method) && !assertSameOrigin()) return forbiddenOrigin();
 
-  const targetUrl = `${BACKEND_BASE_URL}/${path.join('/')}${req.nextUrl.search}`;
+  const targetUrl = `${buildBackendApiV1Url(path.join('/'))}${req.nextUrl.search}`;
   const token = req.cookies.get(SESSION_COOKIE)?.value;
 
   const headers: Record<string, string> = {};
-  const contentType = req.headers.get('content-type');
-  if (contentType) headers['Content-Type'] = contentType;
+  for (const headerName of FORWARDED_REQUEST_HEADERS) {
+    const value = req.headers.get(headerName);
+    if (value) headers[headerName] = value;
+  }
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const hasBody = !['GET', 'HEAD'].includes(req.method);

@@ -10,9 +10,7 @@ type IconProps = {
 };
 
 type ChangePasswordResponse = {
-  principal: {
-    roleCodes: string[];
-  };
+  homePath: string | null;
 };
 
 /**
@@ -108,7 +106,7 @@ function CheckIcon({ className }: IconProps) {
  * Form đổi mật khẩu bắt buộc với toggle xem mật khẩu (eye icon) và đánh giá độ mạnh mật khẩu.
  *
  * Input: Dữ liệu người dùng nhập (mật khẩu mới, xác nhận mật khẩu mới).
- * Output: Gọi API đổi mật khẩu và chuyển hướng về trang /login sau khi thành công.
+ * Output: Gọi API đổi mật khẩu và chuyển hướng về trang làm việc theo role.
  */
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -143,7 +141,7 @@ export function ChangePasswordForm() {
   const isPasswordMatch = newPassword.length > 0 && isConfirmTouched && newPassword === confirmPassword;
 
   /**
-   * Đổi mật khẩu bắt buộc và chuyển về trang đăng nhập sau khi thành công.
+   * Đổi mật khẩu bắt buộc và chuyển về trang làm việc theo role sau khi thành công.
    */
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -171,15 +169,12 @@ export function ChangePasswordForm() {
         method: 'PUT',
       });
 
-      if (
-        result.principal.roleCodes.includes('it_tech') ||
-        result.principal.roleCodes.includes('admin')
-      ) {
-        router.replace('/it-technician');
+      if (result.homePath) {
+        router.replace(result.homePath);
         return;
       }
 
-      router.replace('/');
+      setError('Tài khoản chưa được cấu hình trang làm việc phù hợp');
     } catch (caught) {
       setError(
         caught instanceof ApiError

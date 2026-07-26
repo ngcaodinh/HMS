@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useLogout } from '@/shared/hooks/use-logout';
 import { useRequireAuth } from '@/shared/hooks/use-require-auth';
@@ -21,6 +21,7 @@ import { Sidebar } from '../../components/sidebar';
 import { cn } from '../../components/shared';
 import { VitalsScreen } from '../../components/vitals-screen';
 import { useDoctorWorklist, useMedicalRecordDetail } from '../../services/medical-record-api';
+import { shouldResetSelectedRecord } from './doctor-workspace.state';
 import { doctorWorkspaceStyles as styles } from './doctor-workspace.styles';
 
 const WORKLIST_LABEL: Record<string, string> = {
@@ -34,16 +35,36 @@ export function DoctorWorkspacePage() {
   const { data: principal, isLoading: isAuthLoading, isError: isAuthError } = useRequireAuth();
   const logout = useLogout();
   const isAuthed = Boolean(principal) && !isAuthError;
-  const { data: worklist, isLoading: isWorklistLoading, isError: isWorklistError } = useDoctorWorklist(isAuthed);
+  const { data: worklist, isLoading: isWorklistLoading, isError: isWorklistError } = useDoctorWorklist(
+    principal?.userId ?? null,
+    isAuthed,
+  );
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [currentScreen, setCurrentScreen] = useState<DoctorScreen>('empty');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const { data: detailResponse, isLoading: isDetailLoading } = useMedicalRecordDetail(selectedRecordId, isAuthed);
+  const { data: detailResponse, isLoading: isDetailLoading } = useMedicalRecordDetail(
+    selectedRecordId,
+    principal?.userId ?? null,
+    isAuthed,
+  );
   const record = detailResponse?.record ?? null;
 
   const activeStep = useMemo<StepId>(() => (currentScreen === 'empty' ? 'vitals' : currentScreen), [currentScreen]);
   const steps = useMemo(() => visibleSteps(record?.diagnosis ?? null), [record?.diagnosis]);
+
+  useEffect(() => {
+    setSelectedRecordId(null);
+    setCurrentScreen('empty');
+    setSearchTerm('');
+  }, [principal?.userId]);
+
+  useEffect(() => {
+    if (shouldResetSelectedRecord(selectedRecordId, worklist)) {
+      setSelectedRecordId(null);
+      setCurrentScreen('empty');
+    }
+  }, [selectedRecordId, worklist]);
 
   function handleSelectPatient(recordId: string) {
     setSelectedRecordId(recordId);

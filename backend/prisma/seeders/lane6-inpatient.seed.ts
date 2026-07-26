@@ -135,6 +135,23 @@ async function main() {
     },
   });
 
+  // Gán role nghiệp vụ cho tài khoản demo;
+  // middleware RBAC đọc từ bảng permissions, không đọc trực tiếp bảng roles.
+  await prisma.permission.createMany({
+    data: [
+      {
+        id: crypto.randomUUID(),
+        roleCode: doctorRole.code,
+        userId: doctor.id,
+      },
+      {
+        id: crypto.randomUUID(),
+        roleCode: nurseRole.code,
+        userId: nurse.id,
+      },
+    ],
+  });
+
   // 4. Rooms & Beds (10 rooms, 4 beds each = 40 beds)
   const createdBeds: any[] = [];
   for (let r = 101; r <= 110; r++) {

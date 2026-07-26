@@ -1,9 +1,10 @@
 import { cookies, headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-const sessionCookieName = 'hms_session';
+import { backendApiV1BaseUrl, buildBackendApiV1Url } from './backend-url';
+import { sessionCookieName } from './session-cookie';
 
-export const backendBaseUrl = process.env.API_BASE_URL ?? 'http://localhost:4000/api/v1';
+export const backendBaseUrl = backendApiV1BaseUrl;
 
 /**
  * Đọc JWT từ cookie httpOnly ở server side, không đưa token xuống client JS.
@@ -59,7 +60,7 @@ export const assertSameOrigin = () => {
 export const backendFetch = async (path: string, init: RequestInit = {}) => {
   const token = getSessionToken();
 
-  return fetch(`${backendBaseUrl}${path}`, {
+  return fetch(buildBackendApiV1Url(path), {
     ...init,
     cache: 'no-store',
     headers: {
