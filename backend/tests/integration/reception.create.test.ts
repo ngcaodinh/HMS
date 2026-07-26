@@ -1,11 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../src/core/prisma/prisma';
 import { queueService } from '../../src/modules/queue/services/queue.service';
 import { receptionService } from '../../src/modules/reception/services/reception.service';
+import {
+  ensureReceptionIntegrationFixtures,
+  RECEPTION_TEST_DOCTOR_ID,
+} from './reception.fixtures';
 
-const DOCTOR_ID = '11111111-1111-4111-8111-111111111111';
+beforeAll(async () => {
+  await ensureReceptionIntegrationFixtures();
+});
 
 describe('createReception', () => {
   it('tiếp nhận ticket called → patient + record open + ticket served', async () => {
@@ -35,7 +41,7 @@ describe('createReception', () => {
     const suffix = String(Date.now()).slice(-8);
     const result = await receptionService.createReception({
       queueTicketId: active.ticketId,
-      doctorId: DOCTOR_ID,
+      doctorId: RECEPTION_TEST_DOCTOR_ID,
       newPatient: {
         fullName: `Nguyen Test ${suffix}`,
         dateOfBirth: '1990-01-15',
@@ -60,7 +66,7 @@ describe('createReception', () => {
     await expect(
       receptionService.createReception({
         queueTicketId: waiting.ticketId,
-        doctorId: DOCTOR_ID,
+        doctorId: RECEPTION_TEST_DOCTOR_ID,
         newPatient: {
           fullName: 'Fail Case',
           dateOfBirth: '1988-05-01',

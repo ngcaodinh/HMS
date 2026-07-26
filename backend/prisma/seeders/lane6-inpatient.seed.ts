@@ -338,6 +338,7 @@ async function main() {
       data: {
         patientCode: `BN2607-${c.code}`,
         fullName: c.fullName,
+        dateOfBirth: new Date('1970-01-01'),
         gender: c.gender,
         isEmergencyBypass: true,
         emergencyReason: c.emergencyReason,

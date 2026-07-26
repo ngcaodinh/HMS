@@ -1,7 +1,7 @@
 import { prisma } from '../../../core/db/prisma-client';
 
 export function listActiveLabTestTypes(keyword?: string) {
-  return prisma.lab_test_types.findMany({
+  return prisma.labTestType.findMany({
     where: {
       isActive: true,
       ...(keyword

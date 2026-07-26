@@ -5,7 +5,7 @@ import type { VitalSignsInput } from '../types/medical-record.types';
 
 /** Canonical write for vital signs (Gate G3) — `medical_records.vitalSigns` is only a snapshot. */
 export function createVitalSignLog(recordId: string, recordedBy: string, input: VitalSignsInput) {
-  return prisma.vital_sign_logs.create({
+  return prisma.vitalSignLog.create({
     data: {
       id: randomUUID(),
       recordId,

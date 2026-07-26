@@ -5,11 +5,11 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../../core/db/prisma-client';
 
 const queueInclude = {
-  lab_test_types: true,
-  medical_records: {
-    include: { patients: true, departments: true, users_medical_records_doctorIdTousers: true },
+  labTestType: true,
+  medicalRecord: {
+    include: { patient: true, department: true, doctor: true },
   },
-  users_lab_tests_orderedByTousers: true,
+  orderedByUser: true,
 } as const;
 
 export function findPendingLabTests(
@@ -21,56 +21,56 @@ export function findPendingLabTests(
     pageSize: number;
   },
 ) {
-  const where: Prisma.lab_testsWhereInput = {
+  const where: Prisma.LabTestWhereInput = {
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.isUrgent !== undefined ? { isUrgent: filters.isUrgent } : {}),
-    lab_test_types: { departmentId },
+    labTestType: { departmentId },
   };
 
   return Promise.all([
-    prisma.lab_tests.findMany({
+    prisma.labTest.findMany({
       where,
       include: queueInclude,
       orderBy: [{ isUrgent: 'desc' }, { createdAt: 'asc' }],
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
-    prisma.lab_tests.count({ where }),
+    prisma.labTest.count({ where }),
   ]);
 }
 
 export type PendingLabTest = Awaited<ReturnType<typeof findPendingLabTests>>[0][number];
 
 const detailInclude = {
-  lab_test_types: true,
-  medical_records: {
-    include: { patients: true, departments: true, users_medical_records_doctorIdTousers: true },
+  labTestType: true,
+  medicalRecord: {
+    include: { patient: true, department: true, doctor: true },
   },
-  users_lab_tests_orderedByTousers: true,
-  users_lab_tests_resultedByTousers: true,
-  users_lab_tests_signedByTousers: true,
-  xn_cong_thuc_mau: true,
-  xn_nuoc_tieu: true,
-  xn_vi_sinh: true,
-  xn_mo_benh_hoc: true,
-  xn_hoa_sinh_mau: true,
+  orderedByUser: true,
+  resultedByUser: true,
+  signedByUser: true,
+  cbcResult: true,
+  urinalysisResult: true,
+  microbiology: true,
+  pathology: true,
+  bioChemistry: true,
 } as const;
 
 export function findLabTestById(labTestId: string) {
-  return prisma.lab_tests.findUnique({ where: { id: labTestId }, include: detailInclude });
+  return prisma.labTest.findUnique({ where: { id: labTestId }, include: detailInclude });
 }
 
 export type LabTestWithDetails = NonNullable<Awaited<ReturnType<typeof findLabTestById>>>;
 
 export function findAttachmentsForLabTest(labTestId: string) {
-  return prisma.attachments.findMany({
+  return prisma.attachment.findMany({
     where: { ownerType: 'lab_test', ownerId: labTestId },
     orderBy: { uploadedAt: 'desc' },
   });
 }
 
 export function findAttachmentById(attachmentId: string) {
-  return prisma.attachments.findUnique({ where: { id: attachmentId } });
+  return prisma.attachment.findUnique({ where: { id: attachmentId } });
 }
 
 class LabTestAlreadyResultedError extends Error {}
@@ -97,43 +97,43 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
       const upsertData = { id: resultId, labTestId: params.labTestId, ...params.structuredResult };
       switch (params.resultTableKey) {
         case 'xn_cong_thuc_mau':
-          await tx.xn_cong_thuc_mau.upsert({
+          await tx.xnCongThucMau.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.xn_cong_thuc_mauUncheckedCreateInput,
-            update: params.structuredResult as Prisma.xn_cong_thuc_mauUncheckedUpdateInput,
+            create: upsertData as Prisma.XnCongThucMauUncheckedCreateInput,
+            update: params.structuredResult as Prisma.XnCongThucMauUncheckedUpdateInput,
           });
           break;
         case 'xn_nuoc_tieu':
-          await tx.xn_nuoc_tieu.upsert({
+          await tx.xnNuocTieu.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.xn_nuoc_tieuUncheckedCreateInput,
-            update: params.structuredResult as Prisma.xn_nuoc_tieuUncheckedUpdateInput,
+            create: upsertData as Prisma.XnNuocTieuUncheckedCreateInput,
+            update: params.structuredResult as Prisma.XnNuocTieuUncheckedUpdateInput,
           });
           break;
         case 'xn_vi_sinh':
-          await tx.xn_vi_sinh.upsert({
+          await tx.xnViSinh.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.xn_vi_sinhUncheckedCreateInput,
-            update: params.structuredResult as Prisma.xn_vi_sinhUncheckedUpdateInput,
+            create: upsertData as Prisma.XnViSinhUncheckedCreateInput,
+            update: params.structuredResult as Prisma.XnViSinhUncheckedUpdateInput,
           });
           break;
         case 'xn_mo_benh_hoc':
-          await tx.xn_mo_benh_hoc.upsert({
+          await tx.xnMoBenhHoc.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.xn_mo_benh_hocUncheckedCreateInput,
-            update: params.structuredResult as Prisma.xn_mo_benh_hocUncheckedUpdateInput,
+            create: upsertData as Prisma.XnMoBenhHocUncheckedCreateInput,
+            update: params.structuredResult as Prisma.XnMoBenhHocUncheckedUpdateInput,
           });
           break;
         case 'xn_hoa_sinh_mau':
-          await tx.xn_hoa_sinh_mau.upsert({
+          await tx.xnHoaSinhMau.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.xn_hoa_sinh_mauUncheckedCreateInput,
-            update: params.structuredResult as Prisma.xn_hoa_sinh_mauUncheckedUpdateInput,
+            create: upsertData as Prisma.XnHoaSinhMauUncheckedCreateInput,
+            update: params.structuredResult as Prisma.XnHoaSinhMauUncheckedUpdateInput,
           });
           break;
       }
 
-      const updated = await tx.lab_tests.updateMany({
+      const updated = await tx.labTest.updateMany({
         where: { id: params.labTestId, status: { in: ['ordered', 'in_progress'] } },
         data: {
           status: 'resulted',
@@ -150,7 +150,7 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
       });
       if (updated.count !== 1) throw new LabTestAlreadyResultedError();
 
-      return tx.lab_tests.findUniqueOrThrow({ where: { id: params.labTestId }, include: detailInclude });
+      return tx.labTest.findUniqueOrThrow({ where: { id: params.labTestId }, include: detailInclude });
     });
   } catch (error) {
     if (error instanceof LabTestAlreadyResultedError) return null;
@@ -160,32 +160,32 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
 
 /** Only ever touches `xn_mo_benh_hoc` — never writes `lab_tests.status`/`resultedAt` (Gate G4). */
 export function savePathologyWorkupDraftTx(labTestId: string, structuredResult: Record<string, unknown>) {
-  return prisma.xn_mo_benh_hoc.upsert({
+  return prisma.xnMoBenhHoc.upsert({
     where: { labTestId },
-    create: { id: randomUUID(), labTestId, ...structuredResult } as Prisma.xn_mo_benh_hocUncheckedCreateInput,
-    update: structuredResult as Prisma.xn_mo_benh_hocUncheckedUpdateInput,
+    create: { id: randomUUID(), labTestId, ...structuredResult } as Prisma.XnMoBenhHocUncheckedCreateInput,
+    update: structuredResult as Prisma.XnMoBenhHocUncheckedUpdateInput,
   });
 }
 
 export async function updateLabTestTypeReferenceRange(id: string, referenceRange: string) {
-  const result = await prisma.lab_test_types.updateMany({ where: { id }, data: { referenceRange } });
+  const result = await prisma.labTestType.updateMany({ where: { id }, data: { referenceRange } });
   if (result.count !== 1) return null;
-  return prisma.lab_test_types.findUniqueOrThrow({ where: { id } });
+  return prisma.labTestType.findUniqueOrThrow({ where: { id } });
 }
 
 /** "Tiếp nhận mẫu" — ordered -> in_progress, ghi nhận specimenReceivedAt. Guarded so it only ever
  * fires once from `ordered`; already-in_progress/resulted calls are no-ops (return null). */
 export async function receiveSpecimenTx(labTestId: string) {
-  const result = await prisma.lab_tests.updateMany({
+  const result = await prisma.labTest.updateMany({
     where: { id: labTestId, status: 'ordered' },
     data: { status: 'in_progress', specimenReceivedAt: new Date() },
   });
   if (result.count !== 1) return null;
-  return prisma.lab_tests.findUniqueOrThrow({ where: { id: labTestId }, include: detailInclude });
+  return prisma.labTest.findUniqueOrThrow({ where: { id: labTestId }, include: detailInclude });
 }
 
 export function listReferenceRanges(filters: { labTestTypeId?: string; keyword?: string; page: number; pageSize: number }) {
-  const where: Prisma.lab_reference_rangesWhereInput = {
+  const where: Prisma.LabReferenceRangeWhereInput = {
     isActive: true,
     ...(filters.labTestTypeId ? { labTestTypeId: filters.labTestTypeId } : {}),
     ...(filters.keyword
@@ -193,42 +193,42 @@ export function listReferenceRanges(filters: { labTestTypeId?: string; keyword?:
       : {}),
   };
   return Promise.all([
-    prisma.lab_reference_ranges.findMany({
+    prisma.labReferenceRange.findMany({
       where,
-      include: { lab_test_types: true },
+      include: { labTestType: true },
       orderBy: { code: 'asc' },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
-    prisma.lab_reference_ranges.count({ where }),
+    prisma.labReferenceRange.count({ where }),
   ]);
 }
 
 export type ReferenceRangeWithType = Awaited<ReturnType<typeof listReferenceRanges>>[0][number];
 
-export function createReferenceRange(data: Prisma.lab_reference_rangesUncheckedCreateInput) {
-  return prisma.lab_reference_ranges.create({ data, include: { lab_test_types: true } });
+export function createReferenceRange(data: Prisma.LabReferenceRangeUncheckedCreateInput) {
+  return prisma.labReferenceRange.create({ data, include: { labTestType: true } });
 }
 
-export async function updateReferenceRangeDetail(id: string, data: Prisma.lab_reference_rangesUncheckedUpdateInput) {
-  const result = await prisma.lab_reference_ranges.updateMany({ where: { id }, data });
+export async function updateReferenceRangeDetail(id: string, data: Prisma.LabReferenceRangeUncheckedUpdateInput) {
+  const result = await prisma.labReferenceRange.updateMany({ where: { id }, data });
   if (result.count !== 1) return null;
-  return prisma.lab_reference_ranges.findUniqueOrThrow({ where: { id }, include: { lab_test_types: true } });
+  return prisma.labReferenceRange.findUniqueOrThrow({ where: { id }, include: { labTestType: true } });
 }
 
 export async function softDeleteReferenceRange(id: string) {
-  const result = await prisma.lab_reference_ranges.updateMany({ where: { id }, data: { isActive: false } });
+  const result = await prisma.labReferenceRange.updateMany({ where: { id }, data: { isActive: false } });
   return result.count === 1;
 }
 
 export function findReferenceRangesByType(labTestTypeId: string) {
-  return prisma.lab_reference_ranges.findMany({ where: { labTestTypeId, isActive: true } });
+  return prisma.labReferenceRange.findMany({ where: { labTestTypeId, isActive: true } });
 }
 
 /** Dữ liệu thô cho thống kê hoạt động — tính toán/group ở service để tránh raw SQL không cần thiết. */
 export function findLabTestsForStats(departmentId: string, from: Date, to: Date) {
-  return prisma.lab_tests.findMany({
-    where: { lab_test_types: { departmentId }, createdAt: { gte: from, lte: to } },
+  return prisma.labTest.findMany({
+    where: { labTestType: { departmentId }, createdAt: { gte: from, lte: to } },
     select: {
       status: true,
       isUrgent: true,

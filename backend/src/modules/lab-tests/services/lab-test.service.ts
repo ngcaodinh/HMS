@@ -33,27 +33,27 @@ import type {
 } from '../types/lab-test.types';
 
 function shapePendingLabTest(labTest: PendingLabTest) {
-  const record = labTest.medical_records;
+  const record = labTest.medicalRecord;
   return {
     labTestId: labTest.id,
     recordId: labTest.recordId,
     labTestTypeId: labTest.labTestTypeId,
     testName: labTest.testName,
-    resultTableKey: labTest.lab_test_types.resultTableKey,
+    resultTableKey: labTest.labTestType.resultTableKey,
     specimenType: labTest.specimenType,
     isUrgent: labTest.isUrgent,
     status: labTest.status,
     reportCode: labTest.reportCode,
     createdAt: labTest.createdAt,
     patient: {
-      patientId: record.patients.id,
-      patientCode: record.patients.patientCode,
-      fullName: record.patients.fullName,
-      dateOfBirth: record.patients.dateOfBirth,
-      gender: record.patients.gender,
+      patientId: record.patient.id,
+      patientCode: record.patient.patientCode,
+      fullName: record.patient.fullName,
+      dateOfBirth: record.patient.dateOfBirth,
+      gender: record.patient.gender,
     },
-    department: record.departments ? { name: record.departments.name } : null,
-    orderingDoctor: { fullName: record.users_medical_records_doctorIdTousers.fullName },
+    department: record.department ? { name: record.department.name } : null,
+    orderingDoctor: { fullName: record.doctor.fullName },
   };
 }
 
@@ -78,11 +78,11 @@ export async function listPendingLabTests(query: ListPendingLabTestsQuery, princ
 }
 
 const RESULT_FIELD_BY_KEY = {
-  xn_cong_thuc_mau: 'xn_cong_thuc_mau',
-  xn_nuoc_tieu: 'xn_nuoc_tieu',
-  xn_vi_sinh: 'xn_vi_sinh',
-  xn_mo_benh_hoc: 'xn_mo_benh_hoc',
-  xn_hoa_sinh_mau: 'xn_hoa_sinh_mau',
+  xn_cong_thuc_mau: 'cbcResult',
+  xn_nuoc_tieu: 'urinalysisResult',
+  xn_vi_sinh: 'microbiology',
+  xn_mo_benh_hoc: 'pathology',
+  xn_hoa_sinh_mau: 'bioChemistry',
 } as const;
 
 function shapeReferenceRange(range: Awaited<ReturnType<typeof findReferenceRangesByType>>[number]) {
@@ -102,8 +102,8 @@ function shapeLabTestDetail(
   attachments: Awaited<ReturnType<typeof findAttachmentsForLabTest>>,
   referenceRanges: Awaited<ReturnType<typeof findReferenceRangesByType>>,
 ) {
-  const record = labTest.medical_records;
-  const resultTableKey = labTest.lab_test_types.resultTableKey;
+  const record = labTest.medicalRecord;
+  const resultTableKey = labTest.labTestType.resultTableKey;
   const structuredResult = labTest[RESULT_FIELD_BY_KEY[resultTableKey]] ?? null;
 
   return {
@@ -117,20 +117,20 @@ function shapeLabTestDetail(
     reportCode: labTest.reportCode,
     method: labTest.method,
     conclusion: labTest.conclusion,
-    resultedBy: labTest.users_lab_tests_resultedByTousers?.fullName ?? null,
+    resultedBy: labTest.resultedByUser?.fullName ?? null,
     resultedAt: labTest.resultedAt,
-    signedBy: labTest.users_lab_tests_signedByTousers?.fullName ?? null,
+    signedBy: labTest.signedByUser?.fullName ?? null,
     signedAt: labTest.signedAt,
     patient: {
-      patientId: record.patients.id,
-      patientCode: record.patients.patientCode,
-      fullName: record.patients.fullName,
-      dateOfBirth: record.patients.dateOfBirth,
-      gender: record.patients.gender,
-      healthInsuranceCode: record.patients.healthInsuranceCode,
+      patientId: record.patient.id,
+      patientCode: record.patient.patientCode,
+      fullName: record.patient.fullName,
+      dateOfBirth: record.patient.dateOfBirth,
+      gender: record.patient.gender,
+      healthInsuranceCode: record.patient.healthInsuranceCode,
     },
-    department: record.departments ? { name: record.departments.name } : null,
-    orderingDoctor: { fullName: record.users_medical_records_doctorIdTousers.fullName },
+    department: record.department ? { name: record.department.name } : null,
+    orderingDoctor: { fullName: record.doctor.fullName },
     diagnosis: record.icd10 ? { icd10: record.icd10, diagnosisText: record.diagnosisText } : null,
     structuredResult,
     referenceRanges: referenceRanges.map(shapeReferenceRange),
@@ -213,7 +213,7 @@ async function assertAttachmentBelongsToLabTest(attachmentId: string, labTestId:
  */
 export async function recordLabResult(labTestId: string, input: RecordLabResultInput, principal: Principal) {
   const labTest = await loadOrderedLabTest(labTestId);
-  if (labTest.lab_test_types.resultTableKey !== input.resultTableKey) {
+  if (labTest.labTestType.resultTableKey !== input.resultTableKey) {
     throw AppError.badRequest('LAB_RESULT_TYPE_MISMATCH', 'Loại kết quả không khớp với danh mục xét nghiệm.');
   }
   await assertAttachmentBelongsToLabTest(input.attachmentId, labTestId);
@@ -263,7 +263,7 @@ export async function savePathologyWorkupDraft(
   principal: Principal,
 ) {
   const labTest = await loadOrderedLabTest(labTestId);
-  if (labTest.lab_test_types.resultTableKey !== 'xn_mo_benh_hoc') {
+  if (labTest.labTestType.resultTableKey !== 'xn_mo_benh_hoc') {
     throw AppError.badRequest('LAB_RESULT_TYPE_MISMATCH', 'Loại kết quả không khớp với danh mục xét nghiệm.');
   }
 
@@ -312,8 +312,8 @@ function shapeReferenceRangeRow(range: ReferenceRangeWithType) {
   return {
     referenceRangeId: range.id,
     labTestTypeId: range.labTestTypeId,
-    labTestTypeName: range.lab_test_types.name,
-    resultTableKey: range.lab_test_types.resultTableKey,
+    labTestTypeName: range.labTestType.name,
+    resultTableKey: range.labTestType.resultTableKey,
     fieldKey: range.fieldKey,
     code: range.code,
     label: range.label,

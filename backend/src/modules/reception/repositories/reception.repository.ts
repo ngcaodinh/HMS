@@ -26,8 +26,14 @@ export class ReceptionRepository {
   }
 
   async findDoctor(doctorId: string) {
-    return prisma.doctor.findFirst({
-      where: { id: doctorId, isActive: true },
+    return prisma.user.findFirst({
+      where: {
+        id: doctorId,
+        isActive: true,
+        permissions: {
+          some: { roleCode: 'doctor' },
+        },
+      },
       select: { id: true, fullName: true },
     });
   }
@@ -51,11 +57,22 @@ export class ReceptionRepository {
   }
 
   async listActiveDoctors() {
-    return prisma.doctor.findMany({
-      where: { isActive: true },
+    const doctors = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        permissions: {
+          some: { roleCode: 'doctor' },
+        },
+      },
       orderBy: { fullName: 'asc' },
-      select: { id: true, fullName: true, employeeCode: true },
+      select: { id: true, fullName: true, username: true },
     });
+
+    return doctors.map((doctor) => ({
+      id: doctor.id,
+      fullName: doctor.fullName,
+      employeeCode: doctor.username,
+    }));
   }
 
   /**

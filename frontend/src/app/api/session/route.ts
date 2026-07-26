@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
-const SESSION_COOKIE = 'hms_token';
+const SESSION_COOKIE = 'hms_session';
 
 /**
  * BFF route: exchanges username/password for a backend JWT and stores it in an httpOnly

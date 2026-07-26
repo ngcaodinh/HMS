@@ -1,6 +1,6 @@
-import axios, { type AxiosError } from 'axios';
+import { type AxiosError } from 'axios';
 
-import { env } from '../constants/env';
+import { httpClient } from './http-client';
 
 export type ApiErrorBody = {
   error: {
@@ -26,28 +26,12 @@ export type ApiSuccess<T> = {
 };
 
 /**
- * Axios instance gọi Backend /api/v1.
+ * Axios instance dùng BFF proxy để trình duyệt không giữ access token trực tiếp.
  */
-export const apiClient = axios.create({
-  baseURL: `${env.apiUrl}/api/v1`,
-  timeout: 15000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-apiClient.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = window.localStorage.getItem('hms_access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-  }
-  return config;
-});
+export const apiClient = httpClient;
 
 /**
- * Trích message lỗi contract v1.
+ * Trích message lỗi theo contract API v1 để UI hiển thị phản hồi thống nhất.
  */
 export function getApiErrorMessage(error: unknown, fallback = 'Đã xảy ra lỗi'): string {
   const axiosError = error as AxiosError<ApiErrorBody>;

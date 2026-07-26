@@ -62,3 +62,22 @@ export async function apiPut<T>(
   const response = await httpClient.put<SuccessEnvelope<T>>(url, body, config);
   return response.data.data;
 }
+
+export async function apiDelete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  const response = await httpClient.delete<SuccessEnvelope<T>>(url, config);
+  return response.data.data;
+}
+
+export async function apiPostMultipart<T>(
+  url: string,
+  body: FormData,
+  config?: AxiosRequestConfig,
+): Promise<T> {
+  const response = await httpClient.post<SuccessEnvelope<T>>(url, body, {
+    ...config,
+    headers: {
+      ...config?.headers,
+    },
+  });
+  return response.data.data;
+}

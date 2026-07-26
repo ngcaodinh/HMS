@@ -44,12 +44,16 @@ export function authorizeAndAudit(action?: string) {
 
       const roleCodes = roleCodesOf(user);
       req.principal = {
+        authVersion: user.authVersion,
+        id: user.id,
         userId: user.id,
         username: user.username,
         fullName: user.fullName,
         roleCodes,
+        permissions: [],
         departmentId: user.departmentId,
         isActive: user.isActive,
+        mustChangePassword: user.mustChangePassword,
       };
 
       if (action && !isActionAllowed(roleCodes, action)) {

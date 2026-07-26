@@ -1,7 +1,7 @@
 import { prisma } from '../../../core/db/prisma-client';
 
 export function listActiveMedicines(keyword?: string) {
-  return prisma.medicines.findMany({
+  return prisma.medicine.findMany({
     where: {
       isActive: true,
       ...(keyword
@@ -9,7 +9,7 @@ export function listActiveMedicines(keyword?: string) {
         : {}),
     },
     include: {
-      medicine_batches: { where: { expiryDate: { gt: new Date() } }, orderBy: { expiryDate: 'asc' } },
+      medicineBatches: { where: { expiryDate: { gt: new Date() } }, orderBy: { expiryDate: 'asc' } },
     },
     orderBy: { name: 'asc' },
     take: 30,

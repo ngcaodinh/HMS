@@ -6,7 +6,7 @@ import { prisma } from '../../../core/db/prisma-client';
 import type { RecordAuditInput } from '../types/audit.types';
 
 export async function insertAuditLog(input: RecordAuditInput): Promise<void> {
-  await prisma.audit_logs.create({
+  await prisma.auditLog.create({
     data: {
       id: randomUUID(),
       userId: input.userId,

@@ -11,8 +11,8 @@ import type {
 } from '../types/medical-record.types';
 
 const detailInclude = {
-  patients: true,
-  lab_tests: { include: { lab_test_types: true } },
+  patient: true,
+  labTests: { include: { labTestType: true } },
 } as const;
 
 export function findWorklist(query: WorklistQuery) {
@@ -31,19 +31,19 @@ export function findWorklist(query: WorklistQuery) {
   };
 
   return Promise.all([
-    prisma.medical_records.findMany({
+    prisma.medicalRecord.findMany({
       where,
-      include: { patients: true, lab_tests: { select: { status: true } } },
+      include: { patient: true, labTests: { select: { status: true } } },
       orderBy: { createdAt: 'desc' },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
     }),
-    prisma.medical_records.count({ where }),
+    prisma.medicalRecord.count({ where }),
   ]);
 }
 
 export function findMedicalRecordById(recordId: string) {
-  return prisma.medical_records.findUnique({ where: { id: recordId }, include: detailInclude });
+  return prisma.medicalRecord.findUnique({ where: { id: recordId }, include: detailInclude });
 }
 
 export type MedicalRecordDetail = NonNullable<Awaited<ReturnType<typeof findMedicalRecordById>>>;
@@ -53,7 +53,7 @@ export async function snapshotVitalSigns(
   snapshot: Record<string, unknown>,
   confirmedBy: string,
 ) {
-  await prisma.medical_records.update({
+  await prisma.medicalRecord.update({
     where: { id: recordId },
     data: {
       vitalSigns: snapshot as Prisma.InputJsonValue,
@@ -70,7 +70,7 @@ export async function updateClinicalAssessment(
 ) {
   const { skinLesionTypes, expectedVersion: _v, ...rest } = input;
 
-  const result = await prisma.medical_records.updateMany({
+  const result = await prisma.medicalRecord.updateMany({
     where: { id: recordId, version: expectedVersion, deletedAt: null },
     data: {
       ...rest,
@@ -84,7 +84,7 @@ export async function updateClinicalAssessment(
 
 /** Read-only lookup into the lab catalog owned by Lane 9/Phase 2 — needed here only for price/name snapshotting at order time. */
 export function findActiveLabTestType(labTestTypeId: string) {
-  return prisma.lab_test_types.findFirst({ where: { id: labTestTypeId, isActive: true } });
+  return prisma.labTestType.findFirst({ where: { id: labTestTypeId, isActive: true } });
 }
 
 export async function createLabTestOrders(
@@ -95,7 +95,7 @@ export async function createLabTestOrders(
   resolvedTypes: Map<string, { testName: string; fee: string }>,
 ) {
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.medical_records.updateMany({
+    const updated = await tx.medicalRecord.updateMany({
       where: { id: recordId, version: expectedVersion, deletedAt: null },
       data: { status: 'waiting_results', version: { increment: 1 } },
     });
@@ -105,7 +105,7 @@ export async function createLabTestOrders(
     for (const item of items) {
       const resolved = resolvedTypes.get(item.labTestTypeId);
       if (!resolved) continue;
-      const created = await tx.lab_tests.create({
+      const created = await tx.labTest.create({
         data: {
           id: randomUUID(),
           recordId,
@@ -122,7 +122,7 @@ export async function createLabTestOrders(
       createdTests.push(created);
     }
 
-    const record = await tx.medical_records.findUniqueOrThrow({ where: { id: recordId } });
+    const record = await tx.medicalRecord.findUniqueOrThrow({ where: { id: recordId } });
     return { record, createdTests };
   });
 }
@@ -133,7 +133,7 @@ export async function diagnoseRecord(
   input: DiagnoseRecordInput,
 ) {
   const now = new Date();
-  const result = await prisma.medical_records.updateMany({
+  const result = await prisma.medicalRecord.updateMany({
     where: {
       id: recordId,
       version: input.expectedVersion,
@@ -159,5 +159,5 @@ export async function diagnoseRecord(
   });
 
   if (result.count !== 1) return null;
-  return prisma.medical_records.findUniqueOrThrow({ where: { id: recordId } });
+  return prisma.medicalRecord.findUniqueOrThrow({ where: { id: recordId } });
 }

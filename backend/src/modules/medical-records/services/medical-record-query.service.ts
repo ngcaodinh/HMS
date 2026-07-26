@@ -20,10 +20,10 @@ export async function listDoctorWorklist(
       recordId: record.id,
       recordCode: record.recordCode,
       patient: {
-        patientId: record.patients.id,
-        fullName: record.patients.fullName,
-        dateOfBirth: record.patients.dateOfBirth,
-        gender: record.patients.gender,
+        patientId: record.patient.id,
+        fullName: record.patient.fullName,
+        dateOfBirth: record.patient.dateOfBirth,
+        gender: record.patient.gender,
       },
       chiefComplaint: record.chiefComplaint,
       status: record.status,
@@ -31,8 +31,8 @@ export async function listDoctorWorklist(
       // sidebar (Tailieu/doctor.html GROUP_META) without a separate per-record lookup.
       hasReadyResults:
         record.status === 'waiting_results' &&
-        record.lab_tests.length > 0 &&
-        record.lab_tests.every((test) => test.status === 'resulted'),
+        record.labTests.length > 0 &&
+        record.labTests.every((test) => test.status === 'resulted'),
     })),
     pagination: { page: query.page, pageSize: query.pageSize, totalItems },
   };
@@ -69,17 +69,17 @@ export async function getMedicalRecordDetail(recordId: string, principal: Princi
       // clinical authority over this patient, and allergy/BHYT are required by the Diagnosis/
       // Rx screens (Tailieu/doctor.html patient header + Tab 5A allergy check).
       patient: {
-        patientId: record.patients.id,
-        patientCode: record.patients.patientCode,
-        fullName: record.patients.fullName,
-        dateOfBirth: record.patients.dateOfBirth,
-        gender: record.patients.gender,
-        allergies: record.patients.allergies,
-        healthInsuranceCode: record.patients.healthInsuranceCode,
-        healthInsuranceExpiryDate: record.patients.healthInsuranceExpiryDate,
-        address: record.patients.address,
-        emergencyContact: record.patients.emergencyContact,
-        emergencyPhoneNumber: record.patients.emergencyPhoneNumber,
+        patientId: record.patient.id,
+        patientCode: record.patient.patientCode,
+        fullName: record.patient.fullName,
+        dateOfBirth: record.patient.dateOfBirth,
+        gender: record.patient.gender,
+        allergies: record.patient.allergies,
+        healthInsuranceCode: record.patient.healthInsuranceCode,
+        healthInsuranceExpiryDate: record.patient.healthInsuranceExpiryDate,
+        address: record.patient.address,
+        emergencyContact: record.patient.emergencyContact,
+        emergencyPhoneNumber: record.patient.emergencyPhoneNumber,
       },
       createdAt: record.createdAt,
       clinicalAssessment: {
@@ -96,13 +96,13 @@ export async function getMedicalRecordDetail(recordId: string, principal: Princi
         itchSeverity: record.itchSeverity,
       },
       latestVitalSigns: record.vitalSigns,
-      labTests: record.lab_tests.map((test) => ({
+      labTests: record.labTests.map((test) => ({
         labTestId: test.id,
         status: test.status,
         testName: test.testName,
         isUrgent: test.isUrgent,
-        resultTableKey: test.lab_test_types.resultTableKey,
-        specimenType: test.specimenType ?? test.lab_test_types.specimen,
+        resultTableKey: test.labTestType.resultTableKey,
+        specimenType: test.specimenType ?? test.labTestType.specimen,
       })),
       diagnosis: record.icd10
         ? {

@@ -49,7 +49,7 @@ async function loadAssignedOutpatientRecord(recordId: string, doctorId: string) 
 async function loadOwnedPrescription(prescriptionId: string, doctorId: string): Promise<PrescriptionWithDetails> {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
-  if (prescription.medical_records.doctorId !== doctorId) {
+  if (prescription.medicalRecord.doctorId !== doctorId) {
     throw AppError.forbidden('FORBIDDEN_ACCESS', 'Bạn không có quyền thao tác trên đơn thuốc này.');
   }
   return prescription;
@@ -60,7 +60,7 @@ async function loadOwnedPrescription(prescriptionId: string, doctorId: string): 
 async function loadPrescriptionForStaffAccess(prescriptionId: string, principal: Principal): Promise<PrescriptionWithDetails> {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
-  const isOwnerDoctor = prescription.medical_records.doctorId === principal.userId;
+  const isOwnerDoctor = prescription.medicalRecord.doctorId === principal.userId;
   const isPharmacist = principal.roleCodes.includes('pharmacist');
   if (!isOwnerDoctor && !isPharmacist) {
     throw AppError.forbidden('FORBIDDEN_ACCESS', 'Bạn không có quyền thao tác trên đơn thuốc này.');
@@ -146,7 +146,7 @@ export async function createPrescriptionDraft(recordId: string, doctorId: string
     throw AppError.badRequest('INVALID_PRESCRIPTION', 'Đơn trống — kê ít nhất 1 thuốc hoặc xác nhận Không dùng thuốc.');
   }
 
-  const resolvedItems = input.items.length > 0 ? await resolveAndValidateItems(input, record.patients.allergies) : [];
+  const resolvedItems = input.items.length > 0 ? await resolveAndValidateItems(input, record.patient.allergies) : [];
   const roundNumber = await findNextRoundNumber(recordId);
   const { prescription, items } = await createDraftPrescription(
     recordId,
@@ -209,7 +209,7 @@ export async function getLatestPrescriptionForRecord(recordId: string, doctorId:
     signedAt: prescription.signedAt,
     xmlExportedAt: prescription.xmlExportedAt,
     allergyOverrideReason: prescription.allergyOverrideReason,
-    items: prescription.prescription_items.map((item) => ({
+    items: prescription.prescriptionItems.map((item) => ({
       prescriptionItemId: item.id,
       medicineId: item.medicineId,
       medicineNameSnapshot: item.medicineNameSnapshot,
@@ -239,8 +239,8 @@ export async function signPrescription(prescriptionId: string, doctorId: string,
     throw AppError.badRequest('PRESCRIPTION_NOT_DRAFT', 'Đơn thuốc không ở trạng thái nháp.');
   }
 
-  const patientAllergies = prescription.medical_records.patients.allergies;
-  const conflict = prescription.prescription_items
+  const patientAllergies = prescription.medicalRecord.patient.allergies;
+  const conflict = prescription.prescriptionItems
     .map((item) => findAllergyConflict(item.activeIngredientSnapshot, item.medicineNameSnapshot ?? '', patientAllergies))
     .find(Boolean);
   const hasOverride =
@@ -306,13 +306,13 @@ function escapeXml(value: string | null | undefined): string {
 }
 
 function buildPrescriptionXml(prescription: PrescriptionWithDetails): string {
-  const record = prescription.medical_records;
-  const doctorName = record.users_medical_records_doctorIdTousers.fullName;
-  const patient = record.patients;
+  const record = prescription.medicalRecord;
+  const doctorName = record.doctor.fullName;
+  const patient = record.patient;
   const diagnosis = record.icd10 ? `${record.icd10} ${record.diagnosisText ?? ''}`.trim() : '';
 
-  const itemsXml = prescription.prescription_items.length
-    ? prescription.prescription_items
+  const itemsXml = prescription.prescriptionItems.length
+    ? prescription.prescriptionItems
         .map(
           (item, index) =>
             `    <Thuoc stt="${index + 1}"><Ten>${escapeXml(item.medicineNameSnapshot)}</Ten><HoatChat>${escapeXml(item.activeIngredientSnapshot)}</HoatChat><SoLuong>${item.quantity}</SoLuong><SoNgay>${item.days}</SoNgay><Lieu>${escapeXml(item.dosePerUse)}</Lieu><CachDung>${escapeXml(item.dosageInstruction)}</CachDung></Thuoc>`,
@@ -347,7 +347,7 @@ export async function exportPrescriptionXml(prescriptionId: string, doctorId: st
   }
 
   const xml = buildPrescriptionXml(prescription);
-  const fileName = `don-thuoc-${prescription.medical_records.patients.patientCode}-${prescription.id.slice(0, 8)}.xml`;
+  const fileName = `don-thuoc-${prescription.medicalRecord.patient.patientCode}-${prescription.id.slice(0, 8)}.xml`;
   const dir = path.join(config.upload.root, 'prescriptions');
   await mkdir(dir, { recursive: true });
   const filePath = path.join(dir, fileName);
@@ -389,7 +389,7 @@ export async function downloadPrescriptionXml(prescriptionId: string, principal:
 }
 
 function shapeDispensablePrescription(prescription: DispensablePrescription) {
-  const record = prescription.medical_records;
+  const record = prescription.medicalRecord;
   return {
     prescriptionId: prescription.id,
     prescriptionCode: prescription.prescriptionCode,
@@ -399,18 +399,18 @@ function shapeDispensablePrescription(prescription: DispensablePrescription) {
     allergyOverrideReason: prescription.allergyOverrideReason,
     allergyOverrideAt: prescription.allergyOverrideAt,
     patient: {
-      patientId: record.patients.id,
-      patientCode: record.patients.patientCode,
-      fullName: record.patients.fullName,
-      dateOfBirth: record.patients.dateOfBirth,
-      gender: record.patients.gender,
-      allergies: record.patients.allergies,
-      healthInsuranceCode: record.patients.healthInsuranceCode,
+      patientId: record.patient.id,
+      patientCode: record.patient.patientCode,
+      fullName: record.patient.fullName,
+      dateOfBirth: record.patient.dateOfBirth,
+      gender: record.patient.gender,
+      allergies: record.patient.allergies,
+      healthInsuranceCode: record.patient.healthInsuranceCode,
     },
-    department: record.departments ? { name: record.departments.name } : null,
-    prescribingDoctor: { fullName: record.users_medical_records_doctorIdTousers.fullName },
+    department: record.department ? { name: record.department.name } : null,
+    prescribingDoctor: { fullName: record.doctor.fullName },
     diagnosis: record.icd10 ? { icd10: record.icd10, diagnosisText: record.diagnosisText } : null,
-    items: prescription.prescription_items.map((item) => ({
+    items: prescription.prescriptionItems.map((item) => ({
       prescriptionItemId: item.id,
       medicineNameSnapshot: item.medicineNameSnapshot,
       activeIngredientSnapshot: item.activeIngredientSnapshot,

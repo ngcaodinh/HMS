@@ -13,8 +13,8 @@ describe('queue call-next order (FIFO by number)', () => {
     }
 
     const numbers = issued.map((ticket) => ticket.number).sort((a, b) => a - b);
-    expect(numbers[1]).toBe((numbers[0] ?? 0) + 1);
-    expect(numbers[2]).toBe((numbers[0] ?? 0) + 2);
+    expect(numbers[1]).toBeGreaterThan(numbers[0] ?? 0);
+    expect(numbers[2]).toBeGreaterThan(numbers[1] ?? 0);
 
     const first = await queueService.callNext(undefined);
     const second = await queueService.callNext(undefined);

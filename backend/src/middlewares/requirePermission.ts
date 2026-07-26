@@ -2,13 +2,9 @@ import type { NextFunction, Request, Response } from 'express';
 
 import { config } from '../config/unifiedConfig';
 import { AppError } from '../core/errors/appError';
+import type { Principal } from '../modules/auth/types/auth.types';
 
-export type AuthPrincipal = {
-  userId: string;
-  roleCodes: string[];
-  permissions: string[];
-  authVersion: number;
-};
+export type AuthPrincipal = Principal;
 
 declare global {
   namespace Express {
@@ -28,7 +24,10 @@ export function attachDevPrincipal(req: Request, _res: Response, next: NextFunct
 
   if (authHeader?.startsWith('Bearer ') || config.app.env === 'development' || config.app.env === 'test') {
     req.principal = {
+      id: '11111111-1111-4111-8111-111111111111',
       userId: '11111111-1111-4111-8111-111111111111',
+      username: 'reception.dev',
+      fullName: 'Reception Dev',
       roleCodes: ['receptionist'],
       permissions: [
         'queue.read',
@@ -49,6 +48,9 @@ export function attachDevPrincipal(req: Request, _res: Response, next: NextFunct
         'payment.read',
         'payment_advance.write',
       ],
+      departmentId: 'dept-reception',
+      isActive: true,
+      mustChangePassword: false,
       authVersion: 1,
     };
   }

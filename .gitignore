@@ -28,18 +28,23 @@ AGENTS.md
 GEMINI.md
 CLAUDE.md
 
-doc
+doc/*
+!doc/Plan/
+doc/Plan/*
+!doc/Plan/fix_plan.md
 
 *.tsbuildinfo
 
 # Markdown files
 *.md
+!doc/Plan/fix_plan.md
 
 # Temp directory
 temp/
 
 # Database files
 *.sql
+!backend/prisma/migrations/**/migration.sql
 *.db
 *.sqlite
 *.sqlite3

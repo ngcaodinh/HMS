@@ -1,6 +1,6 @@
-import type { attachments_ownerType } from '@prisma/client';
+import type { AttachmentOwnerType as PrismaAttachmentOwnerType } from '@prisma/client';
 
-export type AttachmentOwnerType = attachments_ownerType;
+export type AttachmentOwnerType = PrismaAttachmentOwnerType;
 
 export interface UploadAttachmentInput {
   ownerType: AttachmentOwnerType;

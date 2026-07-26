@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import type { Principal as AuthPrincipal } from '../auth/types/auth.types';
 
 export const roleCodes = [
   'admin',
@@ -36,7 +37,7 @@ export type StaffUserRecord = {
 
 export type PublicStaffUser = Omit<StaffUserRecord, 'password'>;
 
-export type Principal = PublicStaffUser;
+export type Principal = AuthPrincipal;
 
 export type AuthenticatedRequest = Request & {
   principal?: Principal;

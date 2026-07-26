@@ -1,1 +1,1 @@
-export { PharmacyWorkspacePage } from './pharmacy-workspace';
+export { PharmacyWorkspace } from './pharmacy-workspace';

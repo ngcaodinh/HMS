@@ -5,26 +5,26 @@ import type { Prisma } from '@prisma/client';
 import { prisma } from '../../../core/db/prisma-client';
 
 export function findRecordForPrescription(recordId: string) {
-  return prisma.medical_records.findUnique({
+  return prisma.medicalRecord.findUnique({
     where: { id: recordId },
-    include: { patients: true },
+    include: { patient: true },
   });
 }
 
 export function findActiveMedicinesByIds(medicineIds: string[]) {
-  return prisma.medicines.findMany({ where: { id: { in: medicineIds }, isActive: true } });
+  return prisma.medicine.findMany({ where: { id: { in: medicineIds }, isActive: true } });
 }
 
 export function findLatestPrescriptionForRecord(recordId: string) {
-  return prisma.prescriptions.findFirst({
+  return prisma.prescription.findFirst({
     where: { recordId, status: { not: 'cancelled' } },
-    include: { prescription_items: true },
+    include: { prescriptionItems: true },
     orderBy: { roundNumber: 'desc' },
   });
 }
 
 export function findNextRoundNumber(recordId: string) {
-  return prisma.prescriptions
+  return prisma.prescription
     .findFirst({ where: { recordId }, orderBy: { roundNumber: 'desc' } })
     .then((last) => (last?.roundNumber ?? 0) + 1);
 }
@@ -54,10 +54,10 @@ export async function createDraftPrescription(
   allergyOverrideReason: string | undefined,
 ) {
   return prisma.$transaction(async (tx) => {
-    const existingCount = await tx.prescriptions.count();
+    const existingCount = await tx.prescription.count();
     const prescriptionCode = `RX-${new Date().getFullYear()}-${String(existingCount + 1).padStart(4, '0')}`;
 
-    const prescription = await tx.prescriptions.create({
+    const prescription = await tx.prescription.create({
       data: {
         id: randomUUID(),
         recordId,
@@ -74,7 +74,7 @@ export async function createDraftPrescription(
 
     const createdItems = [];
     for (const item of items) {
-      const created = await tx.prescription_items.create({
+      const created = await tx.prescriptionItem.create({
         data: { id: randomUUID(), prescriptionId: prescription.id, ...item },
       });
       createdItems.push(created);
@@ -85,11 +85,11 @@ export async function createDraftPrescription(
 }
 
 export function findPrescriptionById(prescriptionId: string) {
-  return prisma.prescriptions.findUnique({
+  return prisma.prescription.findUnique({
     where: { id: prescriptionId },
     include: {
-      prescription_items: true,
-      medical_records: { include: { patients: true, users_medical_records_doctorIdTousers: true } },
+      prescriptionItems: true,
+      medicalRecord: { include: { patient: true, doctor: true } },
     },
   });
 }
@@ -102,7 +102,7 @@ export async function signPrescriptionTx(
   signedBy: string,
   allergyOverrideReason: string | undefined,
 ) {
-  const result = await prisma.prescriptions.updateMany({
+  const result = await prisma.prescription.updateMany({
     where: { id: prescriptionId, version: expectedVersion, status: 'draft' },
     data: {
       status: 'active',
@@ -117,7 +117,7 @@ export async function signPrescriptionTx(
     },
   });
   if (result.count !== 1) return null;
-  return prisma.prescriptions.findUniqueOrThrow({ where: { id: prescriptionId } });
+  return prisma.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
 }
 
 export async function cancelPrescriptionTx(
@@ -126,30 +126,30 @@ export async function cancelPrescriptionTx(
   cancelledBy: string,
   cancelReason: string,
 ) {
-  const result = await prisma.prescriptions.updateMany({
+  const result = await prisma.prescription.updateMany({
     where: { id: prescriptionId, version: expectedVersion, status: { not: 'cancelled' } },
     data: { status: 'cancelled', cancelledBy, cancelledAt: new Date(), cancelReason, version: { increment: 1 } },
   });
   if (result.count !== 1) return null;
-  return prisma.prescriptions.findUniqueOrThrow({ where: { id: prescriptionId } });
+  return prisma.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
 }
 
 export async function markXmlExportedTx(prescriptionId: string, expectedVersion: number, xmlFilePath: string) {
-  const result = await prisma.prescriptions.updateMany({
+  const result = await prisma.prescription.updateMany({
     where: { id: prescriptionId, version: expectedVersion, status: 'active' },
     data: { status: 'xml_exported', xmlExportedAt: new Date(), xmlFilePath, version: { increment: 1 } },
   });
   if (result.count !== 1) return null;
-  return prisma.prescriptions.findUniqueOrThrow({ where: { id: prescriptionId } });
+  return prisma.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
 }
 
 const dispensableInclude = {
-  prescription_items: true,
-  medical_records: {
+  prescriptionItems: true,
+  medicalRecord: {
     include: {
-      patients: true,
-      departments: true,
-      users_medical_records_doctorIdTousers: true,
+      patient: true,
+      department: true,
+      doctor: true,
     },
   },
 } as const;
@@ -160,36 +160,36 @@ export function findDispensablePrescriptions(filters: {
   page: number;
   pageSize: number;
 }) {
-  const where: Prisma.prescriptionsWhereInput = {
+  const where: Prisma.PrescriptionWhereInput = {
     status: { in: ['active', 'xml_exported'] },
     dispensedAt: filters.dispensed ? { not: null } : null,
     ...(filters.keyword
       ? {
           OR: [
             { prescriptionCode: { contains: filters.keyword } },
-            { medical_records: { patients: { fullName: { contains: filters.keyword } } } },
-            { medical_records: { patients: { patientCode: { contains: filters.keyword } } } },
+            { medicalRecord: { patient: { fullName: { contains: filters.keyword } } } },
+            { medicalRecord: { patient: { patientCode: { contains: filters.keyword } } } },
           ],
         }
       : {}),
   };
 
   return Promise.all([
-    prisma.prescriptions.findMany({
+    prisma.prescription.findMany({
       where,
       include: dispensableInclude,
       orderBy: { createdAt: 'desc' },
       skip: (filters.page - 1) * filters.pageSize,
       take: filters.pageSize,
     }),
-    prisma.prescriptions.count({ where }),
+    prisma.prescription.count({ where }),
   ]);
 }
 
 export type DispensablePrescription = Awaited<ReturnType<typeof findDispensablePrescriptions>>[0][number];
 
 export async function dispensePrescriptionTx(prescriptionId: string, expectedVersion: number, dispensedBy: string) {
-  const result = await prisma.prescriptions.updateMany({
+  const result = await prisma.prescription.updateMany({
     where: {
       id: prescriptionId,
       version: expectedVersion,
@@ -199,5 +199,5 @@ export async function dispensePrescriptionTx(prescriptionId: string, expectedVer
     data: { dispensedBy, dispensedAt: new Date(), version: { increment: 1 } },
   });
   if (result.count !== 1) return null;
-  return prisma.prescriptions.findUniqueOrThrow({ where: { id: prescriptionId } });
+  return prisma.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
 }

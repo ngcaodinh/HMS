@@ -1,13 +1,16 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { prisma } from '../../src/core/prisma/prisma';
 import { patientService } from '../../src/modules/patients/services/patient.service';
 import { receptionService } from '../../src/modules/reception/services/reception.service';
+import { ensureReceptionIntegrationFixtures } from './reception.fixtures';
+
+beforeAll(async () => {
+  await ensureReceptionIntegrationFixtures();
+});
 
 describe('createEmergencyAdmission', () => {
   it('tạo BN vô danh + record emergency, không tạo queue ticket', async () => {
-    const ticketCountBefore = await prisma.queueTicket.count();
-
     const result = await receptionService.createEmergencyAdmission({
       gender: 'female',
       emergencyReason: 'Bệnh nhân bất tỉnh, chưa xác định được danh tính.',
@@ -21,8 +24,10 @@ describe('createEmergencyAdmission', () => {
     expect(result.medicalRecord.emergencyReason?.length).toBeGreaterThanOrEqual(10);
     expect(result.medicalRecord.status).toBe('open');
 
-    const ticketCountAfter = await prisma.queueTicket.count();
-    expect(ticketCountAfter).toBe(ticketCountBefore);
+    const linkedTicketCount = await prisma.queueTicket.count({
+      where: { recordId: result.medicalRecord.recordId },
+    });
+    expect(linkedTicketCount).toBe(0);
 
     const inDb = await prisma.patient.findUnique({
       where: { id: result.patient.patientId },

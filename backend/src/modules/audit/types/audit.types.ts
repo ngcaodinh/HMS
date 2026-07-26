@@ -1,6 +1,6 @@
-import type { audit_logs_action } from '@prisma/client';
+import type { AuditLogAction } from '@prisma/client';
 
-export type AuditAction = audit_logs_action;
+export type AuditAction = AuditLogAction;
 
 export interface RecordAuditInput {
   userId: string | null;

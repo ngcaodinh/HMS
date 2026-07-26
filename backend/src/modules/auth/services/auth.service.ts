@@ -53,12 +53,16 @@ export async function createSession(username: string, password: string): Promise
     accessToken,
     expiresAt,
     principal: {
+      authVersion: user.authVersion,
+      id: user.id,
       userId: user.id,
       username: user.username,
       fullName: user.fullName,
       roleCodes,
+      permissions: [],
       departmentId: user.departmentId,
       isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword,
     },
   };
 }
@@ -81,11 +85,15 @@ export async function getCurrentPrincipal(userId: string): Promise<Principal> {
   }
 
   return {
+    authVersion: user.authVersion,
+    id: user.id,
     userId: user.id,
     username: user.username,
     fullName: user.fullName,
     roleCodes: roleCodesOf(user),
+    permissions: [],
     departmentId: user.departmentId,
     isActive: user.isActive,
+    mustChangePassword: user.mustChangePassword,
   };
 }

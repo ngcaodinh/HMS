@@ -16,13 +16,13 @@ export async function listDispensableMedicines(keyword?: string) {
     unit: medicine.unit,
     unitPrice: medicine.unitPrice.toString(),
     coveredByHealthInsurance: medicine.coveredByHealthInsurance,
-    eligibleBatches: medicine.medicine_batches.map((batch) => ({
+    eligibleBatches: medicine.medicineBatches.map((batch) => ({
       batchId: batch.id,
       batchNumber: batch.batchNumber,
       expiryDate: batch.expiryDate,
     })),
     availability: {
-      status: medicine.medicine_batches.length > 0 ? 'available' : 'unknown',
+      status: medicine.medicineBatches.length > 0 ? 'available' : 'unknown',
       source: 'mock_inventory',
     },
   }));

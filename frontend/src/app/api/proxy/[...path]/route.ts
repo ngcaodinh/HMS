@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const BACKEND_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
-const SESSION_COOKIE = 'hms_token';
+import { assertSameOrigin, forbiddenOrigin } from '@/shared/auth/backend';
+
+const BACKEND_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:4000/api/v1';
+const SESSION_COOKIE = 'hms_session';
 const PASSTHROUGH_RESPONSE_HEADERS = ['content-type', 'content-disposition'];
 
 /**
@@ -10,6 +12,8 @@ const PASSTHROUGH_RESPONSE_HEADERS = ['content-type', 'content-disposition'];
  * token. Also used for binary upload/download (attachments, prescription XML).
  */
 async function forward(req: NextRequest, path: string[]) {
+  if (!['GET', 'HEAD'].includes(req.method) && !assertSameOrigin()) return forbiddenOrigin();
+
   const targetUrl = `${BACKEND_BASE_URL}/${path.join('/')}${req.nextUrl.search}`;
   const token = req.cookies.get(SESSION_COOKIE)?.value;
 

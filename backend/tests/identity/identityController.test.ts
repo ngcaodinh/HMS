@@ -9,26 +9,29 @@ const now = new Date('2026-07-24T08:00:00.000Z');
 
 const principal: Principal = {
   authVersion: 1,
-  createdAt: now,
-  dateOfBirth: new Date('1990-01-01T00:00:00.000Z'),
   departmentId: 'it',
   fullName: 'IT Dev',
-  gender: 'male',
   id: '11111111-1111-4111-8111-111111111111',
-  identityCardNumber: '001199000001',
   isActive: true,
-  lastLoginAt: null,
   mustChangePassword: false,
-  phoneNumber: '0901234567',
+  permissions: [],
   roleCodes: ['it_tech'],
-  updatedAt: now,
+  userId: '11111111-1111-4111-8111-111111111111',
   username: 'it.tech.dev',
 };
 
 const publicStaffUser = {
   ...principal,
+  createdAt: now,
+  dateOfBirth: new Date('1990-01-01T00:00:00.000Z'),
+  gender: 'male',
   id: '33333333-3333-4333-8333-333333333333',
+  identityCardNumber: '001199000001',
+  lastLoginAt: null,
+  phoneNumber: '0901234567',
   roleCodes: ['doctor'],
+  updatedAt: now,
+  userId: '33333333-3333-4333-8333-333333333333',
   username: 'doctor.managed',
 };
 

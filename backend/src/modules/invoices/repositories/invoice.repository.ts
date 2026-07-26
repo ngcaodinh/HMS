@@ -89,8 +89,17 @@ export class InvoiceRepository {
             select: {
               id: true,
               recordCode: true,
+              status: true,
+              isEmergency: true,
+              patientId: true,
               patient: {
-                select: { patientCode: true, fullName: true },
+                select: {
+                  id: true,
+                  patientCode: true,
+                  fullName: true,
+                  healthInsuranceCode: true,
+                  healthInsuranceExpiryDate: true,
+                },
               },
             },
           },

@@ -7,6 +7,7 @@ import type {
   DepartmentDirectoryPort,
   IdentityRepository,
   JwtPort,
+  Principal,
   RoleCode,
   StaffUserRecord,
 } from '../../src/modules/identity/identityTypes';
@@ -56,6 +57,23 @@ const createUser = (overrides: Partial<StaffUserRecord> = {}): StaffUserRecord =
 });
 
 // Dựng repository in-memory, có thể override từng hàm để mô phỏng nhánh lỗi riêng biệt.
+// Dựng principal giống middleware xác thực, tách khỏi bản ghi DB có password/metadata nội bộ.
+const toPrincipal = (user: StaffUserRecord, permissions: string[] = []): Principal => ({
+  authVersion: user.authVersion,
+  departmentId: user.departmentId,
+  fullName: user.fullName,
+  id: user.id,
+  isActive: user.isActive,
+  mustChangePassword: user.mustChangePassword,
+  permissions,
+  roleCodes: user.roleCodes,
+  userId: user.id,
+  username: user.username,
+});
+
+const createPrincipal = (overrides: Partial<StaffUserRecord> = {}) =>
+  toPrincipal(createUser(overrides));
+
 const createRepository = (
   users: StaffUserRecord[],
   overrides: Partial<IdentityRepository> = {},
@@ -208,9 +226,9 @@ describe('IdentityService staff policy', () => {
         const service = createService([actor]);
 
         if (roleActionPolicy[roleCode].includes(actionCode)) {
-          await expect(service.assertAction(actor, actionCode)).resolves.toBeUndefined();
+          await expect(service.assertAction(toPrincipal(actor), actionCode)).resolves.toBeUndefined();
         } else {
-          await expect(service.assertAction(actor, actionCode)).rejects.toMatchObject({
+          await expect(service.assertAction(toPrincipal(actor), actionCode)).rejects.toMatchObject({
             code: 'FORBIDDEN',
             status: 403,
           });
@@ -231,7 +249,7 @@ describe('IdentityService staff policy', () => {
       },
     });
 
-    await expect(service.assertAction(actor, 'staff.export')).rejects.toMatchObject({
+    await expect(service.assertAction(toPrincipal(actor), 'staff.export')).rejects.toMatchObject({
       code: 'FORBIDDEN',
       status: 403,
     });
@@ -285,7 +303,7 @@ describe('IdentityService staff policy', () => {
     for (const privilegedRoleCode of ['admin', 'it_tech', 'director'] satisfies RoleCode[]) {
       await expect(
         service.createStaffAccount({
-          actor: createUser(),
+          actor: createPrincipal(),
           input: {
             dateOfBirth: '1992-02-02',
             departmentId: 'it',
@@ -311,7 +329,7 @@ describe('IdentityService staff policy', () => {
       const service = createService([createUser()]);
 
       const result = await service.createStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         input: {
           dateOfBirth: '1992-02-02',
           departmentId: 'it',
@@ -338,7 +356,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([admin]);
 
     const result = await service.createStaffAccount({
-      actor: admin,
+      actor: toPrincipal(admin),
       input: {
         dateOfBirth: '1992-02-02',
         departmentId: 'admin',
@@ -361,7 +379,7 @@ describe('IdentityService staff policy', () => {
     });
 
     const result = await service.createStaffAccount({
-      actor: createUser(),
+      actor: createPrincipal(),
       input: {
         dateOfBirth: '1992-02-02',
         departmentId: 'it',
@@ -390,7 +408,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([createUser(), target]);
 
     const result = await service.updateStaffAccount({
-      actor: createUser(),
+      actor: createPrincipal(),
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         isActive: false,
@@ -413,7 +431,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.updateStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         ifUnmodifiedSince: '2026-07-24T07:59:59.000Z',
         input: {
           fullName: 'Doctor Stale Update',
@@ -436,7 +454,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([createUser(), target]);
 
     const result = await service.updateStaffAccount({
-      actor: createUser(),
+      actor: createPrincipal(),
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         fullName: 'Doctor Profile Updated',
@@ -460,7 +478,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([createUser(), target]);
 
     const result = await service.updateStaffAccount({
-      actor: createUser(),
+      actor: createPrincipal(),
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         dateOfBirth: '1992-02-02',
@@ -494,7 +512,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([createUser(), target]);
 
     const result = await service.updateStaffAccount({
-      actor: createUser(),
+      actor: createPrincipal(),
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         roleCodes: ['nurse', 'pharmacist'],
@@ -521,7 +539,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.updateStaffAccount({
-        actor: admin,
+        actor: toPrincipal(admin),
         ifUnmodifiedSince: admin.updatedAt.toISOString(),
         input: {
           isActive: false,
@@ -540,7 +558,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([actor]);
 
     const result = await service.changePassword({
-      actor,
+      actor: toPrincipal(actor),
       newPassword: 'HmsNew#2026Local',
       requestId: 'req-3',
     });
@@ -557,7 +575,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.changePassword({
-        actor,
+        actor: toPrincipal(actor),
         newPassword: 'HmsNew#2026Local',
         requestId: 'req-4',
       }),
@@ -577,7 +595,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.changePassword({
-        actor,
+        actor: toPrincipal(actor),
         currentPassword: 'Wrong#2026',
         newPassword: 'HmsNew#2026Local',
         requestId: 'req-invalid-current-password',
@@ -598,7 +616,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.updateStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         input: {
           fullName: 'Doctor Updated',
         },
@@ -631,7 +649,7 @@ describe('IdentityService staff policy', () => {
     const service = createService(users);
 
     const result = await service.listStaffUsers({
-      actor,
+      actor: toPrincipal(actor),
       page: 1,
       pageSize: 20,
       requestId: 'req-6',
@@ -669,7 +687,7 @@ describe('IdentityService staff policy', () => {
     ]);
 
     const result = await service.listStaffUsers({
-      actor,
+      actor: toPrincipal(actor),
       page: 1,
       pageSize: 20,
       requestId: 'req-it-list-scope',
@@ -692,7 +710,7 @@ describe('IdentityService staff policy', () => {
     const service = createService([admin, hiddenFromIt]);
 
     const result = await service.listStaffUsers({
-      actor: admin,
+      actor: toPrincipal(admin),
       page: 1,
       pageSize: 20,
       requestId: 'req-admin-list',
@@ -712,7 +730,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.resetStaffPassword({
-        actor: createUser(),
+        actor: createPrincipal(),
         reason: 'REQ-20260725-002 reset mật khẩu tài khoản đặc quyền',
         requestId: 'req-reset-privileged',
         userId: privilegedUser.id,
@@ -734,7 +752,7 @@ describe('IdentityService staff policy', () => {
     });
 
     const result = await service.resetStaffPassword({
-      actor: createUser(),
+      actor: createPrincipal(),
       reason: 'REQ-20260725-003 reset mật khẩu hợp lệ',
       requestId: 'req-reset-success',
       userId: target.id,
@@ -764,7 +782,7 @@ describe('IdentityService staff policy', () => {
     const rawReason = 'REQ-20260725-001 reset mật khẩu theo yêu cầu hỗ trợ';
 
     await service.resetStaffPassword({
-      actor: createUser(),
+      actor: createPrincipal(),
       reason: rawReason,
       requestId: 'req-7',
       userId: target.id,
@@ -813,7 +831,7 @@ describe('IdentityService staff policy', () => {
     });
 
     const result = await service.createStaffAccount({
-      actor,
+      actor: toPrincipal(actor),
       input: {
         dateOfBirth: '1992-02-02',
         departmentId: 'it',
@@ -860,7 +878,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.createStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         input: {
           dateOfBirth: '1992-02-02',
           departmentId: 'unknown',
@@ -886,7 +904,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.updateStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         ifUnmodifiedSince: privilegedUser.updatedAt.toISOString(),
         input: {
           fullName: 'Director Updated',
@@ -915,7 +933,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.updateStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         ifUnmodifiedSince: target.updatedAt.toISOString(),
         input: {
           departmentId: 'missing',
@@ -940,7 +958,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.updateStaffAccount({
-        actor: createUser(),
+        actor: createPrincipal(),
         ifUnmodifiedSince: target.updatedAt.toISOString(),
         input: {
           fullName: 'Doctor Missing',
@@ -959,7 +977,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.resetStaffPassword({
-        actor: createUser(),
+        actor: createPrincipal(),
         reason: 'Người dùng yêu cầu cấp lại mật khẩu qua IT',
         requestId: 'req-reset-missing',
         userId: '22222222-2222-4222-8222-222222222222',
@@ -979,7 +997,7 @@ describe('IdentityService staff policy', () => {
 
     await expect(
       service.changePassword({
-        actor: createUser(),
+        actor: createPrincipal(),
         currentPassword: 'Current#2026',
         newPassword: 'HmsNew#2026Local',
         requestId: 'req-change-missing',

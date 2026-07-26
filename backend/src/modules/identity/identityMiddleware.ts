@@ -36,9 +36,18 @@ export const authenticate = async (
       });
     }
 
-    const { password, ...principal } = user;
-    void password;
-    req.principal = principal;
+    req.principal = {
+      authVersion: user.authVersion,
+      departmentId: user.departmentId,
+      fullName: user.fullName,
+      id: user.id,
+      isActive: user.isActive,
+      mustChangePassword: user.mustChangePassword,
+      permissions: [],
+      roleCodes: user.roleCodes,
+      userId: user.id,
+      username: user.username,
+    };
     next();
   } catch (error) {
     next(error);
