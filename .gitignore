@@ -51,3 +51,12 @@ temp/
 *.db-journal
 *.db-shm
 *.db-wal
+
+backend/prisma/seedAllDoctorPatients.ts
+backend/prisma/seedAllUsers.ts
+backend/prisma/seedBedManagementTestData.ts
+backend/prisma/seedIdentity.ts
+backend/prisma/seedMedicines.ts
+backend/prisma/seedDischarge2000Char.ts
+backend/prisma/checkData.ts
+backend/prisma/seedNurseOrders.ts

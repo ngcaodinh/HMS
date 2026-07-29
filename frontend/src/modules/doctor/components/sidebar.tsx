@@ -147,6 +147,14 @@ function QueueSection({ children, title }: { children: ReactNode; title: string 
   );
 }
 
+function formatQueueNumber(recordCode: string): string {
+  const digitsOnly = recordCode.replace(/\D/g, '');
+  if (digitsOnly.length >= 2) {
+    return digitsOnly.slice(-2);
+  }
+  return digitsOnly.padStart(2, '0') || '01';
+}
+
 function QueueItem({
   isSelected = false,
   item,
@@ -159,7 +167,7 @@ function QueueItem({
   const badge = badgeFor(item, isSelected);
   return (
     <button className={cn(styles.queueItem, isSelected && styles.queueItemActive)} onClick={onClick} type="button">
-      <span className={cn(styles.queueNumber, badge.numberClass)}>{item.recordCode.slice(-2)}</span>
+      <span className={cn(styles.queueNumber, badge.numberClass)}>{formatQueueNumber(item.recordCode)}</span>
       <span className="min-w-0 flex-1">
         <span className={styles.queueName}>{item.patient.fullName}</span>
         <span className={styles.queueMeta}>

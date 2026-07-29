@@ -15,6 +15,9 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed:identity": "tsx prisma/seedIdentity.ts",
+    "seed:medicines": "tsx prisma/seedMedicines.ts",
+    "seed:doctor-patients": "tsx prisma/seedAllDoctorPatients.ts",
+    "seed:clinical": "tsx prisma/seedClinicalDiagnosis.ts",
     "test": "vitest run --cache=false",
     "test:watch": "vitest"
   },
