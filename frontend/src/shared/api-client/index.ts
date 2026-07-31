@@ -28,6 +28,14 @@ export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promi
   return response.data.data;
 }
 
+export async function apiGetEnvelope<T>(
+  url: string,
+  config?: AxiosRequestConfig,
+): Promise<SuccessEnvelope<T>> {
+  const response = await httpClient.get<SuccessEnvelope<T>>(url, config);
+  return response.data;
+}
+
 export async function apiGetPaginated<T>(
   url: string,
   config?: AxiosRequestConfig,

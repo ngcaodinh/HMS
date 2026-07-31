@@ -163,6 +163,64 @@ describe('PrismaIdentityRepository.createStaffUser', () => {
   });
 });
 
+describe('PrismaIdentityRepository.listStaffUsers', () => {
+  it('queries only RBAC staff accounts so every returned user has at least one role', async () => {
+    let capturedFindManyArgs: Prisma.UserFindManyArgs | undefined;
+    let capturedCountArgs: Prisma.UserCountArgs | undefined;
+    const repository = new PrismaIdentityRepository({
+      $transaction: async (operations: unknown[]) => Promise.all(operations),
+      user: {
+        count: (args: Prisma.UserCountArgs) => {
+          capturedCountArgs = args;
+          return Promise.resolve(1);
+        },
+        findMany: (args: Prisma.UserFindManyArgs) => {
+          capturedFindManyArgs = args;
+          return Promise.resolve([
+            {
+              ...createStaffInput.data,
+              authVersion: 1,
+              createdAt: new Date('2026-07-24T08:00:00.000Z'),
+              id: '33333333-3333-4333-8333-333333333333',
+              isActive: true,
+              lastLoginAt: null,
+              mustChangePassword: true,
+              password: createStaffInput.passwordHash,
+              permissions: [
+                {
+                  assignedAt: new Date('2026-07-24T08:00:00.000Z'),
+                  assignedBy: createStaffInput.assignedBy,
+                  id: '44444444-4444-4444-8444-444444444444',
+                  roleCode: 'doctor',
+                  userId: '33333333-3333-4333-8333-333333333333',
+                },
+              ],
+              updatedAt: new Date('2026-07-24T08:00:00.000Z'),
+            },
+          ]);
+        },
+      },
+    } as unknown as PrismaClient);
+
+    const result = await repository.listStaffUsers({
+      page: 1,
+      pageSize: 20,
+    });
+
+    expect(result.items.map((user) => user.roleCodes)).toEqual([['doctor']]);
+    expect(capturedFindManyArgs?.where).toEqual({
+      AND: [
+        {
+          permissions: {
+            some: {},
+          },
+        },
+      ],
+    });
+    expect(capturedCountArgs?.where).toEqual(capturedFindManyArgs?.where);
+  });
+});
+
 describe('PrismaIdentityRepository.updateStaffUser', () => {
   it('maps duplicate username updates to a field-specific AppError', async () => {
     const repository = createRepositoryThrowingUpdateUniqueError(['username']);

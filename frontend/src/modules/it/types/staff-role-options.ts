@@ -11,7 +11,12 @@ type ItPrincipalRoleScope = {
   roleCodes: string[];
 };
 
+type RoleOptionScope = {
+  mode?: 'create' | 'manage';
+};
+
 const privilegedRoleCodes = new Set<RoleCode>(['admin', 'it_tech', 'director']);
+const privilegedCreationRoleCodes = new Set<RoleCode>(['admin', 'it_tech']);
 
 const staffRoleCatalog: Array<Omit<RoleOption, 'isDisabled'>> = [
   { code: 'admin', label: 'Quản trị viên (admin)', value: 'admin' },
@@ -26,15 +31,20 @@ const staffRoleCatalog: Array<Omit<RoleOption, 'isDisabled'>> = [
 ];
 
 /**
- * Trả catalog role cho form IT và khóa role đặc quyền khi actor không phải admin.
+ * Trả catalog role cho form IT theo ngữ cảnh tạo/sửa và khóa role ngoài phạm vi actor.
  * Nhận role principal hiện tại, trả đủ role để UI hiển thị nhưng chỉ role hợp lệ mới được submit.
  */
-export const getManageableRoleOptions = (principal: ItPrincipalRoleScope): RoleOption[] => {
+export const getManageableRoleOptions = (
+  principal: ItPrincipalRoleScope,
+  scope: RoleOptionScope = {},
+): RoleOption[] => {
   const isAdmin = principal.roleCodes.includes('admin');
+  const disabledRoleCodes =
+    scope.mode === 'create' ? privilegedCreationRoleCodes : privilegedRoleCodes;
 
   return staffRoleCatalog.map((option) => ({
     ...option,
-    isDisabled: !isAdmin && privilegedRoleCodes.has(option.code),
+    isDisabled: !isAdmin && disabledRoleCodes.has(option.code),
   }));
 };
 

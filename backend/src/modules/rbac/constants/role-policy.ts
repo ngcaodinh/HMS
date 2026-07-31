@@ -5,6 +5,9 @@
  * actions or roles not listed.
  */
 export const ROLE_POLICY: Record<string, string[]> = {
+  // Director dashboard (Lane 14.2)
+  'director.dashboard.read': ['director'],
+
   // Clinical EMR (Lane 3)
   'medical_record.worklist.read': ['doctor'],
   'medical_record.read': ['doctor', 'nurse', 'lab_tech', 'pharmacist', 'accountant'],

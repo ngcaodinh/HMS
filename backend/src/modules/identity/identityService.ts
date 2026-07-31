@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import { AppError } from '../../core/http/AppError';
 import {
+  assertCanCreateTargetRoles,
   assertCanManageTargetRoles,
   privilegedRoleCodes,
 } from './identityPolicy';
@@ -266,7 +267,7 @@ export class IdentityService {
     requestId: string;
   }) {
     await this.assertAction(input.actor, 'staff.create');
-    assertCanManageTargetRoles(input.actor, input.input.roleCodes);
+    assertCanCreateTargetRoles(input.actor, input.input.roleCodes);
     const departmentId = await this.dependencies.departmentDirectory.resolveDepartmentId(
       input.input.departmentId,
     );

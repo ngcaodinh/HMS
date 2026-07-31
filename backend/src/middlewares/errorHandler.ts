@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 
 import { AppError } from '../core/errors/appError';
+import { AppError as HttpStatusAppError } from '../core/errors/app-error';
 import { sendError } from '../core/http/response';
 import { logger } from '../core/logger/logger';
 
@@ -18,6 +19,11 @@ export function errorHandler(
 
   if (error instanceof AppError) {
     sendError(res, error.statusCode, error.code, error.message, error.details, requestId);
+    return;
+  }
+
+  if (error instanceof HttpStatusAppError) {
+    sendError(res, error.httpStatus, error.code, error.message, error.details, requestId);
     return;
   }
 

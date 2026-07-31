@@ -35,7 +35,33 @@ const toDateInput = (date: Date) => {
 };
 
 describe('getManageableRoleOptions', () => {
-  it('shows the full role catalog to IT technicians while keeping privileged roles disabled', () => {
+  it('allows IT technicians to create director accounts while keeping admin and IT locked', () => {
+    const roleOptions = getManageableRoleOptions({ roleCodes: ['it_tech'] }, { mode: 'create' });
+
+    assert.deepEqual(
+      roleOptions.map((option) => option.value),
+      [
+        'admin',
+        'director',
+        'doctor',
+        'nurse',
+        'pharmacist',
+        'accountant',
+        'receptionist',
+        'lab_tech',
+        'it_tech',
+      ],
+    );
+    assert.equal(
+      roleOptions.find((option) => option.value === 'director')?.isDisabled,
+      false,
+    );
+    assert.equal(canAssignRoleCode(roleOptions, 'director'), true);
+    assert.equal(canAssignRoleCode(roleOptions, 'admin'), false);
+    assert.equal(canAssignRoleCode(roleOptions, 'it_tech'), false);
+  });
+
+  it('shows the full role catalog to IT technicians while keeping privileged roles disabled for edits', () => {
     const roleOptions = getManageableRoleOptions({ roleCodes: ['it_tech'] });
 
     assert.deepEqual(

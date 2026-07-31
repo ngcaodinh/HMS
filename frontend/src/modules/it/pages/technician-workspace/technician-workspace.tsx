@@ -1207,7 +1207,8 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
   );
   const activeCount = activeStaffCountQuery.data?.totalItems ?? 0;
   const lockedCount = lockedStaffCountQuery.data?.totalItems ?? 0;
-  const roleOptions = getManageableRoleOptions(principal);
+  const createRoleOptions = getManageableRoleOptions(principal, { mode: 'create' });
+  const editRoleOptions = getManageableRoleOptions(principal);
 
   /** Mở popup thông báo ngắn và tự ẩn để không chặn luồng nhập liệu của kỹ thuật IT. */
   const showNotification = (nextNotification: PopupNotification) => {
@@ -1486,7 +1487,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
       return;
     }
 
-    if (!canAssignRoleCode(roleOptions, parsedForm.data.roleCode)) {
+    if (!canAssignRoleCode(createRoleOptions, parsedForm.data.roleCode)) {
       setAddFieldErrors({
         roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
       });
@@ -1554,7 +1555,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
         return;
       }
 
-      if (!canAssignRoleCode(roleOptions, parsedForm.data.roleCode)) {
+      if (!canAssignRoleCode(editRoleOptions, parsedForm.data.roleCode)) {
         setEditFieldErrors({
           roleCode: ['Vai trò này nằm ngoài phạm vi quản lý của tài khoản hiện tại'],
         });
@@ -2309,7 +2310,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     value={addForm.roleCode}
                   >
                     <option value="">-- Chọn vai trò --</option>
-                    {roleOptions.map((option) => (
+                    {createRoleOptions.map((option) => (
                       <option disabled={option.isDisabled} key={option.code} value={option.value}>
                         {option.label}{option.isDisabled ? ' - chỉ admin' : ''}
                       </option>
@@ -2693,7 +2694,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     required
                     value={editUser.roleCode}
                   >
-                    {roleOptions.map((option) => (
+                    {editRoleOptions.map((option) => (
                       <option disabled={option.isDisabled} key={option.code} value={option.value}>
                         {option.label}{option.isDisabled ? ' - chỉ admin' : ''}
                       </option>

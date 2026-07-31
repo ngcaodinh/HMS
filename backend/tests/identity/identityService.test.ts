@@ -297,10 +297,10 @@ describe('IdentityService staff policy', () => {
     });
   });
 
-  it('blocks an IT technician from creating privileged staff accounts', async () => {
+  it('blocks an IT technician from creating admin or IT technician accounts', async () => {
     const service = createService([createUser()]);
 
-    for (const privilegedRoleCode of ['admin', 'it_tech', 'director'] satisfies RoleCode[]) {
+    for (const privilegedRoleCode of ['admin', 'it_tech'] satisfies RoleCode[]) {
       await expect(
         service.createStaffAccount({
           actor: createPrincipal(),
@@ -321,6 +321,27 @@ describe('IdentityService staff policy', () => {
         status: 403,
       });
     }
+  });
+
+  it('allows IT technicians to create director accounts without broad privileged management', async () => {
+    const service = createService([createUser()]);
+
+    const result = await service.createStaffAccount({
+      actor: createPrincipal(),
+      input: {
+        dateOfBirth: '1992-02-02',
+        departmentId: 'it',
+        fullName: 'Director Managed By IT',
+        gender: 'male',
+        identityCardNumber: '001199200002',
+        phoneNumber: '0901234568',
+        roleCodes: ['director'],
+        username: 'director.created.by.it',
+      },
+      requestId: 'req-create-director-by-it',
+    });
+
+    expect(result.user.roleCodes).toEqual(['director']);
   });
 
   it.each(['receptionist', 'accountant', 'doctor', 'nurse', 'lab_tech', 'pharmacist'] as const)(
@@ -760,24 +781,26 @@ describe('IdentityService staff policy', () => {
   });
 
   it('blocks IT technicians from resetting privileged staff passwords', async () => {
-    const privilegedUser = createUser({
-      id: '44444444-4444-4444-8444-444444444444',
-      roleCodes: ['admin'],
-      username: 'admin.target',
-    });
-    const service = createService([createUser(), privilegedUser]);
+    for (const roleCode of ['admin', 'director'] satisfies RoleCode[]) {
+      const privilegedUser = createUser({
+        id: `44444444-4444-4444-8444-${roleCode.padEnd(12, '0').slice(0, 12)}`,
+        roleCodes: [roleCode],
+        username: `${roleCode}.target`,
+      });
+      const service = createService([createUser(), privilegedUser]);
 
-    await expect(
-      service.resetStaffPassword({
-        actor: createPrincipal(),
-        reason: 'REQ-20260725-002 reset mật khẩu tài khoản đặc quyền',
-        requestId: 'req-reset-privileged',
-        userId: privilegedUser.id,
-      }),
-    ).rejects.toMatchObject({
-      code: 'TARGET_ROLE_FORBIDDEN',
-      status: 403,
-    });
+      await expect(
+        service.resetStaffPassword({
+          actor: createPrincipal(),
+          reason: 'REQ-20260725-002 reset mật khẩu tài khoản đặc quyền',
+          requestId: `req-reset-${roleCode}`,
+          userId: privilegedUser.id,
+        }),
+      ).rejects.toMatchObject({
+        code: 'TARGET_ROLE_FORBIDDEN',
+        status: 403,
+      });
+    }
   });
 
   it('returns a reset temporary password and requires password change on next login', async () => {

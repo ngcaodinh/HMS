@@ -71,4 +71,13 @@ describe('RBAC clinical policy', () => {
     expect(getAllowedRoles('medical_record.unknown')).toEqual([]);
     expect(isActionAllowed(['doctor'], 'medical_record.unknown')).toBe(false);
   });
+
+  it('keeps director dashboard read access director-only', () => {
+    expect(getAllowedRoles('director.dashboard.read')).toEqual(['director']);
+    expect(isActionAllowed(['director'], 'director.dashboard.read')).toBe(true);
+
+    for (const role of ['admin', 'doctor', 'accountant', 'pharmacist', 'lab_tech']) {
+      expect(isActionAllowed([role], 'director.dashboard.read')).toBe(false);
+    }
+  });
 });

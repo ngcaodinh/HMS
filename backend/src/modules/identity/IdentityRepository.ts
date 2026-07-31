@@ -184,7 +184,13 @@ export class PrismaIdentityRepository implements IdentityRepository {
     pageSize: number;
     q?: string;
   }) {
-    const filters: Prisma.UserWhereInput[] = [];
+    const filters: Prisma.UserWhereInput[] = [
+      {
+        permissions: {
+          some: {},
+        },
+      },
+    ];
 
     if (input.q) {
       filters.push({
