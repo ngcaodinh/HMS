@@ -166,6 +166,27 @@ export function getAllergyNoteError(
   return undefined;
 }
 
+/**
+ * Xác định form sinh hiệu có còn lỗi chặn lưu hay không.
+ * Dùng chung cho nút lưu và phím tắt F9 để UI không chỉ khóa theo lỗi đang hiển thị.
+ */
+export function hasBlockingVitalFormErrors(
+  values: VitalFieldValues,
+  allergyEnabled: boolean,
+  allergyNote: string,
+): boolean {
+  const hasFormatErrors = (Object.keys(VITAL_LIMITS) as VitalField[]).some((field) =>
+    Boolean(getVitalFieldError(field, values[field] ?? '')),
+  );
+
+  return (
+    getMissingRequiredVitalFields(values).length > 0 ||
+    hasFormatErrors ||
+    Boolean(getBloodPressureRelationError(values.bpSystolic ?? '', values.bpDiastolic ?? '')) ||
+    Boolean(getAllergyNoteError(allergyEnabled, allergyNote, true))
+  );
+}
+
 export type EmergencyIdentityInput = {
   fullName: string;
   dateOfBirth: string;
