@@ -36,6 +36,7 @@ export interface DispensablePrescription {
   allergyOverrideReason: string | null;
   allergyOverrideAt: string | null;
   xmlExportedAt: string | null;
+  invoice: { invoiceId: string; status: 'pending' | 'paid' } | null;
   warehouse: {
     code: string;
     name: string;

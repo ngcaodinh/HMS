@@ -15,11 +15,19 @@ import {
   PharmacyModals,
   validateRejectReason,
 } from '../src/modules/pharmacy/components/PharmacyModals';
+import { NationalXmlScreen } from '../src/modules/pharmacy/components/NationalXmlScreen';
+import { PharmacyInventoryScreen } from '../src/modules/pharmacy/components/PharmacyInventoryScreen';
+import { StockReportScreen } from '../src/modules/pharmacy/components/StockReportScreen';
+import { escapeHtml } from '../src/modules/pharmacy/components/print-label';
 import {
   createIdempotencyKey,
   downloadPrescriptionXmlFile,
 } from '../src/modules/pharmacy/services/prescription-dispense-api';
-import type { PharmacyWarehouse } from '../src/modules/pharmacy/types/pharmacy-inventory.schema';
+import type {
+  PharmacyInventoryBatch,
+  PharmacyStockMovement,
+  PharmacyWarehouse,
+} from '../src/modules/pharmacy/types/pharmacy-inventory.schema';
 import type { Prescription } from '../src/modules/pharmacy/types/pharmacy.types';
 import { httpClient } from '../src/shared/api-client';
 
@@ -128,11 +136,96 @@ function renderModals(props: Partial<React.ComponentProps<typeof PharmacyModals>
     isRejecting: false,
     onCloseModal: () => undefined,
     onConfirmDispense: () => undefined,
-    onConfirmFefoSync: () => undefined,
     onConfirmLogout: () => undefined,
     onConfirmReject: () => undefined,
     onConfirmXmlImport: () => undefined,
     prescription: createPrescription(),
+    ...props,
+  }));
+}
+
+const inventoryBatch: PharmacyInventoryBatch = {
+  batchId: 'batch-1',
+  batchNumber: 'LOT-REAL-001',
+  daysToExpiry: 12,
+  expiryDate: '2026-08-16T00:00:00.000Z',
+  importPrice: '10000',
+  isExpired: false,
+  isExpiringSoon: true,
+  isLowStock: false,
+  medicine: {
+    activeIngredient: 'Paracetamol',
+    code: 'MED-001',
+    coveredByHealthInsurance: true,
+    dosage: '500mg',
+    medicineId: 'medicine-1',
+    name: 'Real Medicine',
+    unit: 'vien',
+  },
+  quantity: 42,
+  version: 1,
+  warehouse: { code: 'WH-1', name: 'Real Warehouse', warehouseId: 'warehouse-1' },
+};
+
+const stockMovement: PharmacyStockMovement = {
+  actorUserId: 'pharmacist-1',
+  balanceAfter: 40,
+  batch: {
+    batchId: 'batch-1',
+    batchNumber: 'LOT-REAL-001',
+    expiryDate: '2026-08-16T00:00:00.000Z',
+  },
+  createdAt: '2026-08-04T10:00:00.000Z',
+  medicine: { code: 'MED-001', medicineId: 'medicine-1', name: 'Real Medicine' },
+  movementId: 'movement-1',
+  movementType: 'prescription_sign',
+  prescriptionId: 'prescription-1',
+  quantityChange: -2,
+  referenceId: 'prescription-1',
+  referenceType: 'prescription',
+  warehouse: { code: 'WH-1', name: 'Real Warehouse', warehouseId: 'warehouse-1' },
+};
+
+function renderNationalXml(props: Partial<React.ComponentProps<typeof NationalXmlScreen>> = {}) {
+  return renderToStaticMarkup(React.createElement(NationalXmlScreen, {
+    onDownloadXml: () => undefined,
+    prescription: createPrescription({ xmlExportedAt: '2026-08-04T10:00:00.000Z' }),
+    xmlContent: '<REAL_XML />',
+    ...props,
+  }));
+}
+
+function renderInventory(props: Partial<React.ComponentProps<typeof PharmacyInventoryScreen>> = {}) {
+  return renderToStaticMarkup(React.createElement(PharmacyInventoryScreen, {
+    inventoryItems: [inventoryBatch],
+    isError: false,
+    isLoading: false,
+    kpi: {
+      expiredBatches: 0,
+      expiringSoonBatches: 1,
+      lowStockBatches: 0,
+      totalBatches: 1,
+      totalQuantity: 42,
+    },
+    onNavigateToStockImport: () => undefined,
+    onSearchQueryChange: () => undefined,
+    searchQuery: '',
+    ...props,
+  }));
+}
+
+function renderStockReport(props: Partial<React.ComponentProps<typeof StockReportScreen>> = {}) {
+  return renderToStaticMarkup(React.createElement(StockReportScreen, {
+    from: '',
+    isError: false,
+    isLoading: false,
+    logs: [stockMovement],
+    movementType: '',
+    onExportExcel: () => undefined,
+    onFromChange: () => undefined,
+    onMovementTypeChange: () => undefined,
+    onToChange: () => undefined,
+    to: '',
     ...props,
   }));
 }
@@ -255,6 +348,28 @@ describe('pharmacy dispense actions and markup', () => {
     assert.match(notExportedHtml, /Đang kết xuất XML/);
     assert.match(exportedHtml, /Đang tải XML/);
   });
+  it('bounds the search field and disables dispense when invoice or stock is unsafe', () => {
+    const unpaidHtml = renderDispenseScreen({
+      prescriptions: [createPrescription({ invoiceStatus: 'unpaid' })],
+    });
+    const insufficientHtml = renderDispenseScreen({
+      prescriptions: [createPrescription({
+        items: [{ ...createPrescription().items[0], isStockSufficient: false }],
+      })],
+    });
+
+    assert.match(unpaidHtml, /maxLength="100"/);
+    assert.match(unpaidHtml, /disabled=""/);
+    assert.match(insufficientHtml, /disabled=""/);
+  });
+
+  it('disables both dispense and reject actions for an already dispensed prescription', () => {
+    const html = renderDispenseScreen({
+      prescriptions: [createPrescription({ status: 'dispensed' })],
+    });
+
+    assert.match(html, /disabled=""/);
+  });
 });
 
 describe('pharmacy modals', () => {
@@ -264,6 +379,12 @@ describe('pharmacy modals', () => {
     assert.equal(validateRejectReason('123456789'), 'Vui lòng nhập lý do từ chối tối thiểu 10 ký tự.');
     assert.equal(validateRejectReason('1234567890'), null);
     assert.equal(validateRejectReason('Thuoc tam het hang'), null);
+    assert.match(validateRejectReason('a'.repeat(501)) ?? '', /tối đa 500/);
+  });
+
+  it('escapes free text before it is inserted into print HTML', () => {
+    assert.equal(escapeHtml(`<img src=x onerror="alert(1)"> & 'x'`),
+      '&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &#39;x&#39;');
   });
 
   it('renders dispense modal with disabled pending confirmation', () => {
@@ -273,6 +394,31 @@ describe('pharmacy modals', () => {
     assert.match(html, /LOT-A-EARLY/);
     assert.match(html, /disabled=""/);
     assert.match(html, /Đang ghi nhận/);
+  });
+
+  it('keeps dispense confirmation disabled for unpaid or insufficient prescriptions', () => {
+    const unpaidHtml = renderModals({
+      activeModal: 'dispense',
+      prescription: createPrescription({ invoiceStatus: 'unpaid' }),
+    });
+    const insufficientHtml = renderModals({
+      activeModal: 'dispense',
+      prescription: createPrescription({
+        items: [{ ...createPrescription().items[0], isStockSufficient: false }],
+      }),
+    });
+
+    assert.match(unpaidHtml, /disabled=""/);
+    assert.match(insufficientHtml, /disabled=""/);
+  });
+
+  it('shows the backend reject field error in the reject modal', () => {
+    const html = renderModals({
+      activeModal: 'reject',
+      rejectServerError: 'cancelReason is invalid',
+    });
+
+    assert.match(html, /cancelReason is invalid/);
   });
 
   it('renders reject, import XML, FEFO sync and logout modal actions', () => {
@@ -345,5 +491,44 @@ describe('pharmacy prescription API helpers', () => {
     assert.equal(capturedResponseType, 'blob');
     assert.deepEqual(clicked, [{ download: 'RX-2026-0891.xml', href: 'blob:rx-xml' }]);
     assert.equal(revokedUrl, 'blob:rx-xml');
+
+    clicked.length = 0;
+    httpClient.get = (async () => ({
+      data: new Blob(['<xml />'], { type: 'application/xml' }),
+      headers: { 'content-disposition': 'attachment; filename="../RX-2026-0891.xml"' },
+    })) as typeof httpClient.get;
+    await downloadPrescriptionXmlFile('prescription-0891');
+
+    assert.deepEqual(clicked, [{ download: '.._RX-2026-0891.xml', href: 'blob:rx-xml' }]);
+  });
+});
+
+describe('pharmacy data screens', () => {
+  it('renders selected XML and empty/unexported states without sample XML', () => {
+    assert.match(renderNationalXml(), /REAL_XML/);
+    assert.doesNotMatch(renderNationalXml(), /RX-2026-0891/);
+    assert.match(renderNationalXml({ prescription: null, xmlContent: null }), /XML/);
+    assert.match(renderNationalXml({
+      prescription: createPrescription({ xmlExportedAt: null }),
+      xmlContent: null,
+    }), /XML/);
+    assert.doesNotMatch(renderNationalXml({ isLoading: true }), /REAL_XML/);
+  });
+
+  it('renders real inventory data and loading/error/empty states', () => {
+    assert.match(renderInventory(), /Real Medicine/);
+    assert.match(renderInventory(), /LOT-REAL-001/);
+    assert.match(renderInventory({ isLoading: true }), /tải/);
+    assert.match(renderInventory({ isError: true }), /tải/);
+    assert.match(renderInventory({ inventoryItems: [] }), /batch/);
+  });
+
+  it('renders real stock movements and loading/error/empty states', () => {
+    assert.match(renderStockReport(), /Real Medicine/);
+    assert.match(renderStockReport(), /- 2/);
+    assert.match(renderStockReport({ dateError: 'Invalid date range' }), /Invalid date range/);
+    assert.match(renderStockReport({ isLoading: true }), /tải/);
+    assert.match(renderStockReport({ isError: true }), /báo cáo/);
+    assert.match(renderStockReport({ logs: [] }), /biến/);
   });
 });

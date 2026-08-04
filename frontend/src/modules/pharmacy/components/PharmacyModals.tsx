@@ -25,10 +25,10 @@ interface PharmacyModalsProps {
   onConfirmXmlImport: () => void;
   /** Hàm xác nhận đăng xuất */
   onConfirmLogout: () => void;
-  /** Hàm xác nhận đồng bộ FEFO (tùy chọn) */
-  onConfirmFefoSync?: () => void;
   isDispensing?: boolean;
   isRejecting?: boolean;
+  rejectServerError?: string;
+  onClearRejectServerError?: () => void;
 }
 
 /**
@@ -40,6 +40,10 @@ interface PharmacyModalsProps {
 export function validateRejectReason(reason: string): string | null {
   if (reason.trim().length < 10) {
     return 'Vui lòng nhập lý do từ chối tối thiểu 10 ký tự.';
+  }
+
+  if (reason.trim().length > 500) {
+    return 'Lý do từ chối tối đa 500 ký tự.';
   }
 
   return null;
@@ -56,7 +60,6 @@ export function validateRejectReason(reason: string): string | null {
  * @param onConfirmReject Callback gửi lý do từ chối đơn thuốc về bác sĩ
  * @param onConfirmXmlImport Callback nhập dữ liệu XML phiếu nhập kho
  * @param onConfirmLogout Callback thực hiện đăng xuất hệ thống
- * @param onConfirmFefoSync Callback thực hiện đồng bộ kho FEFO
  * @returns Component React hiển thị hộp thoại Modal phù hợp
  */
 export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
@@ -67,12 +70,18 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
   onConfirmReject,
   onConfirmXmlImport,
   onConfirmLogout,
-  onConfirmFefoSync,
   isDispensing = false,
   isRejecting = false,
+  rejectServerError,
+  onClearRejectServerError,
 }) => {
   const [rejectReason, setRejectReason] = useState<string>('');
   const [rejectError, setRejectError] = useState<string>('');
+  const isDispenseAllowed = Boolean(
+    prescription?.status === 'pending' &&
+    prescription.invoiceStatus === 'paid' &&
+    prescription.items.every((item) => item.isStockSufficient),
+  );
 
   if (!activeModal) return null;
 
@@ -155,6 +164,14 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                 </li>
               </ul>
 
+              {!isDispenseAllowed && (
+                <div className={`${styles.alert} ${styles.alertError} mb-4`} role="alert">
+                  {prescription.invoiceStatus !== 'paid'
+                    ? 'Bệnh nhân chưa thanh toán viện phí, không thể phát thuốc.'
+                    : 'Một hoặc nhiều dòng thuốc không đủ tồn kho FEFO.'}
+                </div>
+              )}
+
               <div className={`${styles.alert} ${styles.alertInfo}`}>
                 <svg className="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <circle cx="12" cy="12" r="10" />
@@ -180,7 +197,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
               <button
                 type="button"
                 className={`${styles.btn} ${styles.btnPrimary}`}
-                disabled={isDispensing}
+                disabled={isDispensing || !isDispenseAllowed}
                 onClick={onConfirmDispense}
                 aria-label="Xác nhận cấp phát đơn thuốc"
               >
@@ -221,10 +238,17 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                   rows={3}
                   className={`${styles.formControl} resize-y min-h-[84px]`}
                   value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
+                  maxLength={500}
+                  onChange={(e) => {
+                    setRejectReason(e.target.value);
+                    setRejectError('');
+                    onClearRejectServerError?.();
+                  }}
                   placeholder="Nhập lý do chuyên môn: Tương tác thuốc nguy hiểm, Thuốc tạm hết hàng..."
                 />
+                <p className="mt-1 text-right text-[11px] text-[#707882]">{rejectReason.length}/500</p>
                 {rejectError && <p className="mt-1 text-[12px] font-semibold text-[#ba1a1a]">{rejectError}</p>}
+                {rejectServerError && <p className="mt-1 text-[12px] font-semibold text-[#ba1a1a]">{rejectServerError}</p>}
               </div>
             </div>
 
@@ -372,7 +396,8 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 <div>
-                  Hệ thống sẽ quét toàn bộ lô thuốc trong Kho Ngoại Trú A &amp; Kho Nội Trú B, cập nhật chỉ số Hạn dùng ngắn nhất (First Expired, First Out) cho 145 đầu thuốc.
+                  Chức năng đồng bộ FEFO chưa có API xử lý thật. Vui lòng đóng hộp thoại và tiếp tục
+                  theo dõi thứ tự lô từ dữ liệu tồn kho hiện tại.
                 </div>
               </div>
             </div>
@@ -382,20 +407,17 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                 type="button"
                 className={`${styles.btn} ${styles.btnGhost}`}
                 onClick={onCloseModal}
-                aria-label="Hủy bỏ"
+                aria-label="Đóng hộp thoại"
               >
-                Hủy bỏ
+                Đóng
               </button>
               <button
                 type="button"
                 className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={() => {
-                  onConfirmFefoSync?.();
-                  onCloseModal();
-                }}
-                aria-label="Xác nhận đồng bộ"
+                onClick={onCloseModal}
+                aria-label="Đóng hộp thoại đồng bộ FEFO"
               >
-                Xác nhận đồng bộ FEFO
+                Đã hiểu
               </button>
             </div>
           </div>

@@ -91,9 +91,20 @@ export async function downloadPrescriptionXmlFile(prescriptionId: string): Promi
     : undefined;
   const fileName = matchedFileName ?? `don-thuoc-${prescriptionId.slice(0, 8)}.xml`;
   const url = URL.createObjectURL(response.data);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  try {
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName.replace(/[\\/\0]/g, '_');
+    anchor.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** Đọc XML đã kết xuất để preview; endpoint vẫn trả blob nhằm giữ đúng content type tải file. */
+export async function fetchPrescriptionXmlContent(prescriptionId: string): Promise<string> {
+  const response = await httpClient.get<Blob>(`/prescriptions/${prescriptionId}/xml-file`, {
+    responseType: 'blob',
+  });
+  return response.data.text();
 }

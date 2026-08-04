@@ -261,6 +261,17 @@ export async function cancelPrescriptionTx(
       );
     }
 
+    const activeInvoice = await tx.invoice.findFirst({
+      where: { recordId: prescription.recordId, status: { in: ['pending', 'paid'] } },
+      select: { id: true },
+    });
+    if (activeInvoice) {
+      throw AppError.badRequest(
+        'INVOICE_GENERATED',
+        'Đơn thuốc đã lập hóa đơn viện phí. Vui lòng yêu cầu Kế toán hủy hóa đơn trước khi hủy đơn thuốc.',
+      );
+    }
+
     const signedMovements = await tx.stockMovement.findMany({
       where: { prescriptionId, movementType: 'prescription_sign', quantityChange: { lt: 0 } },
       orderBy: { createdAt: 'asc' },
@@ -343,6 +354,12 @@ const dispensableInclude = Prisma.validator<Prisma.PrescriptionInclude>()({
       patient: true,
       department: true,
       doctor: true,
+      invoices: {
+        where: { status: { in: ['pending', 'paid'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        select: { id: true, status: true },
+      },
     },
   },
 });
@@ -396,17 +413,36 @@ export async function dispensePrescriptionTx(
   expectedVersion: number,
   dispensedBy: string,
 ) {
-  const result = await prisma.prescription.updateMany({
-    where: {
-      id: prescriptionId,
-      version: expectedVersion,
-      status: { in: ['active', 'xml_exported'] },
-      dispensedAt: null,
-    },
-    data: { dispensedBy, dispensedAt: new Date(), version: { increment: 1 } },
+  return prisma.$transaction(async (tx) => {
+    const prescription = await tx.prescription.findUnique({
+      where: { id: prescriptionId },
+      select: { recordId: true },
+    });
+    if (!prescription) return null;
+
+    const paidInvoice = await tx.invoice.findFirst({
+      where: { recordId: prescription.recordId, status: 'paid' },
+      select: { id: true },
+    });
+    if (!paidInvoice) {
+      throw AppError.badRequest(
+        'INVOICE_NOT_PAID',
+        'Bệnh nhân chưa thanh toán viện phí, không thể phát thuốc.',
+      );
+    }
+
+    const result = await tx.prescription.updateMany({
+      where: {
+        id: prescriptionId,
+        version: expectedVersion,
+        status: { in: ['active', 'xml_exported'] },
+        dispensedAt: null,
+      },
+      data: { dispensedBy, dispensedAt: new Date(), version: { increment: 1 } },
+    });
+    if (result.count !== 1) return null;
+    return tx.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
   });
-  if (result.count !== 1) return null;
-  return prisma.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
 }
 
 /** Đọc kết quả command đã lưu để dispense không bị ghi nhận hai lần khi client retry cùng key. */

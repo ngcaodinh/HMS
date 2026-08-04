@@ -1,81 +1,111 @@
 /**
  * @file StockReportScreen.tsx
- * @description Màn hình 5: Báo cáo biến động kho & Nhật ký kiểm toán xuất nhập tồn
- * @author Senior Frontend Engineer
+ * @description Báo cáo movement immutable từ API kho dược.
  */
 
 'use client';
 
 import React from 'react';
-import type { StockMovementLog } from '../types/pharmacy.types';
+
+import type {
+  PharmacyStockMovement,
+  StockMovementType,
+} from '../types/pharmacy-inventory.schema';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface StockReportScreenProps {
-  /** Danh sách nhật ký biến động kho thuốc */
-  logs: StockMovementLog[];
-  /** Callback xuất tệp báo cáo biến động kho Excel */
+  logs: PharmacyStockMovement[];
+  from: string;
+  to: string;
+  movementType: StockMovementType | '';
+  isLoading?: boolean;
+  isError?: boolean;
+  dateError?: string;
+  onFromChange: (value: string) => void;
+  onToChange: (value: string) => void;
+  onMovementTypeChange: (value: StockMovementType | '') => void;
   onExportExcel: () => void;
 }
 
-/**
- * Màn hình Báo cáo biến động kho (Screen 5):
- * Cho phép Dược sĩ kiểm toán các giao dịch nhập kho, xuất cấp phát, điều chỉnh số lượng,
- * trả đơn và theo dõi vết hoạt động (Audit log) cùng người thực hiện theo thời gian thực.
- *
- * @param logs Danh sách các bản ghi nhật ký biến động xuất nhập tồn
- * @param onExportExcel Callback xuất dữ liệu ra file Excel
- * @returns Component React màn hình Báo cáo biến động kho
- */
-export const StockReportScreen: React.FC<StockReportScreenProps> = ({ logs, onExportExcel }) => {
-  return (
-    <div className="space-y-6">
-      {/* Screen Header */}
-      <div className={styles.screenHeader}>
-        <div>
-          <h2 className={styles.screenTitle}>Báo cáo biến động kho</h2>
-          <p className={styles.screenSubtitle}>
-            Nhật ký kiểm toán biến động xuất nhập tồn thuốc ca trực 20/07/2026
-          </p>
-        </div>
-        <div className={styles.screenActions}>
-          <button
-            type="button"
-            className={`${styles.btn} ${styles.btnSuccess} ${styles.btnSm}`}
-            onClick={onExportExcel}
-            aria-label="Xuất báo cáo biến động kho ra Excel"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7,10 12,15 17,10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Xuất báo cáo kho (Excel)
-          </button>
-        </div>
+const movementLabels: Record<StockMovementType, string> = {
+  adjustment: 'Điều chỉnh',
+  prescription_cancel: 'Hoàn đơn',
+  prescription_sign: 'Xuất theo đơn',
+  receipt: 'Nhập kho',
+};
+
+/** Hiển thị giá trị movement có dấu, để người dùng phân biệt xuất và nhập kho. */
+function formatQuantity(value: number): string {
+  return value > 0 ? `+ ${value}` : `- ${Math.abs(value)}`;
+}
+
+export const StockReportScreen: React.FC<StockReportScreenProps> = ({
+  logs,
+  from,
+  to,
+  movementType,
+  isLoading = false,
+  isError = false,
+  dateError,
+  onFromChange,
+  onToChange,
+  onMovementTypeChange,
+  onExportExcel,
+}) => (
+  <div className="space-y-6">
+    <div className={styles.screenHeader}>
+      <div>
+        <h2 className={styles.screenTitle}>Báo cáo biến động kho</h2>
+        <p className={styles.screenSubtitle}>Nhật ký immutable phục vụ đối soát và audit dược.</p>
       </div>
+      <button
+        type="button"
+        className={`${styles.btn} ${styles.btnGhost} ${styles.btnSm}`}
+        onClick={onExportExcel}
+        aria-label="Xuất báo cáo biến động kho ra Excel"
+      >
+        Xuất báo cáo kho (Excel)
+      </button>
+    </div>
 
-      {/* Audit Log Card */}
-      <div className={styles.card}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardTitle}>
-            <svg className="w-4 h-4 text-[#006096]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
-            Lịch sử xuất nhập tồn thuốc gần nhất
-          </div>
-        </div>
+    <div className={`${styles.card} flex flex-wrap items-end gap-3 p-4`}>
+      <label className="text-sm font-semibold">
+        Từ ngày
+        <input className={`${styles.formControl} mt-1`} type="date" value={from} onChange={(event) => onFromChange(event.target.value)} />
+      </label>
+      <label className="text-sm font-semibold">
+        Đến ngày
+        <input className={`${styles.formControl} mt-1`} type="date" value={to} onChange={(event) => onToChange(event.target.value)} />
+      </label>
+      <label className="text-sm font-semibold">
+        Loại biến động
+        <select
+          className={`${styles.formControl} mt-1`}
+          value={movementType}
+          onChange={(event) => onMovementTypeChange(event.target.value as StockMovementType | '')}
+        >
+          <option value="">Tất cả</option>
+          {Object.entries(movementLabels).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </label>
+      {dateError && <p className="text-sm font-semibold text-[#ba1a1a]" role="alert">{dateError}</p>}
+    </div>
 
+    <div className={styles.card}>
+      {isLoading && <p className="p-6 text-sm text-[#3f4851]">Đang tải biến động kho...</p>}
+      {isError && !isLoading && <p className="p-6 text-sm font-semibold text-[#ba1a1a]">Không tải được báo cáo kho.</p>}
+      {!isLoading && !isError && logs.length === 0 && <p className="p-6 text-sm text-[#3f4851]">Không có biến động phù hợp.</p>}
+      {!isLoading && !isError && logs.length > 0 && (
         <div className={styles.dataTableWrap}>
           <table className={styles.dataTable}>
             <thead>
               <tr>
                 <th className={styles.th}>Mã GD</th>
-                <th className={styles.th}>Mã thuốc / Tên thuốc</th>
-                <th className={styles.th}>Số lô (Batch)</th>
+                <th className={styles.th}>Thuốc / Lô</th>
                 <th className={styles.th}>Loại biến động</th>
-                <th className={`${styles.th} text-center`}>Số lượng</th>
+                <th className={`${styles.th} text-right`}>Số lượng</th>
                 <th className={`${styles.th} text-right`}>Tồn sau GD</th>
                 <th className={styles.th}>Người thực hiện</th>
                 <th className={styles.th}>Thời gian</th>
@@ -83,54 +113,25 @@ export const StockReportScreen: React.FC<StockReportScreenProps> = ({ logs, onEx
             </thead>
             <tbody>
               {logs.map((log) => (
-                <tr key={log.id} className={styles.tr}>
+                <tr key={log.movementId} className={styles.tr}>
+                  <td className={`${styles.td} font-mono text-[#006096]`}>{log.movementId}</td>
                   <td className={styles.td}>
-                    <span className="font-mono text-[#006096] font-semibold">{log.id}</span>
+                    <div className="font-semibold">{log.medicine.name}</div>
+                    <div className="text-[12px] text-[#3f4851]">{log.batch.batchNumber}</div>
                   </td>
-                  <td className={styles.td}>
-                    <div className="font-bold text-[#171c1f]">{log.drugName}</div>
-                    <div className="text-[12px] font-mono text-[#3f4851]">{log.drugCode}</div>
+                  <td className={styles.td}>{movementLabels[log.movementType]}</td>
+                  <td className={`${styles.td} text-right font-mono font-bold ${log.quantityChange < 0 ? 'text-[#ba1a1a]' : 'text-[#1a7a4a]'}`}>
+                    {formatQuantity(log.quantityChange)}
                   </td>
-                  <td className={styles.td}>
-                    <span className="font-mono">{log.lotNumber}</span>
-                  </td>
-                  <td className={styles.td}>
-                    <span
-                      className={`${styles.badge} ${
-                        log.movementTypeBadge === 'paid'
-                          ? styles.badgePaid
-                          : log.movementTypeBadge === 'blue'
-                          ? styles.badgeBlue
-                          : styles.badgePending
-                      }`}
-                    >
-                      {log.movementType}
-                    </span>
-                  </td>
-                  <td className={`${styles.td} text-center`}>
-                    <span
-                      className={`font-mono font-bold ${
-                        log.quantityChange < 0 ? 'text-[#ba1a1a]' : 'text-[#1a7a4a]'
-                      }`}
-                    >
-                      {log.quantityChangeText}
-                    </span>
-                  </td>
-                  <td className={`${styles.td} text-right`}>
-                    <span className="font-mono font-bold">{log.postStock.toLocaleString()}</span> {log.unit}
-                  </td>
-                  <td className={styles.td}>
-                    <span className="font-semibold text-[#171c1f]">{log.executor}</span>
-                  </td>
-                  <td className={styles.td}>
-                    <span className="font-mono text-[12px] text-[#3f4851]">{log.timestamp}</span>
-                  </td>
+                  <td className={`${styles.td} text-right font-mono`}>{log.balanceAfter.toLocaleString()}</td>
+                  <td className={styles.td}>{log.actorUserId ?? 'Hệ thống'}</td>
+                  <td className={`${styles.td} font-mono text-[12px]`}>{new Date(log.createdAt).toLocaleString('vi-VN')}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      )}
     </div>
-  );
-};
+  </div>
+);
