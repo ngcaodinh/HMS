@@ -5,6 +5,7 @@ import {
   getAllergyNoteError,
   getBloodPressureRelationError,
   getMissingRequiredVitalFields,
+  hasBlockingVitalFormErrors,
   getVisibleEmergencyIdentityErrors,
   getVisibleVitalFieldErrors,
   getVitalFieldError,
@@ -166,6 +167,28 @@ describe('nurse vitals validation helpers', () => {
     assert.equal(errors.bpDiastolic, 'Vui lòng nhập giá trị này');
     assert.equal(errors.spo2, 'Vui lòng nhập giá trị này');
     assert.equal(errors.heightCm, undefined);
+  });
+
+  it('blocks saving until required vitals and enabled allergy details are complete', () => {
+    const completeVitals = {
+      pulse: '80',
+      temperatureC: '',
+      bpSystolic: '120',
+      bpDiastolic: '80',
+      respiratoryRate: '',
+      spo2: '98',
+      heightCm: '',
+      weightKg: '',
+    };
+
+    assert.equal(hasBlockingVitalFormErrors({ ...completeVitals, spo2: '' }, false, ''), true);
+    assert.equal(hasBlockingVitalFormErrors(completeVitals, false, ''), false);
+    assert.equal(hasBlockingVitalFormErrors(completeVitals, true, ''), true);
+    assert.equal(hasBlockingVitalFormErrors(completeVitals, true, 'Penicillin'), false);
+    assert.equal(
+      hasBlockingVitalFormErrors({ ...completeVitals, bpSystolic: '80' }, false, ''),
+      true,
+    );
   });
 });
 

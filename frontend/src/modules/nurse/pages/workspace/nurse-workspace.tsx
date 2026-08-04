@@ -53,12 +53,10 @@ import {
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
 import {
   getAllergyNoteError,
-  getBloodPressureRelationError,
   getApiErrorMessage,
-  getMissingRequiredVitalFields,
+  hasBlockingVitalFormErrors,
   getVisibleEmergencyIdentityErrors,
   getVisibleVitalFieldErrors,
-  getVitalFieldError,
   validateEmergencyIdentity,
   VITAL_LIMITS,
 } from './nurse-validation';
@@ -426,6 +424,9 @@ const emptyVitalsForm: VitalsFormState = {
   allergyNote: '',
 };
 
+type VitalInputFieldName = Exclude<keyof VitalsFormState, 'allergyEnabled' | 'allergyNote'>;
+type TouchedVitalFields = Partial<Record<VitalInputFieldName, boolean>>;
+
 function VitalInputField({
   label,
   unit,
@@ -486,6 +487,10 @@ function VitalsForm({
   isSaving,
   bmiValue,
   attemptedSave,
+  touchedFields,
+  setTouchedFields,
+  allergyTouched,
+  setAllergyTouched,
 }: {
   selectedRecord: VitalsWorklistItemDto | null;
   activeTicket: QueueTicketDto | null;
@@ -496,18 +501,11 @@ function VitalsForm({
   isSaving: boolean;
   bmiValue: string;
   attemptedSave: boolean;
+  touchedFields: TouchedVitalFields;
+  setTouchedFields: React.Dispatch<React.SetStateAction<TouchedVitalFields>>;
+  allergyTouched: boolean;
+  setAllergyTouched: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
-  type VitalInputFieldName = Exclude<keyof VitalsFormState, 'allergyEnabled' | 'allergyNote'>;
-  const [touchedFields, setTouchedFields] = useState<Partial<Record<VitalInputFieldName, boolean>>>(
-    {},
-  );
-  const [allergyTouched, setAllergyTouched] = useState(false);
-
-  useEffect(() => {
-    setTouchedFields({});
-    setAllergyTouched(false);
-  }, [selectedRecord?.recordId]);
-
   const handleVitalChange = (field: VitalInputFieldName, value: string) => {
     setTouchedFields((previous) => {
       if (field === 'bpSystolic' || field === 'bpDiastolic') {
@@ -531,35 +529,16 @@ function VitalsForm({
     () => getVisibleVitalFieldErrors(form, touchedFields, attemptedSave),
     [attemptedSave, form, touchedFields],
   );
-  const hasFormatErrors = [
-    getVitalFieldError('pulse', form.pulse),
-    getVitalFieldError('temperatureC', form.temperatureC),
-    getVitalFieldError('bpSystolic', form.bpSystolic),
-    getVitalFieldError('bpDiastolic', form.bpDiastolic),
-    getVitalFieldError('respiratoryRate', form.respiratoryRate),
-    getVitalFieldError('spo2', form.spo2),
-    getVitalFieldError('heightCm', form.heightCm),
-    getVitalFieldError('weightKg', form.weightKg),
-  ].some(Boolean);
-
-  const bloodPressureRelationError = getBloodPressureRelationError(
-    form.bpSystolic,
-    form.bpDiastolic,
-  );
   const allergyNoteError = getAllergyNoteError(
     form.allergyEnabled,
     form.allergyNote,
     attemptedSave || allergyTouched,
   );
-  const allergyNoteTooLong = form.allergyNote.length > 1000;
-
   const canSave =
     Boolean(activeTicket) &&
     Boolean(selectedRecord) &&
     !isSaving &&
-    !hasFormatErrors &&
-    !bloodPressureRelationError &&
-    !allergyNoteTooLong;
+    !hasBlockingVitalFormErrors(form, form.allergyEnabled, form.allergyNote);
 
   return (
     <Card icon="heart" title="Chỉ số sinh tồn (Vital signs)">
@@ -779,6 +758,8 @@ function VitalsScreen() {
   const [form, setForm] = useState<VitalsFormState>(emptyVitalsForm);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [attemptedSave, setAttemptedSave] = useState(false);
+  const [touchedVitalFields, setTouchedVitalFields] = useState<TouchedVitalFields>({});
+  const [allergyTouched, setAllergyTouched] = useState(false);
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -863,6 +844,8 @@ function VitalsScreen() {
   const selectRecordAndResetForm = useCallback((item: VitalsWorklistItemDto | null) => {
     setSelectedRecord(item);
     setAttemptedSave(false);
+    setTouchedVitalFields({});
+    setAllergyTouched(false);
     if (item && item.allergies && item.allergies.trim()) {
       setForm({
         ...emptyVitalsForm,
@@ -957,6 +940,8 @@ function VitalsScreen() {
   const handleCancel = () => {
     setForm(emptyVitalsForm);
     setAttemptedSave(false);
+    setTouchedVitalFields({});
+    setAllergyTouched(false);
   };
 
   const handleSelectRecord = useCallback(
@@ -968,13 +953,7 @@ function VitalsScreen() {
 
   const handleSave = useCallback(() => {
     if (!activeTicket || !selectedRecord || isSaving) return;
-    const missingRequired = getMissingRequiredVitalFields(form).length > 0;
-    const allergyNoteError = getAllergyNoteError(form.allergyEnabled, form.allergyNote, true);
-    const bloodPressureRelationError = getBloodPressureRelationError(
-      form.bpSystolic,
-      form.bpDiastolic,
-    );
-    if (missingRequired || allergyNoteError || bloodPressureRelationError) {
+    if (hasBlockingVitalFormErrors(form, form.allergyEnabled, form.allergyNote)) {
       setAttemptedSave(true);
       return;
     }
@@ -1003,6 +982,8 @@ function VitalsScreen() {
           setForm(emptyVitalsForm);
           setSelectedRecord(null);
           setAttemptedSave(false);
+          setTouchedVitalFields({});
+          setAllergyTouched(false);
         },
         onError: (error) => {
           setToast({
@@ -1107,6 +1088,10 @@ function VitalsScreen() {
           isSaving={isSaving}
           bmiValue={bmiValue}
           attemptedSave={attemptedSave}
+          touchedFields={touchedVitalFields}
+          setTouchedFields={setTouchedVitalFields}
+          allergyTouched={allergyTouched}
+          setAllergyTouched={setAllergyTouched}
         />
       </div>
     </div>
