@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+import { ApiError } from '@/shared/api-client';
 
 import { labWorkspaceStyles as styles } from '../../pages/workspace/lab-workspace.styles';
-import { useLabTestDetail, useReceiveSpecimen, useRecordLabResult, useSavePathologyDraft } from '../../services/lab-test-api';
+import {
+  useLabTestDetail,
+  useReceiveSpecimen,
+  useRecordLabResult,
+  useSavePathologyDraft,
+} from '../../services/lab-test-api';
 import type {
   BioChemistryResult,
   CbcResult,
@@ -12,13 +19,26 @@ import type {
   StructuredResult,
   UrinalysisResult,
 } from '../../types/lab-test.types';
-import { AssetIcon, calculateAge, cn, genderLabel, RESULT_TABLE_LABELS, RESULT_TABLE_TAB_ORDER, TextField } from '../shared';
+import {
+  AssetIcon,
+  calculateAge,
+  cn,
+  genderLabel,
+  RESULT_TABLE_LABELS,
+  RESULT_TABLE_TAB_ORDER,
+  TextField,
+} from '../shared';
 import { AttachmentDropzone } from '../attachment-dropzone';
 import { BioChemistryForm } from './bio-chemistry-form';
 import { CbcForm } from './cbc-form';
 import { MicrobiologyForm } from './microbiology-form';
 import { PathologyForm } from './pathology-form';
 import { UrinalysisForm } from './urinalysis-form';
+import { getBioChemistryFieldErrors } from '../../validation/bio-chemistry-validation';
+import { getCbcFieldErrors } from '../../validation/cbc-validation';
+import { getMicrobiologyFieldErrors } from '../../validation/microbiology-validation';
+import { getPathologyFieldErrors } from '../../validation/pathology-validation';
+import { getUrinalysisFieldErrors } from '../../validation/urinalysis-validation';
 
 interface ResultEntryPanelProps {
   labTestId: string;
@@ -39,6 +59,26 @@ function countFilledFields(value: Record<string, unknown>): number {
   return Object.values(value).filter((v) => v !== undefined && v !== null && v !== '').length;
 }
 
+function getReportCodeError(value: string): string | undefined {
+  if (!value) return undefined;
+  if (value.length > 30) return 'Mã phiếu không được vượt quá 30 ký tự.';
+  if (!/^[A-Za-z0-9]+(?:[-/][A-Za-z0-9]+)*$/.test(value)) {
+    return 'Mã phiếu chỉ được chứa chữ, số, dấu gạch ngang hoặc dấu gạch chéo.';
+  }
+  return undefined;
+}
+
+function normalizeApiFieldErrors(fields: Record<string, string[]>): Record<string, string[]> {
+  return Object.entries(fields).reduce<Record<string, string[]>>(
+    (normalized, [field, messages]) => {
+      const key = field.replace(/^structuredResult\./, '');
+      normalized[key] = [...(normalized[key] ?? []), ...messages];
+      return normalized;
+    },
+    {},
+  );
+}
+
 export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
   const { data: detail, isLoading } = useLabTestDetail(labTestId);
   const receiveSpecimenMutation = useReceiveSpecimen();
@@ -51,10 +91,35 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
   const [reportCode, setReportCode] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [apiFieldErrors, setApiFieldErrors] = useState<Record<string, string[]>>({});
+
+  const localFieldErrors = useMemo(() => {
+    if (!detail || !structuredResult) return {};
+    switch (detail.resultTableKey) {
+      case 'xn_cong_thuc_mau':
+        return getCbcFieldErrors(structuredResult as CbcResult);
+      case 'xn_hoa_sinh_mau':
+        return getBioChemistryFieldErrors(structuredResult as BioChemistryResult);
+      case 'xn_nuoc_tieu':
+        return getUrinalysisFieldErrors(structuredResult as UrinalysisResult);
+      case 'xn_vi_sinh':
+        return getMicrobiologyFieldErrors(structuredResult as MicrobiologyResult);
+      case 'xn_mo_benh_hoc':
+        return getPathologyFieldErrors({
+          ...(structuredResult as PathologyResult),
+          trangThai: 'da_co_ket_qua',
+        });
+      default:
+        return {};
+    }
+  }, [detail, structuredResult]);
 
   if (detail && initializedFor !== labTestId) {
     setStructuredResult(
-      detail.structuredResult ?? (detail.resultTableKey === 'xn_mo_benh_hoc' ? { trangThai: 'cho_ket_qua' } : {}),
+      detail.structuredResult ??
+        (detail.resultTableKey === 'xn_mo_benh_hoc' ? { trangThai: 'cho_ket_qua' } : {}),
     );
     setAttachment(detail.attachments[0] ?? null);
     setConclusion(detail.conclusion ?? '');
@@ -83,17 +148,44 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
 
   const currentDetail = detail;
   const isPathology = currentDetail.resultTableKey === 'xn_mo_benh_hoc';
-  const canSubmit = Boolean(attachment) && !recordMutation.isPending;
+  const canSubmit = !recordMutation.isPending;
   const filledCount = countFilledFields(structuredResult as Record<string, unknown>);
   const totalCount = TOTAL_FIELDS_BY_TYPE[currentDetail.resultTableKey];
+  const reportCodeError = getReportCodeError(reportCode);
+  const conclusionError =
+    currentDetail.resultTableKey === 'xn_vi_sinh' && !conclusion.trim()
+      ? 'Kết luận là bắt buộc đối với phiếu vi sinh.'
+      : undefined;
+  const normalizedApiFieldErrors = normalizeApiFieldErrors(apiFieldErrors);
+  const visibleFieldErrors = Object.keys({
+    ...localFieldErrors,
+    ...normalizedApiFieldErrors,
+  }).reduce<Record<string, string>>((errors, field) => {
+    if (hasSubmitted || touchedFields.has(field)) {
+      errors[field] = normalizedApiFieldErrors[field]?.[0] ?? localFieldErrors[field];
+    }
+    return errors;
+  }, {});
+
+  function touchField(field: string) {
+    setTouchedFields((current) => new Set(current).add(field));
+  }
 
   function submitFinal() {
+    setHasSubmitted(true);
+    setTouchedFields(new Set(Object.keys(localFieldErrors)));
     if (!attachment) {
       setErrorMessage('Cần tải lên tệp đính kèm trước khi xác nhận kết quả.');
       return;
     }
+    if (Object.keys(localFieldErrors).length > 0 || reportCodeError || conclusionError) {
+      setErrorMessage('Vui lòng kiểm tra và sửa các trường đang báo lỗi trước khi xác nhận.');
+      return;
+    }
     setErrorMessage(null);
-    const finalResult = isPathology ? { ...(structuredResult as PathologyResult), trangThai: 'da_co_ket_qua' as const } : structuredResult;
+    const finalResult = isPathology
+      ? { ...(structuredResult as PathologyResult), trangThai: 'da_co_ket_qua' as const }
+      : structuredResult;
     recordMutation.mutate(
       {
         labTestId,
@@ -105,14 +197,20 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
       },
       {
         onSuccess: () => onDone(),
-        onError: (error) => setErrorMessage(error instanceof Error ? error.message : 'Không thể ghi nhận kết quả.'),
+        onError: (error) => {
+          if (error instanceof ApiError && error.fields) setApiFieldErrors(error.fields);
+          setErrorMessage(error instanceof Error ? error.message : 'Không thể ghi nhận kết quả.');
+        },
       },
     );
   }
 
   function saveDraft() {
     draftMutation.mutate(
-      { labTestId, structuredResult: { ...(structuredResult as PathologyResult), trangThai: 'cho_ket_qua' } },
+      {
+        labTestId,
+        structuredResult: { ...(structuredResult as PathologyResult), trangThai: 'cho_ket_qua' },
+      },
       { onError: () => setErrorMessage('Không thể lưu nháp.') },
     );
   }
@@ -122,9 +220,11 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
       <div className={styles.patientChipBar}>
         <span className={styles.patientChip}>MBA: {currentDetail.patient.patientCode}</span>
         <span className={styles.patientChipMuted}>
-          {currentDetail.patient.fullName} · {calculateAge(currentDetail.patient.dateOfBirth)} tuổi ·{' '}
-          {genderLabel(currentDetail.patient.gender)}
-          {currentDetail.patient.healthInsuranceCode ? ` · BHYT: ${currentDetail.patient.healthInsuranceCode}` : ''}
+          {currentDetail.patient.fullName} · {calculateAge(currentDetail.patient.dateOfBirth)} tuổi
+          · {genderLabel(currentDetail.patient.gender)}
+          {currentDetail.patient.healthInsuranceCode
+            ? ` · BHYT: ${currentDetail.patient.healthInsuranceCode}`
+            : ''}
         </span>
         <span className={styles.patientChip}>
           {RESULT_TABLE_LABELS[currentDetail.resultTableKey]}
@@ -136,13 +236,18 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           </span>
         )}
         <span className={styles.patientChipMuted}>BS. {currentDetail.orderingDoctor.fullName}</span>
-        {currentDetail.isUrgent && <span className={cn(styles.chip, styles.chipDanger)}>Cấp cứu</span>}
+        {currentDetail.isUrgent && (
+          <span className={cn(styles.chip, styles.chipDanger)}>Cấp cứu</span>
+        )}
       </div>
 
       <div className={styles.tabSwitcher}>
         {RESULT_TABLE_TAB_ORDER.map((key) => (
           <button
-            className={cn(styles.tabSwitcherItem, key === currentDetail.resultTableKey && styles.tabSwitcherItemActive)}
+            className={cn(
+              styles.tabSwitcherItem,
+              key === currentDetail.resultTableKey && styles.tabSwitcherItemActive,
+            )}
             disabled={key !== currentDetail.resultTableKey}
             key={key}
             type="button"
@@ -157,38 +262,86 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           {errorMessage && <div className={styles.alertDanger}>{errorMessage}</div>}
 
           <div className="mb-5 grid gap-4 sm:grid-cols-2">
-            <TextField label="Mã phiếu (tuỳ chọn)" onChange={setReportCode} value={reportCode} />
+            <TextField
+              error={hasSubmitted || touchedFields.has('reportCode') ? reportCodeError : undefined}
+              label="Mã phiếu (tuỳ chọn)"
+              onBlur={() => touchField('reportCode')}
+              onChange={setReportCode}
+              value={reportCode}
+            />
           </div>
 
           {currentDetail.resultTableKey === 'xn_hoa_sinh_mau' && (
             <BioChemistryForm
+              errors={visibleFieldErrors}
               onChange={(v) => setStructuredResult(v)}
+              onFieldBlur={touchField}
               patientGender={currentDetail.patient.gender}
               referenceRanges={currentDetail.referenceRanges}
               value={structuredResult as BioChemistryResult}
             />
           )}
           {currentDetail.resultTableKey === 'xn_cong_thuc_mau' && (
-            <CbcForm onChange={(v) => setStructuredResult(v)} value={structuredResult as CbcResult} />
+            <CbcForm
+              errors={visibleFieldErrors}
+              onChange={(v) => setStructuredResult(v)}
+              onFieldBlur={touchField}
+              value={structuredResult as CbcResult}
+            />
           )}
           {currentDetail.resultTableKey === 'xn_nuoc_tieu' && (
-            <UrinalysisForm onChange={(v) => setStructuredResult(v)} value={structuredResult as UrinalysisResult} />
+            <UrinalysisForm
+              errors={visibleFieldErrors}
+              onChange={(v) => setStructuredResult(v)}
+              onFieldBlur={touchField}
+              value={structuredResult as UrinalysisResult}
+            />
           )}
           {currentDetail.resultTableKey === 'xn_vi_sinh' && (
-            <MicrobiologyForm onChange={(v) => setStructuredResult(v)} value={structuredResult as MicrobiologyResult} />
+            <MicrobiologyForm
+              errors={visibleFieldErrors}
+              onChange={(v) => setStructuredResult(v)}
+              onFieldBlur={touchField}
+              value={structuredResult as MicrobiologyResult}
+            />
           )}
           {isPathology && (
-            <PathologyForm onChange={(v) => setStructuredResult(v)} value={structuredResult as PathologyResult} />
+            <PathologyForm
+              errors={visibleFieldErrors}
+              onChange={(v) => setStructuredResult(v)}
+              onFieldBlur={touchField}
+              value={structuredResult as PathologyResult}
+            />
           )}
 
           <div className="mt-5">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-semibold text-[#3f4851]">Kết luận chung</span>
+              <span className="mb-1.5 block text-xs font-semibold text-[#3f4851]">
+                Kết luận chung
+              </span>
               <textarea
+                aria-describedby={
+                  conclusionError && (hasSubmitted || touchedFields.has('conclusion'))
+                    ? 'conclusion-error'
+                    : undefined
+                }
+                aria-invalid={Boolean(
+                  conclusionError && (hasSubmitted || touchedFields.has('conclusion')),
+                )}
                 className={styles.textarea}
+                onBlur={() => touchField('conclusion')}
                 onChange={(event) => setConclusion(event.target.value)}
                 value={conclusion}
               />
+              {conclusionError && (hasSubmitted || touchedFields.has('conclusion')) && (
+                <p
+                  className="mt-1 text-[11px] font-medium text-[#ba1a1a]"
+                  id="conclusion-error"
+                  role="alert"
+                >
+                  {conclusionError}
+                </p>
+              )}
             </label>
           </div>
 
@@ -206,12 +359,22 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
 
           <div className={styles.actionRow}>
             {isPathology && (
-              <button className={styles.outlineButton} disabled={draftMutation.isPending} onClick={saveDraft} type="button">
+              <button
+                className={styles.outlineButton}
+                disabled={draftMutation.isPending}
+                onClick={saveDraft}
+                type="button"
+              >
                 <AssetIcon className="h-4 w-4 brightness-0" name="icon-save.svg" />
                 {draftMutation.isPending ? 'Đang lưu...' : 'Lưu nháp'}
               </button>
             )}
-            <button className={styles.primaryButton} disabled={!canSubmit} onClick={submitFinal} type="button">
+            <button
+              className={styles.primaryButton}
+              disabled={!canSubmit}
+              onClick={submitFinal}
+              type="button"
+            >
               {recordMutation.isPending ? 'Đang xử lý...' : 'Xác nhận & Ký kết quả'}
             </button>
           </div>
@@ -220,7 +383,16 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
         <div className={styles.stickyPanel}>
           <div className={styles.card}>
             <p className={styles.formSectionTitle}>Tệp kết quả đính kèm *</p>
-            <AttachmentDropzone labTestId={labTestId} onUploaded={setAttachment} uploaded={attachment} />
+            <AttachmentDropzone
+              labTestId={labTestId}
+              onUploaded={setAttachment}
+              uploaded={attachment}
+            />
+            {hasSubmitted && !attachment && (
+              <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]" role="alert">
+                Cần tải lên tệp đính kèm trước khi xác nhận kết quả.
+              </p>
+            )}
           </div>
         </div>
       </div>

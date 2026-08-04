@@ -10,18 +10,54 @@ import {
   useUpdateReferenceRangeDetail,
 } from '../services/lab-test-api';
 import type { ReferenceRangeRow } from '../types/lab-test.types';
+import {
+  getReferenceRangeFormErrors,
+  REFERENCE_RANGE_FIELDS,
+} from '../validation/reference-range-validation';
 import { AssetIcon, cn } from './shared';
 
 const CONDITION_LABELS: Record<string, string> = { all: 'Tất cả', male: 'Nam', female: 'Nữ' };
+
+function InlineError({ message }: { message?: string }) {
+  return message ? (
+    <p className="mt-1 text-[11px] font-medium text-[#ba1a1a]" role="alert">
+      {message}
+    </p>
+  ) : null;
+}
 
 function StatCards({ period }: { period: 'today' | 'week' | 'month' }) {
   const { data: stats, isLoading } = useLabActivityStats({ period });
 
   const cards = [
-    { label: 'Tổng mẫu đã tiếp nhận', value: stats?.totalReceived ?? 0, color: '#dbeafe', icon: 'icon-lab-order.svg', isNeutral: true },
-    { label: 'Mẫu hoàn thành (đã ký)', value: stats?.totalCompleted ?? 0, color: '#d4f0e0', icon: 'icon-lab-result.svg', isNeutral: true },
-    { label: 'Ca cấp cứu hoàn thành', value: stats?.urgentCompleted ?? 0, color: '#fee2e2', icon: 'icon-alert.svg', isNeutral: false },
-    { label: 'TAT trung bình (phút)', value: stats?.averageTatMinutes ?? 0, color: '#ffecd4', icon: 'icon-save.svg', isNeutral: true },
+    {
+      label: 'Tổng mẫu đã tiếp nhận',
+      value: stats?.totalReceived ?? 0,
+      color: '#dbeafe',
+      icon: 'icon-lab-order.svg',
+      isNeutral: true,
+    },
+    {
+      label: 'Mẫu hoàn thành (đã ký)',
+      value: stats?.totalCompleted ?? 0,
+      color: '#d4f0e0',
+      icon: 'icon-lab-result.svg',
+      isNeutral: true,
+    },
+    {
+      label: 'Ca cấp cứu hoàn thành',
+      value: stats?.urgentCompleted ?? 0,
+      color: '#fee2e2',
+      icon: 'icon-alert.svg',
+      isNeutral: false,
+    },
+    {
+      label: 'TAT trung bình (phút)',
+      value: stats?.averageTatMinutes ?? 0,
+      color: '#ffecd4',
+      icon: 'icon-save.svg',
+      isNeutral: true,
+    },
   ];
 
   return (
@@ -29,7 +65,10 @@ function StatCards({ period }: { period: 'today' | 'week' | 'month' }) {
       {cards.map((card) => (
         <div className={styles.statCard} key={card.label}>
           <div className={styles.statIconWrap} style={{ background: card.color }}>
-            <AssetIcon className={cn('h-5 w-5', card.isNeutral && 'brightness-0')} name={card.icon} />
+            <AssetIcon
+              className={cn('h-5 w-5', card.isNeutral && 'brightness-0')}
+              name={card.icon}
+            />
           </div>
           <div>
             <p className={styles.statValue}>{isLoading ? '—' : card.value}</p>
@@ -52,7 +91,13 @@ function HourlyChart({ period }: { period: 'today' | 'week' | 'month' }) {
       <div className={styles.barChartWrap}>
         {distribution.map((point) => (
           <div className="flex flex-1 flex-col items-center" key={point.hour}>
-            <div className={styles.barChartBar} style={{ height: `${(point.count / max) * 100}%`, minHeight: point.count > 0 ? '4px' : '1px' }} />
+            <div
+              className={styles.barChartBar}
+              style={{
+                height: `${(point.count / max) * 100}%`,
+                minHeight: point.count > 0 ? '4px' : '1px',
+              }}
+            />
             {point.hour % 4 === 0 && <p className={styles.barChartAxisLabel}>{point.hour}h</p>}
           </div>
         ))}
@@ -66,12 +111,36 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
   const [lowerBound, setLowerBound] = useState(row.lowerBound ?? '');
   const [upperBound, setUpperBound] = useState(row.upperBound ?? '');
   const [unit, setUnit] = useState(row.unit ?? '');
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const updateMutation = useUpdateReferenceRangeDetail();
   const deleteMutation = useDeleteReferenceRange();
 
   function save() {
+    const lower = lowerBound.trim() ? Number(lowerBound) : undefined;
+    const upper = upperBound.trim() ? Number(upperBound) : undefined;
+    const nextErrors: Record<string, string> = {};
+    if (lower !== undefined && !Number.isFinite(lower))
+      nextErrors.lowerBound = 'Ngưỡng dưới phải là số hợp lệ.';
+    if (upper !== undefined && !Number.isFinite(upper))
+      nextErrors.upperBound = 'Ngưỡng trên phải là số hợp lệ.';
+    if (
+      lower !== undefined &&
+      upper !== undefined &&
+      Number.isFinite(lower) &&
+      Number.isFinite(upper) &&
+      lower >= upper
+    ) {
+      nextErrors.upperBound = 'Ngưỡng trên phải lớn hơn ngưỡng dưới.';
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
     updateMutation.mutate(
-      { referenceRangeId: row.referenceRangeId, lowerBound: lowerBound || undefined, upperBound: upperBound || undefined, unit: unit || undefined },
+      {
+        referenceRangeId: row.referenceRangeId,
+        lowerBound: lowerBound || undefined,
+        upperBound: upperBound || undefined,
+        unit: unit || undefined,
+      },
       { onSuccess: () => setIsEditing(false) },
     );
   }
@@ -84,31 +153,76 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
       </td>
       <td className={styles.td}>
         {row.label}
-        {row.condition !== 'all' && <span className={cn(styles.chip, styles.chipNeutral, 'ml-1.5')}>{CONDITION_LABELS[row.condition]}</span>}
+        {row.condition !== 'all' && (
+          <span className={cn(styles.chip, styles.chipNeutral, 'ml-1.5')}>
+            {CONDITION_LABELS[row.condition]}
+          </span>
+        )}
       </td>
       <td className={styles.td}>
-        {isEditing ? <input className={styles.input} onChange={(e) => setUnit(e.target.value)} value={unit} /> : row.unit ?? '—'}
+        {isEditing ? (
+          <input className={styles.input} onChange={(e) => setUnit(e.target.value)} value={unit} />
+        ) : (
+          (row.unit ?? '—')
+        )}
       </td>
       <td className={styles.td}>
-        {isEditing ? <input className={styles.input} onChange={(e) => setLowerBound(e.target.value)} value={lowerBound} /> : row.lowerBound ?? '—'}
+        {isEditing ? (
+          <div>
+            <input
+              aria-invalid={Boolean(errors.lowerBound)}
+              className={styles.input}
+              onChange={(e) => setLowerBound(e.target.value)}
+              value={lowerBound}
+            />
+            <InlineError message={errors.lowerBound} />
+          </div>
+        ) : (
+          (row.lowerBound ?? '—')
+        )}
       </td>
       <td className={styles.td}>
-        {isEditing ? <input className={styles.input} onChange={(e) => setUpperBound(e.target.value)} value={upperBound} /> : row.upperBound ?? '—'}
+        {isEditing ? (
+          <div>
+            <input
+              aria-invalid={Boolean(errors.upperBound)}
+              className={styles.input}
+              onChange={(e) => setUpperBound(e.target.value)}
+              value={upperBound}
+            />
+            <InlineError message={errors.upperBound} />
+          </div>
+        ) : (
+          (row.upperBound ?? '—')
+        )}
       </td>
       <td className={styles.td}>{CONDITION_LABELS[row.condition]}</td>
       <td className={styles.td}>
         {isEditing ? (
           <div className="flex gap-2">
-            <button className={styles.mutedButton} onClick={() => setIsEditing(false)} type="button">
+            <button
+              className={styles.mutedButton}
+              onClick={() => setIsEditing(false)}
+              type="button"
+            >
               Hủy
             </button>
-            <button className={styles.smallPrimaryButton} disabled={updateMutation.isPending} onClick={save} type="button">
+            <button
+              className={styles.smallPrimaryButton}
+              disabled={updateMutation.isPending}
+              onClick={save}
+              type="button"
+            >
               {updateMutation.isPending ? 'Đang lưu...' : 'Lưu'}
             </button>
           </div>
         ) : (
           <div className="flex gap-2">
-            <button className={styles.outlineButton} onClick={() => setIsEditing(true)} type="button">
+            <button
+              className={styles.outlineButton}
+              onClick={() => setIsEditing(true)}
+              type="button"
+            >
               Chỉnh sửa
             </button>
             <button
@@ -139,9 +253,14 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
     upperBound: '',
     condition: 'all' as 'all' | 'male' | 'female',
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const selectedType = (types ?? []).find((type) => type.labTestTypeId === form.labTestTypeId);
+  const fieldOptions = selectedType ? REFERENCE_RANGE_FIELDS[selectedType.resultTableKey] : [];
 
   function submit() {
-    if (!form.labTestTypeId || !form.fieldKey || !form.code || !form.label) return;
+    const nextErrors = getReferenceRangeFormErrors(form);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
     createMutation.mutate(
       {
         labTestTypeId: form.labTestTypeId,
@@ -160,20 +279,84 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
   return (
     <div className="mb-5 rounded-[10px] border border-[#bfc7d2] bg-[#f8fafc] p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <select className={styles.select} onChange={(e) => setForm({ ...form, labTestTypeId: e.target.value })} value={form.labTestTypeId}>
-          <option value="">— Loại xét nghiệm —</option>
-          {(types ?? []).map((type) => (
-            <option key={type.labTestTypeId} value={type.labTestTypeId}>
-              {type.name}
-            </option>
-          ))}
-        </select>
-        <input className={styles.input} onChange={(e) => setForm({ ...form, fieldKey: e.target.value })} placeholder="fieldKey (vd: ure)" value={form.fieldKey} />
-        <input className={styles.input} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Mã (vd: HSM-039)" value={form.code} />
-        <input className={styles.input} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Tên chỉ số" value={form.label} />
-        <input className={styles.input} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="Đơn vị" value={form.unit} />
-        <input className={styles.input} onChange={(e) => setForm({ ...form, lowerBound: e.target.value })} placeholder="Ngưỡng dưới" value={form.lowerBound} />
-        <input className={styles.input} onChange={(e) => setForm({ ...form, upperBound: e.target.value })} placeholder="Ngưỡng trên" value={form.upperBound} />
+        <div>
+          <select
+            className={styles.select}
+            aria-invalid={Boolean(errors.labTestTypeId)}
+            onChange={(e) => setForm({ ...form, labTestTypeId: e.target.value, fieldKey: '' })}
+            value={form.labTestTypeId}
+          >
+            <option value="">— Loại xét nghiệm —</option>
+            {(types ?? []).map((type) => (
+              <option key={type.labTestTypeId} value={type.labTestTypeId}>
+                {type.name}
+              </option>
+            ))}
+          </select>
+          <InlineError message={errors.labTestTypeId} />
+        </div>
+        <div>
+          <select
+            className={styles.select}
+            aria-invalid={Boolean(errors.fieldKey)}
+            onChange={(e) => setForm({ ...form, fieldKey: e.target.value })}
+            value={form.fieldKey}
+          >
+            <option value="">— Chỉ số —</option>
+            {fieldOptions.map((fieldKey) => (
+              <option key={fieldKey} value={fieldKey}>
+                {fieldKey}
+              </option>
+            ))}
+          </select>
+          <InlineError message={errors.fieldKey} />
+        </div>
+        <div>
+          <input
+            aria-invalid={Boolean(errors.code)}
+            className={styles.input}
+            onChange={(e) => setForm({ ...form, code: e.target.value })}
+            placeholder="Mã (vd: HSM-039)"
+            value={form.code}
+          />
+          <InlineError message={errors.code} />
+        </div>
+        <div>
+          <input
+            aria-invalid={Boolean(errors.label)}
+            className={styles.input}
+            onChange={(e) => setForm({ ...form, label: e.target.value })}
+            placeholder="Tên chỉ số"
+            value={form.label}
+          />
+          <InlineError message={errors.label} />
+        </div>
+        <input
+          className={styles.input}
+          onChange={(e) => setForm({ ...form, unit: e.target.value })}
+          placeholder="Đơn vị"
+          value={form.unit}
+        />
+        <div>
+          <input
+            aria-invalid={Boolean(errors.lowerBound)}
+            className={styles.input}
+            onChange={(e) => setForm({ ...form, lowerBound: e.target.value })}
+            placeholder="Ngưỡng dưới"
+            value={form.lowerBound}
+          />
+          <InlineError message={errors.lowerBound} />
+        </div>
+        <div>
+          <input
+            aria-invalid={Boolean(errors.upperBound)}
+            className={styles.input}
+            onChange={(e) => setForm({ ...form, upperBound: e.target.value })}
+            placeholder="Ngưỡng trên"
+            value={form.upperBound}
+          />
+          <InlineError message={errors.upperBound} />
+        </div>
         <select
           className={styles.select}
           onChange={(e) => setForm({ ...form, condition: e.target.value as typeof form.condition })}
@@ -188,7 +371,12 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
         <button className={styles.mutedButton} onClick={onDone} type="button">
           Hủy
         </button>
-        <button className={styles.smallPrimaryButton} disabled={createMutation.isPending} onClick={submit} type="button">
+        <button
+          className={styles.smallPrimaryButton}
+          disabled={createMutation.isPending}
+          onClick={submit}
+          type="button"
+        >
           {createMutation.isPending ? 'Đang lưu...' : 'Lưu trị số mới'}
         </button>
       </div>
@@ -225,7 +413,9 @@ export function ReferenceRangeConfig() {
         <div className={styles.cardHeader}>
           <div>
             <p className={styles.cardTitle}>Bảng trị số tham chiếu bình thường</p>
-            <p className="mt-1 text-xs text-[#707882]">Quản lý ngưỡng so sánh kết quả xét nghiệm — chỉ Trưởng khoa mới được cập nhật.</p>
+            <p className="mt-1 text-xs text-[#707882]">
+              Quản lý ngưỡng so sánh kết quả xét nghiệm — chỉ quản trị viên mới được cập nhật.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <input
@@ -234,7 +424,11 @@ export function ReferenceRangeConfig() {
               placeholder="Tìm chỉ số..."
               value={keyword}
             />
-            <button className={styles.primaryButton} onClick={() => setIsCreating((v) => !v)} type="button">
+            <button
+              className={styles.primaryButton}
+              onClick={() => setIsCreating((v) => !v)}
+              type="button"
+            >
               + Cập nhật trị số
             </button>
           </div>
@@ -270,7 +464,8 @@ export function ReferenceRangeConfig() {
                   </td>
                 </tr>
               )}
-              {!isLoading && rows.map((row) => <EditableRow key={row.referenceRangeId} row={row} />)}
+              {!isLoading &&
+                rows.map((row) => <EditableRow key={row.referenceRangeId} row={row} />)}
             </tbody>
           </table>
         </div>

@@ -56,14 +56,18 @@ const labelClass = 'mb-1.5 block text-xs font-semibold text-[#3f4851]';
 const hintClass = 'mt-1 text-[11px] text-[#8a8f96]';
 
 export function NumericField({
+  error,
   hint,
   label,
+  onBlur,
   onChange,
   unit,
   value,
 }: {
+  error?: string;
   hint?: string;
   label: string;
+  onBlur?: () => void;
   onChange: (value: string) => void;
   unit?: string;
   value: string;
@@ -75,43 +79,64 @@ export function NumericField({
         {unit ? ` (${unit})` : ''}
       </span>
       <input
+        aria-describedby={error ? `${label}-error` : undefined}
+        aria-invalid={Boolean(error)}
         className={inputClass}
         inputMode="decimal"
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
         type="text"
         value={value}
       />
       {hint && <p className={hintClass}>{hint}</p>}
+      {error && <p className="mt-1 text-[11px] font-medium leading-4 text-[#ba1a1a]" id={`${label}-error`} role="alert">{error}</p>}
     </label>
   );
 }
 
 export function TextField({
+  error,
   label,
+  onBlur,
   onChange,
   value,
 }: {
+  error?: string;
   label: string;
+  onBlur?: () => void;
   onChange: (value: string) => void;
   value: string;
 }) {
   return (
     <label className="block">
       <span className={labelClass}>{label}</span>
-      <input className={inputClass} onChange={(event) => onChange(event.target.value)} type="text" value={value} />
+      <input
+        aria-describedby={error ? `${label}-error` : undefined}
+        aria-invalid={Boolean(error)}
+        className={inputClass}
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.target.value)}
+        type="text"
+        value={value}
+      />
+      {error && <p className="mt-1 text-[11px] font-medium leading-4 text-[#ba1a1a]" id={`${label}-error`} role="alert">{error}</p>}
     </label>
   );
 }
 
 export function SelectField({
   emptyLabel = '— Chưa chọn —',
+  error,
   label,
+  onBlur,
   onChange,
   options,
   value,
 }: {
   emptyLabel?: string;
+  error?: string;
   label: string;
+  onBlur?: () => void;
   onChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
   value: string;
@@ -119,7 +144,14 @@ export function SelectField({
   return (
     <label className="block">
       <span className={labelClass}>{label}</span>
-      <select className={selectClass} onChange={(event) => onChange(event.target.value)} value={value}>
+      <select
+        aria-describedby={error ? `${label}-error` : undefined}
+        aria-invalid={Boolean(error)}
+        className={selectClass}
+        onBlur={onBlur}
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
         <option value="">{emptyLabel}</option>
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -127,16 +159,21 @@ export function SelectField({
           </option>
         ))}
       </select>
+      {error && <p className="mt-1 text-[11px] font-medium leading-4 text-[#ba1a1a]" id={`${label}-error`} role="alert">{error}</p>}
     </label>
   );
 }
 
 export function TextAreaField({
+  error,
   label,
+  onBlur,
   onChange,
   value,
 }: {
+  error?: string;
   label: string;
+  onBlur?: () => void;
   onChange: (value: string) => void;
   value: string;
 }) {
@@ -144,10 +181,14 @@ export function TextAreaField({
     <label className="block">
       <span className={labelClass}>{label}</span>
       <textarea
+        aria-describedby={error ? `${label}-error` : undefined}
+        aria-invalid={Boolean(error)}
         className="min-h-20 w-full resize-none rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 py-2 text-[13px] leading-6 text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
+        onBlur={onBlur}
         onChange={(event) => onChange(event.target.value)}
         value={value}
       />
+      {error && <p className="mt-1 text-[11px] font-medium leading-4 text-[#ba1a1a]" id={`${label}-error`} role="alert">{error}</p>}
     </label>
   );
 }

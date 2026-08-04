@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import { Prisma } from '@prisma/client';
+
 import { AppError } from '../../../core/errors/app-error';
 import { recordAuditLog } from '../../audit/services/audit.service';
 import type { Principal } from '../../auth/types/auth.types';
@@ -11,6 +13,7 @@ import {
   findLabTestsForStats,
   findPendingLabTests,
   findReferenceRangesByType,
+  findUserForPathology,
   listReferenceRanges,
   receiveSpecimenTx,
   recordLabResultTx,
@@ -182,7 +185,8 @@ export async function receiveSpecimen(labTestId: string, principal: Principal) {
   }
 
   const updated = await receiveSpecimenTx(labTestId);
-  if (!updated) throw AppError.badRequest('TEST_ALREADY_RESULTED', 'Phiếu xét nghiệm đã có kết quả trước đó.');
+  if (!updated)
+    throw AppError.badRequest('TEST_ALREADY_RESULTED', 'Phiếu xét nghiệm đã có kết quả trước đó.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -193,14 +197,51 @@ export async function receiveSpecimen(labTestId: string, principal: Principal) {
     resourceId: labTestId,
   });
 
-  return { labTestId: updated.id, status: updated.status, specimenReceivedAt: updated.specimenReceivedAt };
+  return {
+    labTestId: updated.id,
+    status: updated.status,
+    specimenReceivedAt: updated.specimenReceivedAt,
+  };
 }
 
 async function assertAttachmentBelongsToLabTest(attachmentId: string, labTestId: string) {
   const attachment = await findAttachmentById(attachmentId);
   if (!attachment || attachment.ownerType !== 'lab_test' || attachment.ownerId !== labTestId) {
-    throw AppError.conflict('ATTACHMENT_OWNER_MISMATCH', 'Tệp đính kèm không thuộc phiếu xét nghiệm này.');
+    throw AppError.conflict(
+      'ATTACHMENT_OWNER_MISMATCH',
+      'Tệp đính kèm không thuộc phiếu xét nghiệm này.',
+    );
   }
+}
+
+/**
+ * Xác minh bác sĩ đọc kết quả GPB tồn tại, đang hoạt động và có role doctor.
+ * Đây là kiểm tra nghiệp vụ bổ sung cho FK/UUID để không gán nhầm user hợp lệ nhưng sai chuyên môn.
+ */
+async function assertPathologyDoctor(userId: string) {
+  const user = await findUserForPathology(userId);
+  if (!user || !user.isActive) {
+    throw AppError.notFound(
+      'PATHOLOGY_DOCTOR_NOT_FOUND',
+      'Không tìm thấy bác sĩ giải phẫu bệnh đang hoạt động.',
+    );
+  }
+  if (!user.permissions.some((permission) => permission.roleCode === 'doctor')) {
+    throw AppError.unprocessable(
+      'PATHOLOGY_DOCTOR_ROLE_INVALID',
+      'User được chọn không có vai trò bác sĩ.',
+    );
+  }
+}
+
+/** Xác định đúng unique constraint reportCode mà không che giấu các lỗi DB khác. */
+function isReportCodeUniqueViolation(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002')
+    return false;
+  const target = JSON.stringify(error.meta?.target ?? '')
+    .toLowerCase()
+    .replaceAll('_', '');
+  return target.includes('reportcode');
 }
 
 /**
@@ -211,25 +252,44 @@ async function assertAttachmentBelongsToLabTest(attachmentId: string, labTestId:
  * @throws {AppError} 400 LAB_RESULT_TYPE_MISMATCH, 400 TEST_ALREADY_RESULTED,
  * 409 ATTACHMENT_OWNER_MISMATCH, 409 VERSION_CONFLICT
  */
-export async function recordLabResult(labTestId: string, input: RecordLabResultInput, principal: Principal) {
+export async function recordLabResult(
+  labTestId: string,
+  input: RecordLabResultInput,
+  principal: Principal,
+) {
   const labTest = await loadOrderedLabTest(labTestId);
   if (labTest.labTestType.resultTableKey !== input.resultTableKey) {
-    throw AppError.badRequest('LAB_RESULT_TYPE_MISMATCH', 'Loại kết quả không khớp với danh mục xét nghiệm.');
+    throw AppError.badRequest(
+      'LAB_RESULT_TYPE_MISMATCH',
+      'Loại kết quả không khớp với danh mục xét nghiệm.',
+    );
+  }
+  if (input.resultTableKey === 'xn_mo_benh_hoc') {
+    await assertPathologyDoctor(input.structuredResult.bacSiGiaiPhauBenh);
   }
   await assertAttachmentBelongsToLabTest(input.attachmentId, labTestId);
 
-  const updated = await recordLabResultTx({
-    labTestId,
-    resultTableKey: input.resultTableKey,
-    structuredResult: input.structuredResult,
-    resultedBy: principal.userId,
-    signedBy: principal.userId,
-    reportCode: input.reportCode,
-    specimenType: input.specimenType,
-    method: input.method,
-    conclusion: input.conclusion,
-  });
-  if (!updated) throw AppError.badRequest('TEST_ALREADY_RESULTED', 'Phiếu xét nghiệm đã có kết quả trước đó.');
+  let updated: Awaited<ReturnType<typeof recordLabResultTx>>;
+  try {
+    updated = await recordLabResultTx({
+      labTestId,
+      resultTableKey: input.resultTableKey,
+      structuredResult: input.structuredResult,
+      resultedBy: principal.userId,
+      signedBy: principal.userId,
+      reportCode: input.reportCode,
+      specimenType: input.specimenType,
+      method: input.method,
+      conclusion: input.conclusion,
+    });
+  } catch (error) {
+    if (isReportCodeUniqueViolation(error)) {
+      throw AppError.conflict('REPORT_CODE_ALREADY_EXISTS', 'Mã phiếu kết quả đã tồn tại.');
+    }
+    throw error;
+  }
+  if (!updated)
+    throw AppError.badRequest('TEST_ALREADY_RESULTED', 'Phiếu xét nghiệm đã có kết quả trước đó.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -264,7 +324,10 @@ export async function savePathologyWorkupDraft(
 ) {
   const labTest = await loadOrderedLabTest(labTestId);
   if (labTest.labTestType.resultTableKey !== 'xn_mo_benh_hoc') {
-    throw AppError.badRequest('LAB_RESULT_TYPE_MISMATCH', 'Loại kết quả không khớp với danh mục xét nghiệm.');
+    throw AppError.badRequest(
+      'LAB_RESULT_TYPE_MISMATCH',
+      'Loại kết quả không khớp với danh mục xét nghiệm.',
+    );
   }
 
   const updated = await savePathologyWorkupDraftTx(labTestId, input.structuredResult);
@@ -290,11 +353,16 @@ export async function savePathologyWorkupDraft(
  * @route PATCH /api/v1/lab-test-types/:id/reference-range
  * @desc Simplified reference-range management — a single free-text field per catalog type
  * (no per-analyte table; SQL deliberately dropped a shared reference-range table, see plan notes).
- * @access lab_tech, admin
+ * @access admin
  */
-export async function manageLabTestTypeReferenceRange(id: string, referenceRange: string, principal: Principal) {
+export async function manageLabTestTypeReferenceRange(
+  id: string,
+  referenceRange: string,
+  principal: Principal,
+) {
   const updated = await updateLabTestTypeReferenceRange(id, referenceRange);
-  if (!updated) throw AppError.notFound('LAB_TEST_TYPE_NOT_FOUND', 'Không tìm thấy loại xét nghiệm.');
+  if (!updated)
+    throw AppError.notFound('LAB_TEST_TYPE_NOT_FOUND', 'Không tìm thấy loại xét nghiệm.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -326,7 +394,7 @@ function shapeReferenceRangeRow(range: ReferenceRangeWithType) {
 
 /**
  * @route GET /api/v1/lab-tests/reference-ranges
- * @access lab_tech, admin
+ * @access admin
  */
 export async function listReferenceRangesForConfig(query: ListReferenceRangesQuery) {
   const [ranges, totalItems] = await listReferenceRanges(query);
@@ -338,10 +406,13 @@ export async function listReferenceRangesForConfig(query: ListReferenceRangesQue
 
 /**
  * @route POST /api/v1/lab-tests/reference-ranges
- * @access lab_tech, admin
+ * @access admin
  * @throws {AppError} 409 REFERENCE_RANGE_ALREADY_EXISTS
  */
-export async function createNewReferenceRange(input: CreateReferenceRangeInput, principal: Principal) {
+export async function createNewReferenceRange(
+  input: CreateReferenceRangeInput,
+  principal: Principal,
+) {
   try {
     const created = await createReferenceRange({
       id: randomUUID(),
@@ -365,14 +436,19 @@ export async function createNewReferenceRange(input: CreateReferenceRangeInput, 
     });
 
     return shapeReferenceRangeRow(created);
-  } catch {
-    throw AppError.conflict('REFERENCE_RANGE_ALREADY_EXISTS', 'Đã có trị số tham chiếu cho chỉ số/điều kiện này.');
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002')
+      throw error;
+    throw AppError.conflict(
+      'REFERENCE_RANGE_ALREADY_EXISTS',
+      'Đã có trị số tham chiếu cho chỉ số/điều kiện này.',
+    );
   }
 }
 
 /**
  * @route PATCH /api/v1/lab-tests/reference-ranges/:referenceRangeId
- * @access lab_tech, admin
+ * @access admin
  * @throws {AppError} 404 REFERENCE_RANGE_NOT_FOUND
  */
 export async function updateReferenceRangeById(
@@ -391,7 +467,8 @@ export async function updateReferenceRangeById(
     ...(input.condition !== undefined ? { condition: input.condition } : {}),
     ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
   });
-  if (!updated) throw AppError.notFound('REFERENCE_RANGE_NOT_FOUND', 'Không tìm thấy trị số tham chiếu.');
+  if (!updated)
+    throw AppError.notFound('REFERENCE_RANGE_NOT_FOUND', 'Không tìm thấy trị số tham chiếu.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -412,7 +489,8 @@ export async function updateReferenceRangeById(
  */
 export async function deleteReferenceRangeById(referenceRangeId: string, principal: Principal) {
   const deleted = await softDeleteReferenceRange(referenceRangeId);
-  if (!deleted) throw AppError.notFound('REFERENCE_RANGE_NOT_FOUND', 'Không tìm thấy trị số tham chiếu.');
+  if (!deleted)
+    throw AppError.notFound('REFERENCE_RANGE_NOT_FOUND', 'Không tìm thấy trị số tham chiếu.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -448,7 +526,9 @@ export async function getLabActivityStats(query: LabActivityStatsQuery, principa
   const rows = await findLabTestsForStats(principal.departmentId, from, to);
 
   const totalReceived = rows.filter((row) => row.specimenReceivedAt !== null).length;
-  const totalCompleted = rows.filter((row) => row.status === 'resulted' && row.signedAt !== null).length;
+  const totalCompleted = rows.filter(
+    (row) => row.status === 'resulted' && row.signedAt !== null,
+  ).length;
   const urgentCompleted = rows.filter((row) => row.isUrgent && row.status === 'resulted').length;
 
   const tatMinutes = rows

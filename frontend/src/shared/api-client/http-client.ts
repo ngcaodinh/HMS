@@ -25,9 +25,8 @@ const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
     const field = detail.field;
     if (typeof field !== 'string') return currentFields;
 
-    const message = 'rule' in detail && typeof detail.rule === 'string'
-      ? detail.rule
-      : 'Dữ liệu không hợp lệ';
+    const message =
+      'rule' in detail && typeof detail.rule === 'string' ? detail.rule : 'Dữ liệu không hợp lệ';
 
     return {
       ...currentFields,
