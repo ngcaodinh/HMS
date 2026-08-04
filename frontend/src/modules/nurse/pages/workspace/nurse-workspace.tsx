@@ -8,6 +8,7 @@ import JsBarcode from 'jsbarcode';
 import { RoleIcon } from '@/shared/components/role-icon';
 import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
 import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
+import { ApiError } from '@/shared/api-client/error';
 
 import {
   navItems,
@@ -50,6 +51,15 @@ import {
   type SpecimenDto,
 } from '../../hooks/useLane6';
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
+import {
+  getAllergyNoteError,
+  getBloodPressureRelationError,
+  getApiErrorMessage,
+  getVitalFieldError,
+  validateEmergencyIdentity,
+  VITAL_LIMITS,
+} from './nurse-validation';
+
 function cn(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(' ');
 }
@@ -134,7 +144,9 @@ function Sidebar({
             />
           ),
           badge: badgeCount ? (
-            <span className={cn(styles.badge, item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#ba1a1a]')}>
+            <span
+              className={cn(styles.badge, item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#ba1a1a]')}
+            >
               {badgeCount}
             </span>
           ) : undefined,
@@ -199,7 +211,7 @@ function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
 
   const subtitlePrefix = useMemo(
     () => meta.subtitle.split(' • ').slice(0, -1).join(' • '),
-    [meta.subtitle]
+    [meta.subtitle],
   );
   const subtitle = `${subtitlePrefix} • ${formattedTime}`;
 
@@ -293,12 +305,18 @@ function PatientQueue({
   isCalling: boolean;
 }) {
   return (
-    <Card count={`${ticketQueue.waitingCount} số đang chờ`} icon="clipboard" title="Hàng đợi chờ đo sinh hiệu">
+    <Card
+      count={`${ticketQueue.waitingCount} số đang chờ`}
+      icon="clipboard"
+      title="Hàng đợi chờ đo sinh hiệu"
+    >
       <div className="p-3">
         <div className="mb-2 rounded-lg bg-[#eaeef2] p-3 text-center">
           <p className="text-xs font-medium text-[#3f4851]">Số đang gọi</p>
           <p className="text-3xl font-bold text-[#006096]">
-            {ticketQueue.currentCalled ? String(ticketQueue.currentCalled.number).padStart(2, '0') : '--'}
+            {ticketQueue.currentCalled
+              ? String(ticketQueue.currentCalled.number).padStart(2, '0')
+              : '--'}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -306,7 +324,11 @@ function PatientQueue({
             className={cn(styles.primaryButton, 'h-16 px-4 text-sm')}
             type="button"
             disabled={isCalling || hasUnsavedInput || ticketQueue.waitingCount === 0}
-            title={hasUnsavedInput ? 'Hãy lưu hoặc hủy dữ liệu đang nhập trước khi gọi số mới' : undefined}
+            title={
+              hasUnsavedInput
+                ? 'Hãy lưu hoặc hủy dữ liệu đang nhập trước khi gọi số mới'
+                : undefined
+            }
             onClick={onCallNext}
           >
             <Icon name="heart" />
@@ -335,7 +357,7 @@ function PatientQueue({
               <button
                 className={cn(
                   'flex w-full items-center gap-3 border-b border-[#bfc7d2] p-4 text-left transition hover:bg-[#f0f4f8]',
-                  active && 'border-l-4 border-l-[#006096] bg-[#e0f2fe]'
+                  active && 'border-l-4 border-l-[#006096] bg-[#e0f2fe]',
                 )}
                 key={item.recordId}
                 type="button"
@@ -345,7 +367,7 @@ function PatientQueue({
                   <span
                     className={cn(
                       'block truncate text-xs font-bold uppercase leading-5',
-                      active ? 'text-[#006096]' : 'text-[#171c1f]'
+                      active ? 'text-[#006096]' : 'text-[#171c1f]',
                     )}
                   >
                     {item.patientName}
@@ -361,7 +383,7 @@ function PatientQueue({
                       ? 'bg-red-100 text-[#ba1a1a]'
                       : isCalled
                         ? 'bg-amber-100 text-amber-700'
-                        : 'bg-blue-50 text-[#006096]'
+                        : 'bg-blue-50 text-[#006096]',
                   )}
                 >
                   {active ? 'Đang chọn' : isCalled ? 'Đã gọi' : 'Chọn'}
@@ -401,27 +423,6 @@ const emptyVitalsForm: VitalsFormState = {
   allergyNote: '',
 };
 
-const VITAL_LIMITS = {
-  pulse: { min: 0, max: 300, label: 'mạch' },
-  temperatureC: { min: 25, max: 45, label: 'nhiệt độ' },
-  bpSystolic: { min: 0, max: 300, label: 'huyết áp tâm thu' },
-  bpDiastolic: { min: 0, max: 300, label: 'huyết áp tâm trương' },
-  respiratoryRate: { min: 0, max: 120, label: 'nhịp thở' },
-  spo2: { min: 0, max: 100, label: 'SpO2' },
-  heightCm: { min: 0, max: 300, label: 'chiều cao' },
-  weightKg: { min: 0, max: 500, label: 'cân nặng' },
-} as const;
-
-function getVitalFieldError(key: keyof typeof VITAL_LIMITS, value: string): string | undefined {
-  if (!value) return undefined;
-  const { min, max, label } = VITAL_LIMITS[key];
-  const num = Number(value);
-  if (Number.isNaN(num) || num < min || num > max) {
-    return `Giá trị ${label} không hợp lệ (${min}-${max})`;
-  }
-  return undefined;
-}
-
 function VitalInputField({
   label,
   unit,
@@ -452,7 +453,7 @@ function VitalInputField({
           className={cn(
             styles.input,
             'rounded-r-none',
-            error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10'
+            error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10',
           )}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -512,17 +513,23 @@ function VitalsForm({
   const fieldErrors = useMemo(
     () => ({
       pulse: getVitalFieldError('pulse', form.pulse) || reminderFieldError('pulse'),
-      temperatureC: getVitalFieldError('temperatureC', form.temperatureC) || reminderFieldError('temperatureC'),
-      bpSystolic: getVitalFieldError('bpSystolic', form.bpSystolic) || reminderFieldError('bpSystolic'),
-      bpDiastolic: getVitalFieldError('bpDiastolic', form.bpDiastolic) || reminderFieldError('bpDiastolic'),
+      temperatureC:
+        getVitalFieldError('temperatureC', form.temperatureC) || reminderFieldError('temperatureC'),
+      bpSystolic:
+        getVitalFieldError('bpSystolic', form.bpSystolic) ||
+        getBloodPressureRelationError(form.bpSystolic, form.bpDiastolic) ||
+        reminderFieldError('bpSystolic'),
+      bpDiastolic:
+        getVitalFieldError('bpDiastolic', form.bpDiastolic) || reminderFieldError('bpDiastolic'),
       respiratoryRate:
-        getVitalFieldError('respiratoryRate', form.respiratoryRate) || reminderFieldError('respiratoryRate'),
+        getVitalFieldError('respiratoryRate', form.respiratoryRate) ||
+        reminderFieldError('respiratoryRate'),
       spo2: getVitalFieldError('spo2', form.spo2) || reminderFieldError('spo2'),
       heightCm: getVitalFieldError('heightCm', form.heightCm) || reminderFieldError('heightCm'),
       weightKg: getVitalFieldError('weightKg', form.weightKg) || reminderFieldError('weightKg'),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [form, missingOnSubmit]
+    [form, missingOnSubmit],
   );
   const hasFormatErrors = [
     getVitalFieldError('pulse', form.pulse),
@@ -535,16 +542,32 @@ function VitalsForm({
     getVitalFieldError('weightKg', form.weightKg),
   ].some(Boolean);
 
-  const allergyNoteMissing = attemptedSave && form.allergyEnabled && !form.allergyNote.trim();
+  const bloodPressureRelationError = getBloodPressureRelationError(
+    form.bpSystolic,
+    form.bpDiastolic,
+  );
+  const allergyNoteError = getAllergyNoteError(
+    form.allergyEnabled,
+    form.allergyNote,
+    attemptedSave,
+  );
+  const allergyNoteTooLong = form.allergyNote.length > 1000;
 
-  const canSave = Boolean(activeTicket) && Boolean(selectedRecord) && !isSaving && !hasFormatErrors;
+  const canSave =
+    Boolean(activeTicket) &&
+    Boolean(selectedRecord) &&
+    !isSaving &&
+    !hasFormatErrors &&
+    !bloodPressureRelationError &&
+    !allergyNoteTooLong;
 
   return (
     <Card icon="heart" title="Chỉ số sinh tồn (Vital signs)">
       <div className="space-y-6 p-6">
         {selectedRecord ? (
           <div className="rounded-lg bg-[#e0f2fe] p-3 text-xs font-bold text-[#006096]">
-            Đang nhập sinh hiệu cho: <span className="uppercase">{selectedRecord.patientName}</span> ({selectedRecord.gender}, {selectedRecord.age}t — BA: {selectedRecord.recordCode})
+            Đang nhập sinh hiệu cho: <span className="uppercase">{selectedRecord.patientName}</span>{' '}
+            ({selectedRecord.gender}, {selectedRecord.age}t — BA: {selectedRecord.recordCode})
           </div>
         ) : (
           <div className="rounded-lg bg-[#eaeef2] p-3 text-xs font-medium text-[#3f4851]">
@@ -639,7 +662,7 @@ function VitalsForm({
               form.allergyEnabled
                 ? 'border-[#ba1a1a]/40 bg-red-50/50'
                 : 'border-[#bfc7d2] bg-[#f0f4f8]',
-              allergyNoteMissing && 'animate-blink-red'
+              allergyNoteError && 'animate-blink-red',
             )}
           >
             <div className="flex flex-wrap items-center gap-4">
@@ -649,15 +672,17 @@ function VitalsForm({
                   'relative h-6 w-12 rounded-full shadow-inner focus:outline-none focus:ring-4 transition-colors',
                   form.allergyEnabled
                     ? 'bg-[#ba1a1a] focus:ring-[#ba1a1a]/20'
-                    : 'bg-[#bfc7d2] focus:ring-gray-200'
+                    : 'bg-[#bfc7d2] focus:ring-gray-200',
                 )}
                 type="button"
-                onClick={() => setForm((prev) => ({ ...prev, allergyEnabled: !prev.allergyEnabled }))}
+                onClick={() =>
+                  setForm((prev) => ({ ...prev, allergyEnabled: !prev.allergyEnabled }))
+                }
               >
                 <span
                   className={cn(
                     'absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all',
-                    form.allergyEnabled ? 'right-1' : 'left-1'
+                    form.allergyEnabled ? 'right-1' : 'left-1',
                   )}
                 />
               </button>
@@ -665,7 +690,7 @@ function VitalsForm({
                 <p
                   className={cn(
                     'text-sm font-bold leading-5',
-                    form.allergyEnabled ? 'text-[#ba1a1a]' : 'text-[#3f4851]'
+                    form.allergyEnabled ? 'text-[#ba1a1a]' : 'text-[#3f4851]',
                   )}
                 >
                   {form.allergyEnabled ? 'Có dị ứng thuốc / thức ăn' : 'Không có tiền sử dị ứng'}
@@ -685,16 +710,20 @@ function VitalsForm({
                   styles.textarea,
                   form.allergyEnabled
                     ? 'border-[#ba1a1a]/40 bg-white'
-                    : 'border-[#bfc7d2] bg-[#e4e9ed]/40 text-[#707882] cursor-not-allowed'
+                    : 'border-[#bfc7d2] bg-[#e4e9ed]/40 text-[#707882] cursor-not-allowed',
                 )}
                 disabled={!form.allergyEnabled}
                 value={form.allergyNote}
                 onChange={(e) => setForm((prev) => ({ ...prev, allergyNote: e.target.value }))}
                 placeholder="Nhập mô tả chi tiết: tên thuốc, loại thức ăn gây dị ứng và biểu hiện dị ứng... Ví dụ: Penicillin → nổi mề đay toàn thân"
+                maxLength={1000}
               />
-              {form.allergyEnabled && !form.allergyNote.trim() && (
-                <p className="mt-1 text-xs font-bold text-[#ba1a1a]">
-                  Vui lòng nhập mô tả chi tiết dị ứng trước khi lưu
+              {form.allergyEnabled && allergyNoteError && (
+                <p className="mt-1 text-xs font-bold text-[#ba1a1a]">{allergyNoteError}</p>
+              )}
+              {form.allergyEnabled && (
+                <p className="mt-1 text-right text-[10px] font-medium text-[#707882]">
+                  {form.allergyNote.length}/1000 ký tự
                 </p>
               )}
             </div>
@@ -762,7 +791,11 @@ function VitalsScreen() {
     try {
       const raw = window.localStorage.getItem(VITALS_QUEUE_STATE_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { date?: string; selectedRecordId?: string | null; calledOrder?: string[] };
+      const parsed = JSON.parse(raw) as {
+        date?: string;
+        selectedRecordId?: string | null;
+        calledOrder?: string[];
+      };
       const today = getTodayDateString();
       if (parsed && parsed.date === today) {
         const validWorklist = data.worklist || [];
@@ -812,7 +845,7 @@ function VitalsScreen() {
     const h = Number(form.heightCm);
     const w = Number(form.weightKg);
     if (h > 0 && w > 0) {
-      const bmi = w / ((h / 100) ** 2);
+      const bmi = w / (h / 100) ** 2;
       return bmi.toFixed(1);
     }
     return '-';
@@ -851,7 +884,9 @@ function VitalsScreen() {
     let nextRecord: VitalsWorklistItemDto | null = null;
 
     if (selectedRecord) {
-      const currentIndex = currentWorklist.findIndex((item) => item.recordId === selectedRecord.recordId);
+      const currentIndex = currentWorklist.findIndex(
+        (item) => item.recordId === selectedRecord.recordId,
+      );
       if (currentIndex !== -1) {
         for (let i = currentIndex + 1; i < currentWorklist.length; i++) {
           if (!newCalledSet.has(currentWorklist[i].recordId)) {
@@ -919,14 +954,18 @@ function VitalsScreen() {
     (item: VitalsWorklistItemDto) => {
       selectRecordAndResetForm(item);
     },
-    [selectRecordAndResetForm]
+    [selectRecordAndResetForm],
   );
 
   const handleSave = useCallback(() => {
     if (!activeTicket || !selectedRecord || isSaving) return;
     const missingRequired = !form.pulse || !form.bpSystolic || !form.bpDiastolic || !form.spo2;
-    const missingAllergyNote = form.allergyEnabled && !form.allergyNote.trim();
-    if (missingRequired || missingAllergyNote) {
+    const allergyNoteError = getAllergyNoteError(form.allergyEnabled, form.allergyNote, true);
+    const bloodPressureRelationError = getBloodPressureRelationError(
+      form.bpSystolic,
+      form.bpDiastolic,
+    );
+    if (missingRequired || allergyNoteError || bloodPressureRelationError) {
       setAttemptedSave(true);
       return;
     }
@@ -956,10 +995,13 @@ function VitalsScreen() {
           setSelectedRecord(null);
           setAttemptedSave(false);
         },
-        onError: () => {
-          setToast({ type: 'error', message: 'Lưu thất bại, vui lòng thử lại!' });
+        onError: (error) => {
+          setToast({
+            type: 'error',
+            message: error instanceof ApiError ? error.message : 'Lưu thất bại, vui lòng thử lại!',
+          });
         },
-      }
+      },
     );
   }, [activeTicket, selectedRecord, isSaving, form, saveVitalSigns]);
 
@@ -977,36 +1019,46 @@ function VitalsScreen() {
     return () => window.removeEventListener('keydown', handleKeydown);
   }, [handleCallNext, handleSave]);
 
-  const stats: StatCard[] = useMemo(() => [
-    {
-      value: String(statsData?.measuredTodayCount ?? 0),
-      label: 'Đã đo hôm nay',
-      icon: 'check',
-      iconClass: 'bg-green-100 text-[#15803d]',
-      delta: statsData?.measuredTodayDelta != null ? `${statsData.measuredTodayDelta >= 0 ? '+' : ''}${statsData.measuredTodayDelta} so hôm qua` : undefined,
-    },
-    {
-      value: String(statsData?.waitingCount ?? 0),
-      label: 'Bệnh nhân chờ đo',
-      icon: 'clipboard',
-      iconClass: 'bg-blue-100 text-[#006096]',
-    },
-    {
-      value: String(statsData?.allergyAlertTodayCount ?? 0),
-      label: 'Cảnh báo dị ứng',
-      icon: 'alert',
-      iconClass: 'bg-red-100 text-[#ba1a1a]',
-    },
-    {
-      value: `${statsData?.avgMinutesPerPatient ?? 0} phút`,
-      label: 'Thời gian TB/Bệnh nhân',
-      icon: 'activity',
-      iconClass: 'bg-teal-100 text-[#006673]',
-    },
-  ], [statsData]);
+  const stats: StatCard[] = useMemo(
+    () => [
+      {
+        value: String(statsData?.measuredTodayCount ?? 0),
+        label: 'Đã đo hôm nay',
+        icon: 'check',
+        iconClass: 'bg-green-100 text-[#15803d]',
+        delta:
+          statsData?.measuredTodayDelta != null
+            ? `${statsData.measuredTodayDelta >= 0 ? '+' : ''}${statsData.measuredTodayDelta} so hôm qua`
+            : undefined,
+      },
+      {
+        value: String(statsData?.waitingCount ?? 0),
+        label: 'Bệnh nhân chờ đo',
+        icon: 'clipboard',
+        iconClass: 'bg-blue-100 text-[#006096]',
+      },
+      {
+        value: String(statsData?.allergyAlertTodayCount ?? 0),
+        label: 'Cảnh báo dị ứng',
+        icon: 'alert',
+        iconClass: 'bg-red-100 text-[#ba1a1a]',
+      },
+      {
+        value: `${statsData?.avgMinutesPerPatient ?? 0} phút`,
+        label: 'Thời gian TB/Bệnh nhân',
+        icon: 'activity',
+        iconClass: 'bg-teal-100 text-[#006673]',
+      },
+    ],
+    [statsData],
+  );
 
   if (isLoading) {
-    return <div className="p-8 text-center text-sm font-medium text-[#3f4851]">Đang tải dữ liệu sinh hiệu...</div>;
+    return (
+      <div className="p-8 text-center text-sm font-medium text-[#3f4851]">
+        Đang tải dữ liệu sinh hiệu...
+      </div>
+    );
   }
 
   return (
@@ -1015,7 +1067,7 @@ function VitalsScreen() {
         <div
           className={cn(
             'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
-            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]'
+            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]',
           )}
         >
           {toast.message}
@@ -1075,7 +1127,10 @@ function BarcodeModal({ specimen, onClose }: { specimen: SpecimenDto; onClose: (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
       <div
         className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
@@ -1107,25 +1162,52 @@ function SamplesScreen() {
   const printBarcodeMutation = usePrintSpecimenBarcode();
   const handoffSpecimenMutation = useHandoffSpecimen();
   const [barcodeSpecimen, setBarcodeSpecimen] = useState<SpecimenDto | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<'collect' | 'handoff'>('collect');
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [selectedPatientCode, setSelectedPatientCode] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!errorMessage) return undefined;
+    const timer = setTimeout(() => setErrorMessage(null), 4000);
+    return () => clearTimeout(timer);
+  }, [errorMessage]);
+
   // Compute stat cards from real data
   const pendingCount = specimens.filter((s) => s.status === 'pending').length;
   const collectedCount = specimens.filter(
-    (s) => s.status === 'collected' || s.status === 'handed_over'
+    (s) => s.status === 'collected' || s.status === 'handed_over',
   ).length;
   const handoffCount = specimens.filter((s) => s.status === 'collected').length;
   const priorityCount = specimens.filter((s) => s.priority && s.status !== 'handed_over').length;
 
   const stats: StatCard[] = [
-    { value: String(pendingCount), label: 'Chờ lấy mẫu', icon: 'flask', iconClass: 'bg-blue-100 text-[#006096]' },
-    { value: String(collectedCount), label: 'Đã lấy mẫu', icon: 'check', iconClass: 'bg-green-100 text-[#15803d]' },
-    { value: String(handoffCount), label: 'Chờ bàn giao lab', icon: 'file', iconClass: 'bg-teal-100 text-[#006673]' },
-    { value: String(priorityCount), label: 'Mẫu cấp cứu ưu tiên', icon: 'alert', iconClass: 'bg-red-100 text-[#ba1a1a]' },
+    {
+      value: String(pendingCount),
+      label: 'Chờ lấy mẫu',
+      icon: 'flask',
+      iconClass: 'bg-blue-100 text-[#006096]',
+    },
+    {
+      value: String(collectedCount),
+      label: 'Đã lấy mẫu',
+      icon: 'check',
+      iconClass: 'bg-green-100 text-[#15803d]',
+    },
+    {
+      value: String(handoffCount),
+      label: 'Chờ bàn giao lab',
+      icon: 'file',
+      iconClass: 'bg-teal-100 text-[#006673]',
+    },
+    {
+      value: String(priorityCount),
+      label: 'Mẫu cấp cứu ưu tiên',
+      icon: 'alert',
+      iconClass: 'bg-red-100 text-[#ba1a1a]',
+    },
   ];
 
   // Filter specimens client-side
@@ -1136,7 +1218,8 @@ function SamplesScreen() {
       s.patientCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.specimenCode.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDept =
-      departmentFilter === 'all' || s.departmentName.toLowerCase().includes(departmentFilter.toLowerCase());
+      departmentFilter === 'all' ||
+      s.departmentName.toLowerCase().includes(departmentFilter.toLowerCase());
     return matchesSearch && matchesDept;
   });
 
@@ -1144,7 +1227,10 @@ function SamplesScreen() {
   const collectedSpecimens = filteredSpecimens.filter((s) => s.status === 'collected');
 
   // Unique patients in pending list
-  const pendingPatientsMap = new Map<string, { patientCode: string; patientName: string; count: number; departmentName: string }>();
+  const pendingPatientsMap = new Map<
+    string,
+    { patientCode: string; patientName: string; count: number; departmentName: string }
+  >();
   for (const s of pendingSpecimens) {
     const existing = pendingPatientsMap.get(s.patientCode);
     if (existing) {
@@ -1173,6 +1259,14 @@ function SamplesScreen() {
 
   return (
     <div className="space-y-5">
+      {errorMessage && (
+        <div
+          role="status"
+          className="fixed right-6 top-6 z-50 rounded-lg bg-red-100 px-4 py-3 text-sm font-bold text-[#ba1a1a] shadow-lg"
+        >
+          {errorMessage}
+        </div>
+      )}
       <StatGrid stats={stats} />
       <section className={cn(styles.card, 'overflow-hidden')}>
         <div className="flex border-b border-[#bfc7d2] bg-[#f0f4f8]">
@@ -1181,7 +1275,7 @@ function SamplesScreen() {
               'px-6 py-3 text-sm font-medium transition-colors',
               activeTab === 'collect'
                 ? 'border-b-2 border-[#006096] text-[#006096]'
-                : 'text-[#3f4851] hover:text-[#171c1f]'
+                : 'text-[#3f4851] hover:text-[#171c1f]',
             )}
             type="button"
             onClick={() => setActiveTab('collect')}
@@ -1193,7 +1287,7 @@ function SamplesScreen() {
               'px-6 py-3 text-sm font-medium transition-colors',
               activeTab === 'handoff'
                 ? 'border-b-2 border-[#006096] text-[#006096]'
-                : 'text-[#3f4851] hover:text-[#171c1f]'
+                : 'text-[#3f4851] hover:text-[#171c1f]',
             )}
             type="button"
             onClick={() => setActiveTab('handoff')}
@@ -1232,13 +1326,16 @@ function SamplesScreen() {
                 Bệnh nhân chờ lấy mẫu ({pendingPatientsList.length})
               </p>
               {pendingPatientsList.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#3f4851]">Không có bệnh nhân nào chờ lấy mẫu</div>
+                <div className="p-4 text-center text-xs text-[#3f4851]">
+                  Không có bệnh nhân nào chờ lấy mẫu
+                </div>
               ) : (
                 pendingPatientsList.map((patient, index) => (
                   <button
                     className={cn(
                       'flex w-full items-center gap-3 border-b border-[#eaeef2] p-4 text-left transition-colors',
-                      patient.patientCode === activePatientCode && 'border-l-4 border-l-[#006096] bg-indigo-50'
+                      patient.patientCode === activePatientCode &&
+                        'border-l-4 border-l-[#006096] bg-indigo-50',
                     )}
                     key={patient.patientCode}
                     type="button"
@@ -1247,7 +1344,7 @@ function SamplesScreen() {
                     <span
                       className={cn(
                         'flex h-10 w-10 items-center justify-center rounded-sm text-sm font-bold text-white',
-                        index % 2 === 1 ? 'bg-green-600' : 'bg-[#006096]'
+                        index % 2 === 1 ? 'bg-green-600' : 'bg-[#006096]',
                       )}
                     >
                       {String(index + 1).padStart(2, '0')}
@@ -1256,7 +1353,9 @@ function SamplesScreen() {
                       <span className="block truncate text-sm font-bold uppercase text-[#171c1f]">
                         {patient.patientName}
                       </span>
-                      <span className="block text-xs text-[#3f4851]">Mã: {patient.patientCode}</span>
+                      <span className="block text-xs text-[#3f4851]">
+                        Mã: {patient.patientCode}
+                      </span>
                       <span className="block text-xs font-semibold text-[#006096]">
                         {patient.count} mẫu bệnh phẩm
                       </span>
@@ -1269,9 +1368,12 @@ function SamplesScreen() {
               {selectedPatientInfo ? (
                 <div className="flex flex-wrap justify-between gap-3 border-b border-[#bfc7d2] p-4">
                   <div>
-                    <h2 className="text-lg font-bold leading-7 text-[#171c1f]">{selectedPatientInfo.patientName}</h2>
+                    <h2 className="text-lg font-bold leading-7 text-[#171c1f]">
+                      {selectedPatientInfo.patientName}
+                    </h2>
                     <p className="text-xs leading-5 text-[#3f4851]">
-                      Mã BN: {selectedPatientInfo.patientCode} • Khoa: {selectedPatientInfo.departmentName}
+                      Mã BN: {selectedPatientInfo.patientCode} • Khoa:{' '}
+                      {selectedPatientInfo.departmentName}
                     </p>
                   </div>
                   <div className="text-left lg:text-right">
@@ -1296,7 +1398,7 @@ function SamplesScreen() {
                     <article
                       className={cn(
                         'overflow-hidden rounded-lg border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)]',
-                        order.priority && 'border-l-4 border-l-[#ba1a1a]'
+                        order.priority && 'border-l-4 border-l-[#ba1a1a]',
                       )}
                       key={order.id}
                     >
@@ -1319,12 +1421,20 @@ function SamplesScreen() {
                             </span>
                           )}
                         </div>
-                        <span className="text-xs font-bold uppercase text-[#3f4851]">Chờ lấy mẫu</span>
+                        <span className="text-xs font-bold uppercase text-[#3f4851]">
+                          Chờ lấy mẫu
+                        </span>
                       </div>
                       <div className="space-y-2 px-4 py-4">
-                        <h3 className="text-base font-bold leading-6 text-[#006096]">{order.orderDescription}</h3>
+                        <h3 className="text-base font-bold leading-6 text-[#006096]">
+                          {order.orderDescription}
+                        </h3>
                         <p className="text-xs leading-5 text-[#3f4851]">
-                          Bệnh nhân: <strong className="text-[#171c1f]">{order.patientName} ({order.patientCode})</strong> • Khoa: <strong className="text-[#171c1f]">{order.departmentName}</strong>
+                          Bệnh nhân:{' '}
+                          <strong className="text-[#171c1f]">
+                            {order.patientName} ({order.patientCode})
+                          </strong>{' '}
+                          • Khoa: <strong className="text-[#171c1f]">{order.departmentName}</strong>
                         </p>
                         <div className="flex flex-wrap justify-end gap-3 pt-3">
                           <button
@@ -1332,8 +1442,19 @@ function SamplesScreen() {
                             type="button"
                             disabled={printBarcodeMutation.isPending}
                             onClick={() => {
-                              printBarcodeMutation.mutate({ id: order.id });
-                              setBarcodeSpecimen(order);
+                              printBarcodeMutation.mutate(
+                                { id: order.id },
+                                {
+                                  onSuccess: () => setBarcodeSpecimen(order),
+                                  onError: (error) =>
+                                    setErrorMessage(
+                                      getApiErrorMessage(
+                                        error,
+                                        'Không thể in mã vạch mẫu bệnh phẩm.',
+                                      ),
+                                    ),
+                                },
+                              );
                             }}
                           >
                             {order.barcodePrinted ? 'In lại mã vạch' : 'In mã vạch (Barcode)'}
@@ -1342,7 +1463,17 @@ function SamplesScreen() {
                             className={styles.primaryButton}
                             type="button"
                             disabled={collectSpecimenMutation.isPending}
-                            onClick={() => collectSpecimenMutation.mutate({ id: order.id })}
+                            onClick={() =>
+                              collectSpecimenMutation.mutate(
+                                { id: order.id },
+                                {
+                                  onError: (error) =>
+                                    setErrorMessage(
+                                      getApiErrorMessage(error, 'Không thể ghi nhận lấy mẫu.'),
+                                    ),
+                                },
+                              )
+                            }
                           >
                             Tiến hành lấy mẫu
                           </button>
@@ -1358,8 +1489,13 @@ function SamplesScreen() {
           <div className="p-4 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#bfc7d2] pb-3">
               <div>
-                <h2 className="text-lg font-bold leading-7 text-[#171c1f]">Danh sách mẫu đã lấy — Chờ bàn giao Phòng Lab</h2>
-                <p className="text-xs text-[#3f4851]">Các mẫu bệnh phẩm đã được lấy thành công, sẵn sàng bàn giao sang kỹ thuật viên phòng xét nghiệm</p>
+                <h2 className="text-lg font-bold leading-7 text-[#171c1f]">
+                  Danh sách mẫu đã lấy — Chờ bàn giao Phòng Lab
+                </h2>
+                <p className="text-xs text-[#3f4851]">
+                  Các mẫu bệnh phẩm đã được lấy thành công, sẵn sàng bàn giao sang kỹ thuật viên
+                  phòng xét nghiệm
+                </p>
               </div>
               <span className="rounded-sm bg-teal-100 px-3 py-1 text-xs font-bold text-[#006673]">
                 {collectedSpecimens.length} mẫu chờ bàn giao
@@ -1387,23 +1523,44 @@ function SamplesScreen() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-[#006096]">{spec.orderDescription}</h3>
-                      <p className="text-xs text-[#3f4851] font-medium">Loại mẫu: {spec.specimenType}</p>
+                      <p className="text-xs text-[#3f4851] font-medium">
+                        Loại mẫu: {spec.specimenType}
+                      </p>
                       <p className="text-xs text-[#3f4851]">
                         Bệnh nhân: <strong>{spec.patientName}</strong> ({spec.patientCode})
                       </p>
                       <p className="text-xs text-[#3f4851]">
-                        Thời gian lấy: {spec.collectedAt ? new Date(spec.collectedAt).toLocaleTimeString('vi-VN') + ' - ' + new Date(spec.collectedAt).toLocaleDateString('vi-VN') : '—'}
+                        Thời gian lấy:{' '}
+                        {spec.collectedAt
+                          ? new Date(spec.collectedAt).toLocaleTimeString('vi-VN') +
+                            ' - ' +
+                            new Date(spec.collectedAt).toLocaleDateString('vi-VN')
+                          : '—'}
                       </p>
                     </div>
                     <div className="flex items-center justify-between pt-2 border-t border-[#eaeef2]">
                       <span className="text-xs text-[#3f4851]">
-                        KTV tiếp nhận: <span className="font-semibold text-[#171c1f]">Phòng Lab Central</span>
+                        KTV tiếp nhận:{' '}
+                        <span className="font-semibold text-[#171c1f]">Phòng Lab Central</span>
                       </span>
                       <button
                         className={styles.primaryButton}
                         type="button"
                         disabled={handoffSpecimenMutation.isPending}
-                        onClick={() => handoffSpecimenMutation.mutate({ id: spec.id, labReceiverName: 'Phòng Lab Central' })}
+                        onClick={() =>
+                          handoffSpecimenMutation.mutate(
+                            { id: spec.id, labReceiverName: 'Phòng Lab Central' },
+                            {
+                              onError: (error) =>
+                                setErrorMessage(
+                                  getApiErrorMessage(
+                                    error,
+                                    'Không thể bàn giao mẫu cho phòng Lab.',
+                                  ),
+                                ),
+                            },
+                          )
+                        }
                       >
                         Bàn giao cho Lab
                       </button>
@@ -1432,6 +1589,7 @@ function BedCard({
   transferSourceBedId,
   onStartTransfer,
   onSelectTransferTarget,
+  onError,
   isChanging,
 }: {
   bed: BedDto;
@@ -1442,6 +1600,7 @@ function BedCard({
   transferSourceBedId: string | null;
   onStartTransfer: (bedId: string) => void;
   onSelectTransferTarget: (bed: BedDto) => void;
+  onError: (message: string) => void;
   isChanging: boolean;
 }) {
   const { mutate: processDischarge, isPending: isDischarging } = useProcessDischarge();
@@ -1465,15 +1624,21 @@ function BedCard({
               return;
             }
             if (!selectedRecordId) {
-              alert('Vui lòng chọn hồ sơ bệnh nhân chờ giường ở thanh công cụ phía trên trước!');
+              onError('Vui lòng chọn hồ sơ bệnh nhân chờ giường ở thanh công cụ phía trên trước!');
               return;
             }
             const patient = waitingPatients.find((p) => p.recordId === selectedRecordId);
             if (patient?.version === undefined || patient?.version === null) {
-              alert('Không tìm thấy phiên bản hồ sơ bệnh án hợp lệ!');
+              onError('Không tìm thấy phiên bản hồ sơ bệnh án hợp lệ!');
               return;
             }
-            assignBed({ recordId: selectedRecordId, bedId: bed.id, expectedRecordVersion: patient.version });
+            assignBed(
+              { recordId: selectedRecordId, bedId: bed.id, expectedRecordVersion: patient.version },
+              {
+                onError: (error) =>
+                  onError(getApiErrorMessage(error, 'Không thể tiếp nhận bệnh nhân vào giường.')),
+              },
+            );
           }}
         >
           {transferSourceBedId
@@ -1503,7 +1668,9 @@ function BedCard({
 
   return (
     <>
-      <article className={cn('overflow-hidden rounded-xl border bg-white shadow-sm transition-all', tone)}>
+      <article
+        className={cn('overflow-hidden rounded-xl border bg-white shadow-sm transition-all', tone)}
+      >
         <div className="flex items-center justify-between gap-2 border-b border-[#eaeef2] p-3">
           <p className="text-xs font-bold leading-5 text-[#171c1f]">Giường {bed.bed}</p>
           <div className="flex items-center gap-2">
@@ -1539,7 +1706,8 @@ function BedCard({
             className={cn(
               styles.secondaryButton,
               'h-8 px-2 text-[10px]',
-              transferSourceBedId === bed.id && 'border-[#006096] bg-sky-50 text-[#006096] font-bold'
+              transferSourceBedId === bed.id &&
+                'border-[#006096] bg-sky-50 text-[#006096] font-bold',
             )}
             type="button"
             disabled={
@@ -1568,15 +1736,21 @@ function BedCard({
                 ? 'bg-green-600 text-white hover:bg-green-700 font-bold'
                 : 'opacity-50',
               styles.secondaryButton,
-              'h-8 px-2 text-[10px]'
+              'h-8 px-2 text-[10px]',
             )}
             type="button"
             disabled={effectiveStatus !== 'discharge' || isDischarging || !bed.recordId}
             onClick={() => {
               if (bed.recordId && bed.recordVersion !== null && bed.recordVersion !== undefined) {
-                processDischarge({ recordId: bed.recordId, expectedRecordVersion: bed.recordVersion });
+                processDischarge(
+                  { recordId: bed.recordId, expectedRecordVersion: bed.recordVersion },
+                  {
+                    onError: (error) =>
+                      onError(getApiErrorMessage(error, 'Không thể hoàn tất xuất viện.')),
+                  },
+                );
               } else {
-                alert('Thông tin phiên bản hồ sơ không hợp lệ!');
+                onError('Thông tin phiên bản hồ sơ không hợp lệ!');
               }
             }}
           >
@@ -1584,7 +1758,9 @@ function BedCard({
           </button>
         </div>
       </article>
-      {showRecordModal && <MedicalRecordModal bed={bed} onClose={() => setShowRecordModal(false)} />}
+      {showRecordModal && (
+        <MedicalRecordModal bed={bed} onClose={() => setShowRecordModal(false)} />
+      )}
     </>
   );
 }
@@ -1604,10 +1780,14 @@ function TransferReasonModal({
 }) {
   const [reason, setReason] = useState('');
   const trimmedLen = reason.trim().length;
-  const isValid = trimmedLen >= 10;
+  const isTooLong = reason.length > 255;
+  const isValid = trimmedLen >= 10 && !isTooLong;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onCancel}
+    >
       <div
         className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
@@ -1618,7 +1798,7 @@ function TransferReasonModal({
           <strong>{targetBed.bed}</strong>
         </p>
         <label className="mb-1 block text-xs font-semibold text-[#171c1f]">
-          Lý do chuyển giường (tối thiểu 10 ký tự)
+          Lý do chuyển giường (10-255 ký tự)
         </label>
         <textarea
           className={cn(styles.input, 'h-24 w-full text-xs')}
@@ -1626,12 +1806,23 @@ function TransferReasonModal({
           onChange={(e) => setReason(e.target.value)}
           placeholder="Nhập lý do chuyển giường..."
           autoFocus
+          maxLength={255}
         />
         {!isValid && reason.length > 0 && (
-          <p className="mt-1 text-[10px] text-red-600">Lý do cần tối thiểu 10 ký tự (hiện {trimmedLen}).</p>
+          <p className="mt-1 text-[10px] text-red-600">
+            {isTooLong
+              ? 'Lý do tối đa 255 ký tự.'
+              : `Lý do cần tối thiểu 10 ký tự (hiện ${trimmedLen}).`}
+          </p>
         )}
+        <p className="mt-1 text-right text-[10px] text-[#707882]">{reason.length}/255 ký tự</p>
         <div className="mt-4 flex justify-end gap-2">
-          <button className={styles.secondaryButton} type="button" onClick={onCancel} disabled={isPending}>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            onClick={onCancel}
+            disabled={isPending}
+          >
             Hủy
           </button>
           <button
@@ -1650,8 +1841,14 @@ function TransferReasonModal({
 
 function MedicalRecordModal({ bed, onClose }: { bed: BedDto; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-sm font-bold text-[#171c1f]">Thông tin bệnh án</h3>
           {bed.allergy && (
@@ -1667,7 +1864,9 @@ function MedicalRecordModal({ bed, onClose }: { bed: BedDto; onClose: () => void
           </div>
           <div>
             <dt className="font-semibold text-[#3f4851]">Giường</dt>
-            <dd className="text-[#171c1f]">{bed.roomName} — Giường {bed.bed}</dd>
+            <dd className="text-[#171c1f]">
+              {bed.roomName} — Giường {bed.bed}
+            </dd>
           </div>
           <div>
             <dt className="font-semibold text-[#3f4851]">Thông tin hồ sơ</dt>
@@ -1718,10 +1917,18 @@ function BedsScreen() {
   const [transferTargetBed, setTransferTargetBed] = useState<BedDto | null>(null);
   const [roomFilter, setRoomFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const bedsList: BedDto[] = apiBeds || [];
   const waitingPatients = admissionBoard || [];
   const sourceBedForModal = bedsList.find((b) => b.id === transferSourceBedId) ?? null;
+  const showErrorToast = (message: string) => setToast({ type: 'error', message });
+
+  useEffect(() => {
+    if (!toast) return undefined;
+    const timer = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   if (isLoading) {
     return <div className="p-8 text-center text-[#3f4851]">Đang tải dữ liệu buồng giường...</div>;
@@ -1734,7 +1941,12 @@ function BedsScreen() {
   const occupiedPercent = totalBeds > 0 ? Math.round((occupiedCount / totalBeds) * 100) : 0;
 
   const stats: StatCard[] = [
-    { value: totalBeds.toString(), label: 'Tổng số giường', icon: 'bed', iconClass: 'bg-indigo-50 text-[#006096]' },
+    {
+      value: totalBeds.toString(),
+      label: 'Tổng số giường',
+      icon: 'bed',
+      iconClass: 'bg-indigo-50 text-[#006096]',
+    },
     {
       value: occupiedCount.toString(),
       label: `Đang sử dụng (${occupiedPercent}%)`,
@@ -1759,13 +1971,14 @@ function BedsScreen() {
 
   const roomOptions = Array.from(new Set(bedsList.map((b) => b.roomName))).sort();
   const statusOptions = Array.from(
-    new Set(bedsList.map((b) => normalizeBedStatus(b, emergencyBedIds.includes(b.id))))
+    new Set(bedsList.map((b) => normalizeBedStatus(b, emergencyBedIds.includes(b.id)))),
   );
 
   const filteredBedsList = bedsList.filter((b) => {
     const matchesRoom = roomFilter === 'all' || b.roomName === roomFilter;
     const matchesStatus =
-      statusFilter === 'all' || normalizeBedStatus(b, emergencyBedIds.includes(b.id)) === statusFilter;
+      statusFilter === 'all' ||
+      normalizeBedStatus(b, emergencyBedIds.includes(b.id)) === statusFilter;
     return matchesRoom && matchesStatus;
   });
 
@@ -1777,19 +1990,31 @@ function BedsScreen() {
 
   return (
     <div className="space-y-6">
+      {toast && (
+        <div
+          role="status"
+          className="fixed right-6 top-6 z-50 rounded-lg bg-red-100 px-4 py-3 text-sm font-bold text-[#ba1a1a] shadow-lg"
+        >
+          {toast.message}
+        </div>
+      )}
       <StatGrid stats={stats} />
 
       {/* Action bar - Part B controls */}
       <div className="rounded-xl border border-[#bfc7d2] bg-white p-4 shadow-sm space-y-3">
         <div className="flex flex-wrap gap-4 items-center justify-between border-b border-[#eaeef2] pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#171c1f]">Tiếp nhận bệnh nhân chờ giường:</span>
+            <span className="text-xs font-bold text-[#171c1f]">
+              Tiếp nhận bệnh nhân chờ giường:
+            </span>
             <select
               className={cn(styles.input, 'w-80 text-xs')}
               value={selectedRecordId}
               onChange={(e) => setSelectedRecordId(e.target.value)}
             >
-              <option value="">-- Chọn bệnh nhân chờ xếp giường ({waitingPatients.length}) --</option>
+              <option value="">
+                -- Chọn bệnh nhân chờ xếp giường ({waitingPatients.length}) --
+              </option>
               {waitingPatients.map((p) => (
                 <option key={p.recordId} value={p.recordId}>
                   {p.patientName} ({p.gender}, {p.age}t) - BA: {p.recordCode} - {p.diagnosis}
@@ -1815,7 +2040,7 @@ function BedsScreen() {
             <button
               className={cn(
                 styles.secondaryButton,
-                'whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 text-xs h-9 px-3'
+                'whitespace-nowrap text-red-600 border-red-300 hover:bg-red-50 text-xs h-9 px-3',
               )}
               type="button"
               disabled={!selectedEmergencyBedId}
@@ -1824,7 +2049,7 @@ function BedsScreen() {
                   setEmergencyBedIds((prev) =>
                     prev.includes(selectedEmergencyBedId)
                       ? prev.filter((id) => id !== selectedEmergencyBedId)
-                      : [...prev, selectedEmergencyBedId]
+                      : [...prev, selectedEmergencyBedId],
                   );
                 }
               }}
@@ -1884,7 +2109,8 @@ function BedsScreen() {
         <div className="flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 p-4 text-xs text-[#006096]">
           <div>
             <span className="font-bold">
-              Đang chuyển bệnh nhân từ giường {bedsList.find((b) => b.id === transferSourceBedId)?.bed ?? ''}
+              Đang chuyển bệnh nhân từ giường{' '}
+              {bedsList.find((b) => b.id === transferSourceBedId)?.bed ?? ''}
             </span>{' '}
             — chọn giường trống bên dưới để chuyển đến.
             {bedsList.filter((b) => b.status === 'available').length === 0 && (
@@ -1921,6 +2147,7 @@ function BedsScreen() {
                   transferSourceBedId={transferSourceBedId}
                   onStartTransfer={(bedId) => setTransferSourceBedId(bedId)}
                   onSelectTransferTarget={(targetBed) => setTransferTargetBed(targetBed)}
+                  onError={showErrorToast}
                   isChanging={isChanging}
                 />
               ))}
@@ -1950,7 +2177,9 @@ function BedsScreen() {
                     setTransferTargetBed(null);
                     setTransferSourceBedId(null);
                   },
-                }
+                  onError: (error) =>
+                    showErrorToast(getApiErrorMessage(error, 'Không thể chuyển giường.')),
+                },
               );
             }
           }}
@@ -1971,32 +2200,47 @@ function CancelOrderModal({
 }) {
   const [reason, setReason] = useState('');
   const [attemptedConfirm, setAttemptedConfirm] = useState(false);
-  const isValid = reason.trim().length > 0;
-  const showError = attemptedConfirm && !isValid;
+  const isTooLong = reason.length > 500;
+  const isValid = reason.trim().length > 0 && !isTooLong;
+  const showError = (attemptedConfirm || isTooLong) && !isValid;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="mb-4 text-sm font-bold text-[#171c1f]">Hủy y lệnh</h3>
         <label className="mb-1 block text-xs font-semibold text-[#171c1f]">Lý do hủy</label>
         <textarea
           className={cn(
             styles.input,
             'h-24 w-full text-xs',
-            showError && 'border-red-500 ring-2 ring-red-500/30 focus:border-red-500 focus:ring-red-500/30'
+            showError &&
+              'border-red-500 ring-2 ring-red-500/30 focus:border-red-500 focus:ring-red-500/30',
           )}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Nhập lý do hủy y lệnh..."
           autoFocus
+          maxLength={500}
         />
         {showError && (
           <p className="mt-1 text-xs font-bold text-red-600">
-            BẮT BUỘC NHẬP LÝ DO HỦY Y LỆNH
+            {isTooLong ? 'Lý do hủy tối đa 500 ký tự' : 'BẮT BUỘC NHẬP LÝ DO HỦY Y LỆNH'}
           </p>
         )}
+        <p className="mt-1 text-right text-[10px] text-[#707882]">{reason.length}/500 ký tự</p>
         <div className="mt-4 flex justify-end gap-2">
-          <button className={styles.secondaryButton} type="button" onClick={onCancel} disabled={isPending}>
+          <button
+            className={styles.secondaryButton}
+            type="button"
+            onClick={onCancel}
+            disabled={isPending}
+          >
             Đóng
           </button>
           <button
@@ -2022,6 +2266,7 @@ function CancelOrderModal({
 function OrderStatus({ order }: { order: OrderDto }) {
   const { mutate: updateStatus, isPending } = useUpdateOrderStatus();
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (order.status === 'done') {
     return (
@@ -2082,6 +2327,11 @@ function OrderStatus({ order }: { order: OrderDto }) {
 
   return (
     <div className="space-y-2">
+      {errorMessage && (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-xs font-bold text-[#ba1a1a]" role="alert">
+          {errorMessage}
+        </p>
+      )}
       <label className="flex items-start gap-2 text-xs font-semibold leading-4 text-[#3f4851]">
         <input className="mt-0.5 h-4 w-4 rounded border-[#bfc7d2]" type="checkbox" />
         Đã test da – Kết quả: ÂM TÍNH
@@ -2090,7 +2340,16 @@ function OrderStatus({ order }: { order: OrderDto }) {
         className={styles.primaryButton}
         type="button"
         disabled={isPending}
-        onClick={() => updateStatus({ orderId: order.id, status: 'done' })}
+        onClick={() => {
+          setErrorMessage(null);
+          updateStatus(
+            { orderId: order.id, status: 'done' },
+            {
+              onError: (error) =>
+                setErrorMessage(getApiErrorMessage(error, 'Không thể xác nhận thực hiện y lệnh.')),
+            },
+          );
+        }}
       >
         {isPending ? 'Đang xử lý...' : 'Xác nhận thực hiện'}
       </button>
@@ -2110,7 +2369,14 @@ function OrderStatus({ order }: { order: OrderDto }) {
           onConfirm={(reason) => {
             updateStatus(
               { orderId: order.id, status: 'cancelled', cancelReason: reason },
-              { onSuccess: () => setShowCancelModal(false) }
+              {
+                onSuccess: () => {
+                  setShowCancelModal(false);
+                  setErrorMessage(null);
+                },
+                onError: (error) =>
+                  setErrorMessage(getApiErrorMessage(error, 'Không thể hủy y lệnh.')),
+              },
             );
           }}
         />
@@ -2139,10 +2405,12 @@ function OrdersScreen() {
     return <div className="p-8 text-center text-[#3f4851]">Đang tải dữ liệu y lệnh...</div>;
   }
 
-  const pendingCount = ordersList.filter(o => o.status === 'active' || o.status === 'pending').length;
-  const doneCount = ordersList.filter(o => o.status === 'done').length;
-  const cancelledCount = ordersList.filter(o => o.status === 'cancelled').length;
-  const allergyCount = ordersList.filter(o => o.hasAllergyWarning).length;
+  const pendingCount = ordersList.filter(
+    (o) => o.status === 'active' || o.status === 'pending',
+  ).length;
+  const doneCount = ordersList.filter((o) => o.status === 'done').length;
+  const cancelledCount = ordersList.filter((o) => o.status === 'cancelled').length;
+  const allergyCount = ordersList.filter((o) => o.hasAllergyWarning).length;
 
   const stats: StatCard[] = [
     {
@@ -2175,7 +2443,7 @@ function OrdersScreen() {
     },
   ];
 
-  const roomOptions = Array.from(new Set(ordersList.map(o => o.roomLabel))).sort();
+  const roomOptions = Array.from(new Set(ordersList.map((o) => o.roomLabel))).sort();
 
   const filteredOrders = ordersList.filter((order) => {
     const matchesRoom = roomFilter === 'all' || order.roomLabel === roomFilter;
@@ -2269,18 +2537,20 @@ function OrdersScreen() {
                 </tr>
               )}
               {filteredOrders.map((order) => (
-                <tr
-                  className={cn(order.status === 'blocked' && 'bg-red-50/30')}
-                  key={order.id}
-                >
+                <tr className={cn(order.status === 'blocked' && 'bg-red-50/30')} key={order.id}>
                   <td className={styles.td}>
                     <p
                       className={cn(
                         'text-base font-bold',
-                        order.status === 'pending' || order.status === 'active' ? 'text-[#006096]' : 'text-[#171c1f]',
+                        order.status === 'pending' || order.status === 'active'
+                          ? 'text-[#006096]'
+                          : 'text-[#171c1f]',
                       )}
                     >
-                      {new Date(order.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(order.time).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
                     </p>
                   </td>
                   <td className={styles.td}>
@@ -2345,6 +2615,7 @@ type EmergencyIdentityFormState = {
   address: string;
   healthInsuranceCode: string;
   guardianFullName: string;
+  guardianPhoneNumber: string;
   privacyConfirmed: boolean;
 };
 
@@ -2357,6 +2628,7 @@ const emptyEmergencyForm: EmergencyIdentityFormState = {
   address: '',
   healthInsuranceCode: '',
   guardianFullName: '',
+  guardianPhoneNumber: '',
   privacyConfirmed: false,
 };
 
@@ -2405,19 +2677,7 @@ function EmergencyScreen() {
   const handleSubmit = () => {
     if (!selectedPatient || isPending) return;
 
-    const nextErrors: Record<string, string> = {};
-    if (form.fullName.trim().length < 3) nextErrors.fullName = 'Họ và tên tối thiểu 3 ký tự';
-    if (!form.dateOfBirth) nextErrors.dateOfBirth = 'Vui lòng nhập ngày sinh';
-    else if (new Date(form.dateOfBirth) > new Date())
-      nextErrors.dateOfBirth = 'Ngày sinh không được ở tương lai';
-    if (!/^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/.test(form.phoneNumber))
-      nextErrors.phoneNumber = 'Số điện thoại không đúng định dạng di động Việt Nam hợp lệ (VD: 09xxxxxxxx, 03xxxxxxxx)';
-    if (!/^\d{12}$/.test(form.identityCardNumber))
-      nextErrors.identityCardNumber = 'Số CCCD phải gồm đúng 12 chữ số';
-    if (!form.guardianFullName.trim())
-      nextErrors.guardianFullName = 'Vui lòng nhập họ tên người bảo hộ / liên hệ';
-    if (!form.privacyConfirmed)
-      nextErrors.privacyConfirmed = 'Cần xác nhận đồng ý trước khi gửi';
+    const nextErrors = validateEmergencyIdentity(form);
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -2432,7 +2692,8 @@ function EmergencyScreen() {
         identityCardNumber: form.identityCardNumber,
         address: form.address.trim() || undefined,
         healthInsuranceCode: form.healthInsuranceCode.trim() || undefined,
-        guardianFullName: form.guardianFullName.trim(),
+        guardianFullName: form.guardianFullName.trim() || undefined,
+        guardianPhoneNumber: form.guardianPhoneNumber.trim() || undefined,
         privacyConfirmed: true,
       },
       {
@@ -2442,13 +2703,18 @@ function EmergencyScreen() {
           setErrors({});
           setSelectedPatientId('');
         },
-        onError: (err: any) => {
+        onError: (error) => {
           setToast({
             type: 'error',
-            message: err?.error?.message || 'Chuẩn hóa danh tính thất bại, vui lòng thử lại!',
+            message:
+              error instanceof ApiError && error.code === 'CONFLICT_ERROR'
+                ? 'Số CCCD này đã được dùng cho bệnh nhân khác trên hệ thống — vui lòng kiểm tra lại hoặc mở hồ sơ bệnh nhân hiện có'
+                : error instanceof ApiError
+                  ? error.message
+                  : 'Chuẩn hóa danh tính thất bại, vui lòng thử lại!',
           });
         },
-      }
+      },
     );
   };
 
@@ -2466,7 +2732,7 @@ function EmergencyScreen() {
         <div
           className={cn(
             'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
-            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]'
+            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]',
           )}
         >
           {toast.message}
@@ -2499,7 +2765,11 @@ function EmergencyScreen() {
         </section>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-          <Card count={`${patients.length} ca`} icon="alert" title="Bệnh nhân vô danh chưa xác định">
+          <Card
+            count={`${patients.length} ca`}
+            icon="alert"
+            title="Bệnh nhân vô danh chưa xác định"
+          >
             <div className="divide-y divide-[#eaeef2]">
               {patients.map((p) => {
                 const isSelected = p.patientId === selectedPatientId;
@@ -2507,7 +2777,7 @@ function EmergencyScreen() {
                   <button
                     className={cn(
                       'flex w-full gap-3 p-4 text-left',
-                      isSelected ? 'border-l-4 border-l-[#ba1a1a] bg-red-700/5' : 'opacity-70'
+                      isSelected ? 'border-l-4 border-l-[#ba1a1a] bg-red-700/5' : 'opacity-70',
                     )}
                     key={p.patientId}
                     type="button"
@@ -2516,13 +2786,15 @@ function EmergencyScreen() {
                     <span
                       className={cn(
                         'flex h-10 w-10 items-center justify-center rounded-lg',
-                        isSelected ? 'bg-rose-200 text-[#ba1a1a]' : 'bg-gray-100 text-gray-400'
+                        isSelected ? 'bg-rose-200 text-[#ba1a1a]' : 'bg-gray-100 text-gray-400',
                       )}
                     >
                       <Icon name="user" />
                     </span>
                     <span className="min-w-0">
-                      <span className="block text-sm font-bold leading-4 text-gray-900">{p.tempName}</span>
+                      <span className="block text-sm font-bold leading-4 text-gray-900">
+                        {p.tempName}
+                      </span>
                       <span className="mt-1 block text-xs leading-5 text-[#3f4851]">
                         STT {String(p.sttNumber).padStart(2, '0')}
                         {p.bedLabel ? ` • Giường ${p.bedLabel}` : ''}
@@ -2531,7 +2803,7 @@ function EmergencyScreen() {
                       <span
                         className={cn(
                           'mt-1 block text-[10px] font-bold leading-5',
-                          isSelected ? 'text-[#ba1a1a]' : 'text-gray-400'
+                          isSelected ? 'text-[#ba1a1a]' : 'text-gray-400',
                         )}
                       >
                         Vào viện: {formatAdmittedAt(p.admittedAt)}
@@ -2547,7 +2819,8 @@ function EmergencyScreen() {
             <div className="border-b border-red-700/20 bg-red-50 px-5 py-3">
               <h2 className="flex items-center gap-2 text-xs font-bold uppercase leading-4 text-[#ba1a1a]">
                 <Icon name="file" />
-                Biểu mẫu chuẩn hóa danh tính – STT {String(selectedPatient?.sttNumber ?? 0).padStart(2, '0')}
+                Biểu mẫu chuẩn hóa danh tính – STT{' '}
+                {String(selectedPatient?.sttNumber ?? 0).padStart(2, '0')}
               </h2>
             </div>
             <div className="space-y-6 p-6">
@@ -2594,7 +2867,7 @@ function EmergencyScreen() {
                         <button
                           className={cn(
                             'flex h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium text-[#171c1f]',
-                            active ? 'border-[#006096] bg-sky-50' : 'border-[#d1d5db] bg-white'
+                            active ? 'border-[#006096] bg-sky-50' : 'border-[#d1d5db] bg-white',
                           )}
                           key={g}
                           type="button"
@@ -2603,10 +2876,12 @@ function EmergencyScreen() {
                           <span
                             className={cn(
                               'h-4 w-4 rounded-full border p-1',
-                              active ? 'border-[#006096] bg-[#006096]' : 'border-gray-500'
+                              active ? 'border-[#006096] bg-[#006096]' : 'border-gray-500',
                             )}
                           >
-                            {active && <span className="block h-full w-full rounded-full bg-white" />}
+                            {active && (
+                              <span className="block h-full w-full rounded-full bg-white" />
+                            )}
                           </span>
                           {g === 'male' ? 'Nam' : 'Nữ'}
                         </button>
@@ -2626,10 +2901,12 @@ function EmergencyScreen() {
                 />
                 <Field
                   label="Số CCCD (12 chữ số)"
-                  required
                   value={form.identityCardNumber}
                   onChange={(v) =>
-                    setForm((prev) => ({ ...prev, identityCardNumber: v.replace(/\D/g, '').slice(0, 12) }))
+                    setForm((prev) => ({
+                      ...prev,
+                      identityCardNumber: v.replace(/\D/g, '').slice(0, 12),
+                    }))
                   }
                   placeholder="001234567890"
                   error={errors.identityCardNumber}
@@ -2648,11 +2925,23 @@ function EmergencyScreen() {
                 />
                 <Field
                   label="Họ tên người bảo hộ / liên hệ"
-                  required
                   value={form.guardianFullName}
                   onChange={(v) => setForm((prev) => ({ ...prev, guardianFullName: v }))}
                   placeholder="Họ và tên người thân"
                   error={errors.guardianFullName}
+                  maxLength={255}
+                />
+                <Field
+                  label="Số điện thoại người giám hộ / đại diện"
+                  value={form.guardianPhoneNumber}
+                  onChange={(v) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      guardianPhoneNumber: v.replace(/\D/g, '').slice(0, 10),
+                    }))
+                  }
+                  placeholder="0912345678"
+                  error={errors.guardianPhoneNumber}
                 />
               </div>
               <label className="flex items-start gap-3 rounded-sm border border-gray-200 bg-gray-50 p-3 text-xs leading-4 text-gray-600">
@@ -2660,11 +2949,13 @@ function EmergencyScreen() {
                   className="mt-0.5 h-4 w-4 rounded border-gray-500"
                   type="checkbox"
                   checked={form.privacyConfirmed}
-                  onChange={(e) => setForm((prev) => ({ ...prev, privacyConfirmed: e.target.checked }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, privacyConfirmed: e.target.checked }))
+                  }
                 />
                 <span>
-                  Xác nhận bệnh nhân/người nhà đã đồng ý cung cấp thông tin và ký bản cam kết bảo mật
-                  theo
+                  Xác nhận bệnh nhân/người nhà đã đồng ý cung cấp thông tin và ký bản cam kết bảo
+                  mật theo
                   <strong> Nghị định 13/2023/NĐ-CP</strong> về bảo vệ dữ liệu cá nhân y tế.
                 </span>
               </label>
@@ -2701,6 +2992,7 @@ function Field({
   placeholder,
   type = 'text',
   error,
+  maxLength,
 }: {
   label: string;
   required?: boolean;
@@ -2709,6 +3001,7 @@ function Field({
   placeholder?: string;
   type?: string;
   error?: string;
+  maxLength?: number;
 }) {
   return (
     <label>
@@ -2718,12 +3011,13 @@ function Field({
       <input
         className={cn(
           styles.input,
-          error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10'
+          error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10',
         )}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         type={type}
         value={value}
+        maxLength={maxLength}
       />
       {error && <p className="mt-1 text-xs font-bold text-[#ba1a1a]">{error}</p>}
     </label>

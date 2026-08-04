@@ -101,15 +101,18 @@ export const useBeds = () => {
   return useQuery({
     queryKey: ['beds'],
     queryFn: async () => {
-      const res = await httpClient.get<
-        unknown,
-        { data: ApiEnvelope<BedDto[]> | BedDto[] }
-      >('/beds');
+      const res = await httpClient.get<unknown, { data: ApiEnvelope<BedDto[]> | BedDto[] }>(
+        '/beds',
+      );
       return extractApiListData<BedDto>(res.data);
     },
   });
 };
-export const useOrders = (params?: { recordId?: string; bedId?: string; departmentId?: string }) => {
+export const useOrders = (params?: {
+  recordId?: string;
+  bedId?: string;
+  departmentId?: string;
+}) => {
   return useQuery({
     queryKey: ['orders', params],
     queryFn: async () => {
@@ -118,11 +121,8 @@ export const useOrders = (params?: { recordId?: string; bedId?: string; departme
       if (params?.bedId) queryParams.append('bedId', params.bedId);
       if (params?.departmentId) queryParams.append('departmentId', params.departmentId);
       const queryString = queryParams.toString();
-      const res = await httpClient.get<
-        unknown,
-        { data: ApiEnvelope<any[]> | any[] }
-      >(
-        queryString ? `/treatment-orders?${queryString}` : '/treatment-orders'
+      const res = await httpClient.get<unknown, { data: ApiEnvelope<any[]> | any[] }>(
+        queryString ? `/treatment-orders?${queryString}` : '/treatment-orders',
       );
       const orders = extractApiListData<any>(res.data);
       return orders.map((o: any) => {
@@ -157,13 +157,13 @@ export const useAdmissionBoard = () => {
       const res = await httpClient.get<
         unknown,
         {
-          data: ApiEnvelope<{ waitingForBedRecords: AdmissionBoardDto[] }>
+          data:
+            | ApiEnvelope<{ waitingForBedRecords: AdmissionBoardDto[] }>
             | { waitingForBedRecords: AdmissionBoardDto[] };
         }
       >('/inpatient/admission-board');
-      return extractApiData<{ waitingForBedRecords: AdmissionBoardDto[] }>(
-        res.data,
-      ).waitingForBedRecords;
+      return extractApiData<{ waitingForBedRecords: AdmissionBoardDto[] }>(res.data)
+        .waitingForBedRecords;
     },
   });
 };
@@ -172,7 +172,13 @@ export const useAdmissionBoard = () => {
 export const useToggleMaintenance = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ bedId, status }: { bedId: string; status: 'maintenance' | 'available' }) => {
+    mutationFn: async ({
+      bedId,
+      status,
+    }: {
+      bedId: string;
+      status: 'maintenance' | 'available';
+    }) => {
       const res = await httpClient.put(`/beds/${bedId}/maintenance`, { status });
       return res;
     },
@@ -306,7 +312,10 @@ export const useUpdateOrderStatus = () => {
       status: 'done' | 'cancelled' | 'delayed' | 'active';
       cancelReason?: string;
     }) => {
-      const res = await httpClient.put(`/treatment-orders/${orderId}/status`, { status, cancelReason });
+      const res = await httpClient.put(`/treatment-orders/${orderId}/status`, {
+        status,
+        cancelReason,
+      });
       return res;
     },
     onSuccess: () => {
@@ -335,23 +344,25 @@ export const useVitalsQueue = () =>
       const res = await httpClient.get<
         unknown,
         {
-          data: ApiEnvelope<{
-            worklist: VitalsWorklistItemDto[];
-            ticketQueue: {
-              currentCalled: QueueTicketDto | null;
-              waitingCount: number;
-              waitingNumbers: number[];
-            };
-            stats: VitalsQueueStatsDto;
-          }> | {
-            worklist: VitalsWorklistItemDto[];
-            ticketQueue: {
-              currentCalled: QueueTicketDto | null;
-              waitingCount: number;
-              waitingNumbers: number[];
-            };
-            stats: VitalsQueueStatsDto;
-          };
+          data:
+            | ApiEnvelope<{
+                worklist: VitalsWorklistItemDto[];
+                ticketQueue: {
+                  currentCalled: QueueTicketDto | null;
+                  waitingCount: number;
+                  waitingNumbers: number[];
+                };
+                stats: VitalsQueueStatsDto;
+              }>
+            | {
+                worklist: VitalsWorklistItemDto[];
+                ticketQueue: {
+                  currentCalled: QueueTicketDto | null;
+                  waitingCount: number;
+                  waitingNumbers: number[];
+                };
+                stats: VitalsQueueStatsDto;
+              };
         }
       >('/inpatient/vitals-queue');
       return extractApiData(res.data);
@@ -431,9 +442,7 @@ export const useSpecimens = (status?: string) => {
       const res = await httpClient.get<
         unknown,
         { data: ApiEnvelope<SpecimenDto[]> | SpecimenDto[] }
-      >(
-        queryString ? `/specimens?${queryString}` : '/specimens'
-      );
+      >(queryString ? `/specimens?${queryString}` : '/specimens');
       return extractApiListData<SpecimenDto>(res.data);
     },
   });
@@ -539,7 +548,8 @@ export const useStandardizeEmergencyIdentity = () => {
       identityCardNumber: string;
       address?: string;
       healthInsuranceCode?: string;
-      guardianFullName: string;
+      guardianFullName?: string;
+      guardianPhoneNumber?: string;
       privacyConfirmed: true;
     }) => {
       const { patientId, ...body } = payload;
