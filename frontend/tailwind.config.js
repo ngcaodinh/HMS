@@ -44,9 +44,19 @@ const config = {
           '0%, 100%': { boxShadow: '0 0 0 3px rgba(185, 28, 28, 0.7)' },
           '50%': { boxShadow: '0 0 0 3px rgba(185, 28, 28, 0)' },
         },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        modalIn: {
+          '0%': { opacity: '0', transform: 'scale(0.96) translateY(8px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
       },
       animation: {
         'blink-red': 'blink-red 0.9s ease-in-out infinite',
+        fadeIn: 'fadeIn 0.18s ease-out',
+        modalIn: 'modalIn 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
       },
     },
   },

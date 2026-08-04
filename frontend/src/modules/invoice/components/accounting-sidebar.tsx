@@ -115,13 +115,13 @@ export function AccountingSidebar({
               key={item.id}
               type="button"
               onClick={() => onSelectScreen(item.id)}
-              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[12.5px] font-medium transition ${
+              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[12.5px] font-medium transition-all duration-200 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55d7ed] focus-visible:ring-offset-2 focus-visible:ring-offset-[#001d32] ${
                 isActive
-                  ? 'rounded-bl-lg rounded-tl-lg rounded-tr-lg border-l-4 border-[#22d3ee] bg-white/15 pl-4 font-semibold text-white shadow-sm'
+                  ? 'rounded-bl-lg rounded-tl-lg rounded-tr-lg border-l-4 border-[#55d7ed] bg-white/15 pl-4 font-semibold text-white shadow-sm'
                   : 'text-white/65 hover:bg-white/10 hover:text-white'
               }`}
             >
-              <div className={isActive ? 'text-[#22d3ee]' : 'text-white/65'}>{item.iconSvg}</div>
+              <div className={isActive ? 'text-[#55d7ed]' : 'text-white/65'}>{item.iconSvg}</div>
               <span className="truncate">{item.label}</span>
             </button>
           );
@@ -130,7 +130,7 @@ export function AccountingSidebar({
 
       {/* Sidebar Footer User Card */}
       <div className="mt-auto flex h-[73px] shrink-0 items-center gap-3 border-t border-white/10 px-4 bg-black/20">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-500 font-bold text-white text-sm shadow">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#55d7ed] to-[#96ccff] font-bold text-[#003d5c] text-sm shadow-[0_2px_6px_rgba(0,96,150,0.3)]">
           CĐ
         </div>
         <div className="min-w-0 flex-1">
@@ -141,7 +141,7 @@ export function AccountingSidebar({
           type="button"
           aria-label="Đăng xuất"
           onClick={onLogoutClick}
-          className="ml-auto flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/70 transition hover:bg-white/10 focus:outline-none"
+          className="ml-auto flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/70 transition-all duration-200 ease-out hover:bg-white/10 hover:text-white active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#55d7ed] focus-visible:ring-offset-2 focus-visible:ring-offset-[#001d32]"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

@@ -243,7 +243,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
               <span className="relative block">
                 <AssetIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 opacity-60" name="icon-search.svg" />
                 <input
-                  className="h-12 w-full rounded-[12px] border border-[#bfc7d2] bg-[#f0f4f8] pl-11 pr-4 text-[13.5px] outline-none"
+                  className={styles.searchInputLg}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="VD: Fexofenadine, Amoxicillin..."
                   value={searchTerm}
@@ -254,7 +254,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
               <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-[12px] border border-[#bfc7d2] bg-white shadow-lg">
                 {medicineResults?.map((medicine) => (
                   <button
-                    className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-[#f0f4f8]"
+                    className={styles.searchResultItem}
                     key={medicine.medicineId}
                     onClick={() => addDrug(medicine)}
                     type="button"
@@ -303,7 +303,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
                 {isLocalPhase &&
                   !noDrug &&
                   lines.map((line, index) => (
-                    <tr key={line.medicineId}>
+                    <tr className={styles.tableRow} key={line.medicineId}>
                       <td className={styles.td}>{index + 1}</td>
                       <td className={cn(styles.td, 'font-bold text-[#001d32]')}>
                         {line.name}
@@ -357,7 +357,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
                       </td>
                       <td className={styles.td}>
                         <button
-                          className="text-xs font-bold text-[#ba1a1a]"
+                          className={styles.dangerLink}
                           onClick={() => setLines((current) => current.filter((l) => l.medicineId !== line.medicineId))}
                           type="button"
                         >
@@ -368,7 +368,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
                   ))}
                 {!isLocalPhase &&
                   serverItems.map((item, index) => (
-                    <tr key={item.prescriptionItemId}>
+                    <tr className={styles.tableRow} key={item.prescriptionItemId}>
                       <td className={styles.td}>{index + 1}</td>
                       <td className={cn(styles.td, 'font-bold text-[#001d32]')}>
                         {item.medicineNameSnapshot}
@@ -451,7 +451,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
           )}
           {isSigned && (
             <button
-              className="rounded-md border border-[#ba1a1a] px-4 py-2 text-xs font-bold text-[#ba1a1a]"
+              className="rounded-md border border-[#ba1a1a] px-4 py-2 text-xs font-bold text-[#ba1a1a] transition hover:bg-[#ffdad6] focus:outline-none focus:ring-4 focus:ring-[#ba1a1a]/15 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
               disabled={isBusy}
               onClick={() => setIsCancelModalOpen(true)}
               type="button"
@@ -476,8 +476,8 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
       </section>
 
       {pendingAllergyDrug && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-[16px] bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex animate-fadeIn items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md animate-modalIn rounded-[16px] bg-white shadow-xl">
             <div className="rounded-t-[16px] bg-[#ffdad6] px-5 py-4">
               <p className="flex items-center gap-2 text-sm font-extrabold text-[#ba1a1a]">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
@@ -511,7 +511,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
                 Hủy bỏ kê toa này
               </button>
               <button
-                className="rounded-md bg-[#ba1a1a] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                className="rounded-md bg-[#ba1a1a] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#93000a] focus:outline-none focus:ring-4 focus:ring-[#ba1a1a]/20 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
                 disabled={allergyReasonInput.trim().length < MIN_OVERRIDE_REASON_LENGTH}
                 onClick={confirmAllergyOverride}
                 type="button"
@@ -524,8 +524,8 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
       )}
 
       {isCancelModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-md rounded-[16px] bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex animate-fadeIn items-center justify-center bg-black/45 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md animate-modalIn rounded-[16px] bg-white shadow-xl">
             <div className="rounded-t-[16px] bg-[#ffdad6] px-5 py-4">
               <p className="text-sm font-extrabold text-[#ba1a1a]">Hủy đơn thuốc đã ký</p>
             </div>
@@ -545,7 +545,7 @@ export function PrescriptionScreen({ record }: { record: MedicalRecordDetail }) 
                 Đóng
               </button>
               <button
-                className="rounded-md bg-[#ba1a1a] px-4 py-2 text-xs font-bold text-white disabled:opacity-50"
+                className="rounded-md bg-[#ba1a1a] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#93000a] focus:outline-none focus:ring-4 focus:ring-[#ba1a1a]/20 active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100"
                 disabled={cancelReason.trim().length === 0 || isBusy}
                 onClick={handleCancelSigned}
                 type="button"

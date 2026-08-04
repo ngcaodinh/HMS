@@ -46,7 +46,7 @@ export function PatientLookupScreen({
   });
 
   return (
-    <div className="screen active space-y-4 font-sans select-none" id="s1">
+    <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s1">
       {/* Screen Header matching doc/ke_toan copy.html lines 902-919 */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
@@ -61,7 +61,7 @@ export function PatientLookupScreen({
           <select
             value={selectedDept}
             onChange={(e) => setSelectedDept(e.target.value)}
-            className="h-[38px] px-3 border border-[#bfc7d2] rounded-md bg-white text-[13px] text-[#171c1f] outline-none focus:border-[#006096]"
+            className="h-[38px] px-3 border border-[#bfc7d2] rounded-md bg-white text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 cursor-pointer"
           >
             <option value="">Tất cả khoa</option>
             <option value="Khoa Da Liễu">Khoa Da Liễu</option>
@@ -71,7 +71,7 @@ export function PatientLookupScreen({
           <button
             type="button"
             onClick={() => {}}
-            className="min-h-[36px] px-3 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#707882] rounded-md text-[12.5px] font-medium hover:bg-[#eaeef2] transition-colors flex items-center gap-1.5"
+            className="min-h-[36px] px-3 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#707882] rounded-md text-[12.5px] font-medium hover:bg-[#eaeef2] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -87,7 +87,7 @@ export function PatientLookupScreen({
       </div>
 
       {/* Card with Filter Toolbar & Table */}
-      <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card overflow-hidden">
         {/* Filter Toolbar matching lines 923-947 */}
         <div className="p-4 border-b border-[#e4e9ed]">
           <div className="flex flex-wrap items-center gap-3">
@@ -110,7 +110,7 @@ export function PatientLookupScreen({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Tìm theo Họ tên, SĐT, CCCD, Mã BN..."
-                className="w-full h-10 pl-9 pr-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none placeholder:text-[#707882] focus:border-[#006096]"
+                className="w-full h-10 pl-9 pr-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none placeholder:text-[#707882] transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
               />
             </div>
 
@@ -128,9 +128,9 @@ export function PatientLookupScreen({
                     key={chip.id}
                     type="button"
                     onClick={() => setActiveFilterStatus(chip.id)}
-                    className={`min-h-[38px] px-3.5 py-1.5 rounded-full text-[12.5px] font-medium border transition-all flex items-center gap-1.5 ${
+                    className={`min-h-[38px] px-3.5 py-1.5 rounded-full text-[12.5px] font-medium border transition-all duration-200 ease-out active:scale-[0.97] flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1 ${
                       isActive
-                        ? 'bg-[#006096] text-white border-[#006096]'
+                        ? 'bg-[#006096] text-white border-[#006096] shadow-[0_2px_8px_rgba(0,96,150,0.24)]'
                         : 'bg-transparent text-[#3f4851] border-[#bfc7d2] hover:border-[#006096] hover:text-[#006096]'
                     }`}
                   >
@@ -167,7 +167,7 @@ export function PatientLookupScreen({
                 const isNoiTru = p.department.includes('Nội trú');
                 const isCapCuu = p.department.includes('Cấp Cứu');
                 return (
-                  <tr key={p.id} className="hover:bg-[#f0f4f8]/70 transition-colors">
+                  <tr key={p.id} className="hover:bg-[#f0f4f8]/70 transition-colors duration-150">
                     <td className="px-4 py-3 font-mono font-semibold text-[#006096]">{p.code}</td>
                     <td className="px-4 py-3 font-bold text-[#171c1f]">{p.fullName}</td>
                     <td className="px-4 py-3">
@@ -216,7 +216,7 @@ export function PatientLookupScreen({
                         <button
                           type="button"
                           onClick={() => onSelectPatientForInvoice(p)}
-                          className="px-3 py-1.5 bg-[#006096] text-white rounded-md text-[12.5px] font-semibold hover:bg-[#004a75] transition-colors inline-flex items-center gap-1 min-h-[36px]"
+                          className="px-3 py-1.5 bg-[#006096] text-white rounded-md text-[12.5px] font-semibold hover:bg-[#004a75] hover:shadow-[0_4px_14px_rgba(0,96,150,0.3)] active:scale-[0.97] transition-all duration-200 ease-out shadow-[0_2px_8px_rgba(0,96,150,0.24)] inline-flex items-center gap-1 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
                         >
                           <svg
                             className="w-3.5 h-3.5"
@@ -238,7 +238,7 @@ export function PatientLookupScreen({
                         <button
                           type="button"
                           onClick={() => onSelectPatientForInvoice(p)}
-                          className="px-3 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#3f4851] rounded-md text-[12.5px] font-semibold hover:bg-[#eaeef2] transition-colors inline-flex items-center gap-1 min-h-[36px]"
+                          className="px-3 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#3f4851] rounded-md text-[12.5px] font-semibold hover:bg-[#eaeef2] active:scale-[0.97] transition-all duration-200 ease-out inline-flex items-center gap-1 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
                         >
                           <svg
                             className="w-3.5 h-3.5"
@@ -285,7 +285,7 @@ export function PatientLookupScreen({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] hover:border-[#006096] hover:text-[#006096]"
+              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] transition-all duration-200 ease-out hover:border-[#006096] hover:text-[#006096] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
             >
               &larr; Trước
             </button>
@@ -297,7 +297,7 @@ export function PatientLookupScreen({
             </button>
             <button
               type="button"
-              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] hover:border-[#006096] hover:text-[#006096]"
+              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] transition-all duration-200 ease-out hover:border-[#006096] hover:text-[#006096] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
             >
               Tiếp &rarr;
             </button>

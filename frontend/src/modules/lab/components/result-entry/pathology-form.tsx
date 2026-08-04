@@ -83,7 +83,7 @@ export function PathologyForm({ onChange, value }: PathologyFormProps) {
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold text-[#3f4851]">Ngày trả kết quả *</span>
           <input
-            className="h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
+            className="h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
             onChange={(event) => set('ngayTraKetQua', event.target.value ? new Date(event.target.value).toISOString() : undefined)}
             type="date"
             value={value.ngayTraKetQua ? value.ngayTraKetQua.slice(0, 10) : ''}

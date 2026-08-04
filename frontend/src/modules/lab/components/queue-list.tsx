@@ -56,7 +56,7 @@ export function QueueList({
       <div className={styles.statGrid}>
         <div className={styles.statCard}>
           <div className={styles.statIconWrap} style={{ background: '#ffecd4' }}>
-            <AssetIcon className="h-5 w-5" name="icon-lab-order.svg" />
+            <AssetIcon className="h-5 w-5 brightness-0" name="icon-lab-order.svg" />
           </div>
           <div>
             <p className={styles.statValue}>{waitingCount}</p>
@@ -65,7 +65,7 @@ export function QueueList({
         </div>
         <div className={styles.statCard}>
           <div className={styles.statIconWrap} style={{ background: '#dbeafe' }}>
-            <AssetIcon className="h-5 w-5" name="icon-lab-result.svg" />
+            <AssetIcon className="h-5 w-5 brightness-0" name="icon-lab-result.svg" />
           </div>
           <div>
             <p className={styles.statValue}>{inProgressCount}</p>
@@ -74,7 +74,7 @@ export function QueueList({
         </div>
         <div className={styles.statCard}>
           <div className={styles.statIconWrap} style={{ background: '#fee2e2' }}>
-            <AssetIcon className="h-5 w-5" name="icon-close.svg" />
+            <AssetIcon className="h-5 w-5" name="icon-alert.svg" />
           </div>
           <div>
             <p className={styles.statValue}>{urgentCount}</p>
@@ -85,7 +85,7 @@ export function QueueList({
 
       <div className={styles.searchRow}>
         <div className={styles.searchWrap}>
-          <AssetIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" name="icon-search.svg" />
+          <AssetIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 brightness-0" name="icon-search.svg" />
           <input
             className={styles.searchInput}
             onChange={(event) => onChangeKeyword(event.target.value)}

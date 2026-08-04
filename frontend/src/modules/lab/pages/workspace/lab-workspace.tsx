@@ -1,5 +1,6 @@
 'use client';
 
+import { Be_Vietnam_Pro } from 'next/font/google';
 import { useState } from 'react';
 
 import { useLogout } from '@/shared/hooks/use-logout';
@@ -12,6 +13,14 @@ import { Sidebar, type LabScreen } from '../../components/sidebar';
 import { Topbar } from '../../components/topbar';
 import { usePendingLabTests } from '../../services/lab-test-api';
 import { labWorkspaceStyles as styles } from './lab-workspace.styles';
+
+/** Nạp font Be Vietnam Pro theo chuẩn design.md — trước đây `font-sans` chỉ trỏ về font này
+ * nhưng chưa từng được tải, nên trình duyệt âm thầm dùng font hệ thống thay thế. */
+const beVietnamPro = Be_Vietnam_Pro({
+  display: 'swap',
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700'],
+});
 
 const SECTION_COPY: Record<LabScreen, { subtitle: string; title: string }> = {
   queue: { title: 'Danh sách chỉ định xét nghiệm', subtitle: 'Danh sách phiếu xét nghiệm đã được bác sĩ chỉ định' },
@@ -35,7 +44,7 @@ export function LabWorkspacePage() {
 
   if (isAuthLoading || isAuthError) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f6fafe] p-8 text-center">
+      <main className={`${beVietnamPro.className} flex min-h-screen items-center justify-center bg-[#f6fafe] p-8 text-center`}>
         <p className="text-sm text-[#707882]">
           {isAuthError ? 'Đang chuyển về trang đăng nhập...' : 'Đang xác thực phiên đăng nhập...'}
         </p>
@@ -47,7 +56,7 @@ export function LabWorkspacePage() {
   const copy = SECTION_COPY[screen];
 
   return (
-    <main className={styles.page}>
+    <main className={`${styles.page} ${beVietnamPro.className}`}>
       <Sidebar
         onChangeScreen={(next) => {
           setScreen(next);

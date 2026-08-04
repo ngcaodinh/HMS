@@ -17,7 +17,7 @@ export function HistoryList({ isLoading, keyword, list, onChangeKeyword, onSelec
   return (
     <div className={styles.card}>
       <label className="relative mb-4 block">
-        <AssetIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 opacity-50" name="icon-search.svg" />
+        <AssetIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 brightness-0" name="icon-search.svg" />
         <input
           className={styles.searchInput}
           onChange={(event) => onChangeKeyword(event.target.value)}
@@ -32,7 +32,7 @@ export function HistoryList({ isLoading, keyword, list, onChangeKeyword, onSelec
           filtered.map((item) => (
             <button
               className={cn(
-                'rounded-md border border-[#e5e7eb] px-3 py-2.5 text-left transition hover:bg-[#f6fafe]',
+                'rounded-md border border-[#e5e7eb] px-3 py-2.5 text-left transition duration-150 hover:bg-[#f6fafe] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#006096]/30 focus-visible:ring-offset-1',
                 selectedId === item.labTestId && 'border-[#006096] bg-[#eef8ff]',
               )}
               key={item.labTestId}

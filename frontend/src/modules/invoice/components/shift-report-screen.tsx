@@ -21,7 +21,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
   });
 
   return (
-    <div className="screen active space-y-4 font-sans select-none" id="s5">
+    <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s5">
       {/* Screen Header matching lines 1401-1414 */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
@@ -37,17 +37,17 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
           <input
             type="date"
             defaultValue="2026-07-20"
-            className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none"
+            className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
           />
           <input
             type="date"
             defaultValue="2026-07-20"
-            className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none"
+            className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
           />
           <button
             type="button"
             onClick={onExportReport}
-            className="px-3.5 py-1.5 bg-[#1a7a4a] text-white rounded-md text-[12.5px] font-bold hover:bg-[#145c38] transition-colors flex items-center gap-1.5 min-h-[36px]"
+            className="px-3.5 py-1.5 bg-[#1a7a4a] text-white rounded-md text-[12.5px] font-bold hover:bg-[#145c38] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 min-h-[36px] shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -64,7 +64,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
 
       {/* KPI Cards Grid matching lines 1417-1442 */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-4 relative overflow-hidden border-t-4 border-t-[#006096]">
+        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card p-4 relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,96,150,0.14)] border-t-4 border-t-[#006096]">
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Tổng doanh thu thực tế
           </div>
@@ -77,7 +77,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
           </div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-4 relative overflow-hidden border-t-4 border-t-[#55d7ed]">
+        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card p-4 relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,96,150,0.14)] border-t-4 border-t-[#55d7ed]">
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Quỹ BHYT chi trả
           </div>
@@ -87,7 +87,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
           <div className="text-[11.5px] text-[#707882]">Giảm trừ cho 5 bệnh nhân</div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-4 relative overflow-hidden border-t-4 border-t-[#007abc]">
+        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card p-4 relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,96,150,0.14)] border-t-4 border-t-[#007abc]">
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Tổng tiền tạm ứng
           </div>
@@ -97,7 +97,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
           <div className="text-[11.5px] text-[#707882]">1 bệnh nhân nội trú · 2 đợt</div>
         </div>
 
-        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] p-4 relative overflow-hidden border-t-4 border-t-[#ba1a1a]">
+        <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card p-4 relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,96,150,0.14)] border-t-4 border-t-[#ba1a1a]">
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Miễn giảm thất thu
           </div>
@@ -109,7 +109,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
       </div>
 
       {/* Transaction Log Card matching lines 1445-1505 */}
-      <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden space-y-3 p-5">
+      <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card overflow-hidden space-y-3 p-5">
         <div className="flex items-center justify-between border-b border-[#e4e9ed] pb-3">
           <div className="text-[14px] font-bold text-[#171c1f] flex items-center gap-2">
             <svg
@@ -145,9 +145,9 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
               key={chip.id}
               type="button"
               onClick={() => setFilterType(chip.id)}
-              className={`min-h-[36px] px-3.5 py-1 rounded-full text-[12.5px] font-medium border transition-colors ${
+              className={`min-h-[36px] px-3.5 py-1 rounded-full text-[12.5px] font-medium border transition-all duration-200 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1 ${
                 filterType === chip.id
-                  ? 'bg-[#006096] text-white border-[#006096]'
+                  ? 'bg-[#006096] text-white border-[#006096] shadow-[0_2px_8px_rgba(0,96,150,0.24)]'
                   : 'bg-transparent text-[#3f4851] border-[#bfc7d2] hover:border-[#006096] hover:text-[#006096]'
               }`}
             >
@@ -172,7 +172,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
             </thead>
             <tbody className="divide-y divide-[#f0f4f8]">
               {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-[#f0f4f8]/70 transition-colors">
+                <tr key={log.id} className="hover:bg-[#f0f4f8]/70 transition-colors duration-150">
                   <td className="px-4 py-3 font-mono font-bold text-[#006096]">
                     RCP-2026-0{log.id}
                   </td>

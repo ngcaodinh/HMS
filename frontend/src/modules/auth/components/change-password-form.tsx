@@ -190,10 +190,10 @@ export function ChangePasswordForm() {
    * Trả về nhãn và màu sắc cho thanh đo độ mạnh mật khẩu
    */
   const getStrengthLabel = () => {
-    if (newPassword.length === 0) return { color: 'bg-slate-200', text: '' };
-    if (passedCriteriaCount <= 2) return { color: 'bg-red-500', text: 'Yếu' };
-    if (passedCriteriaCount <= 4) return { color: 'bg-amber-500', text: 'Trung bình' };
-    return { color: 'bg-emerald-500', text: 'Rất mạnh' };
+    if (newPassword.length === 0) return { color: 'bg-[#eaeef2]', text: '' };
+    if (passedCriteriaCount <= 2) return { color: 'bg-[#ba1a1a]', text: 'Yếu' };
+    if (passedCriteriaCount <= 4) return { color: 'bg-[#a05c00]', text: 'Trung bình' };
+    return { color: 'bg-[#1a7a4a]', text: 'Rất mạnh' };
   };
 
   const strengthInfo = getStrengthLabel();
@@ -203,16 +203,16 @@ export function ChangePasswordForm() {
       {/* Mật khẩu mới */}
       <div>
         <label
-          className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#3f4851]"
           htmlFor="newPassword"
         >
           Mật khẩu mới
         </label>
         <div className="relative">
-          <LockIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <LockIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]" />
           <input
             autoComplete="new-password"
-            className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-600 focus:ring-4 focus:ring-sky-600/10"
+            className="h-11 w-full rounded-xl border border-[#bfc7d2] bg-white pl-10 pr-11 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
             id="newPassword"
             name="newPassword"
             onChange={(e) => setNewPassword(e.target.value)}
@@ -223,7 +223,7 @@ export function ChangePasswordForm() {
           />
           <button
             aria-label={showNewPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-            className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+            className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#707882] transition hover:bg-[#f0f4f8] hover:text-[#006096] focus:outline-none focus:ring-2 focus:ring-[#006096]/20"
             onClick={() => setShowNewPassword((prev) => !prev)}
             type="button"
           >
@@ -238,13 +238,13 @@ export function ChangePasswordForm() {
         {/* Thanh hiển thị độ mạnh mật khẩu */}
         {newPassword.length > 0 ? (
           <div className="mt-2 space-y-1">
-            <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
+            <div className="flex items-center justify-between text-[11px] font-medium text-[#707882]">
               <span>Độ mạnh mật khẩu</span>
-              <span className={`font-bold ${passedCriteriaCount === 5 ? 'text-emerald-600' : passedCriteriaCount >= 3 ? 'text-amber-600' : 'text-red-600'}`}>
+              <span className={`font-bold ${passedCriteriaCount === 5 ? 'text-[#1a7a4a]' : passedCriteriaCount >= 3 ? 'text-[#a05c00]' : 'text-[#ba1a1a]'}`}>
                 {strengthInfo.text}
               </span>
             </div>
-            <div className="flex h-1.5 w-full gap-1 rounded-full bg-slate-100 p-0.5">
+            <div className="flex h-1.5 w-full gap-1 rounded-full bg-[#eaeef2] p-0.5">
               <div
                 className={`h-full rounded-full transition-all duration-300 ${strengthInfo.color}`}
                 style={{ width: `${(passedCriteriaCount / 5) * 100}%` }}
@@ -254,35 +254,35 @@ export function ChangePasswordForm() {
         ) : null}
 
         {/* Danh sách tiêu chí bảo mật */}
-        <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-xs space-y-1.5">
-          <p className="font-semibold text-slate-700 text-[11px] uppercase tracking-wider mb-1">
+        <div className="mt-3 rounded-xl border border-[#eaeef2] bg-[#f0f4f8]/80 p-3 text-xs space-y-1.5">
+          <p className="font-semibold text-[#3f4851] text-[11px] uppercase tracking-wider mb-1">
             Yêu cầu mật khẩu mạnh:
           </p>
 
-          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 text-slate-600">
-            <div className={`flex items-center gap-1.5 transition ${hasMinLength ? 'font-medium text-emerald-700' : 'text-slate-500'}`}>
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasMinLength ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-400'}`}>
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 text-[#3f4851]">
+            <div className={`flex items-center gap-1.5 transition ${hasMinLength ? 'font-medium text-[#1a7a4a]' : 'text-[#707882]'}`}>
+              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasMinLength ? 'bg-[#d4f4e2] text-[#1a7a4a]' : 'bg-[#e4e9ed] text-[#707882]'}`}>
                 {hasMinLength ? <CheckIcon className="h-3 w-3" /> : '•'}
               </span>
               <span>Tối thiểu 10 ký tự</span>
             </div>
 
-            <div className={`flex items-center gap-1.5 transition ${hasUppercase && hasLowercase ? 'font-medium text-emerald-700' : 'text-slate-500'}`}>
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasUppercase && hasLowercase ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-400'}`}>
+            <div className={`flex items-center gap-1.5 transition ${hasUppercase && hasLowercase ? 'font-medium text-[#1a7a4a]' : 'text-[#707882]'}`}>
+              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasUppercase && hasLowercase ? 'bg-[#d4f4e2] text-[#1a7a4a]' : 'bg-[#e4e9ed] text-[#707882]'}`}>
                 {hasUppercase && hasLowercase ? <CheckIcon className="h-3 w-3" /> : '•'}
               </span>
               <span>Chữ hoa (A-Z) & thường (a-z)</span>
             </div>
 
-            <div className={`flex items-center gap-1.5 transition ${hasNumber ? 'font-medium text-emerald-700' : 'text-slate-500'}`}>
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasNumber ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-400'}`}>
+            <div className={`flex items-center gap-1.5 transition ${hasNumber ? 'font-medium text-[#1a7a4a]' : 'text-[#707882]'}`}>
+              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasNumber ? 'bg-[#d4f4e2] text-[#1a7a4a]' : 'bg-[#e4e9ed] text-[#707882]'}`}>
                 {hasNumber ? <CheckIcon className="h-3 w-3" /> : '•'}
               </span>
               <span>Có ít nhất 1 chữ số (0-9)</span>
             </div>
 
-            <div className={`flex items-center gap-1.5 transition ${hasSpecial ? 'font-medium text-emerald-700' : 'text-slate-500'}`}>
-              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasSpecial ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-400'}`}>
+            <div className={`flex items-center gap-1.5 transition ${hasSpecial ? 'font-medium text-[#1a7a4a]' : 'text-[#707882]'}`}>
+              <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${hasSpecial ? 'bg-[#d4f4e2] text-[#1a7a4a]' : 'bg-[#e4e9ed] text-[#707882]'}`}>
                 {hasSpecial ? <CheckIcon className="h-3 w-3" /> : '•'}
               </span>
               <span>Ký tự đặc biệt (!@#$%...)</span>
@@ -294,19 +294,19 @@ export function ChangePasswordForm() {
       {/* Xác nhận mật khẩu mới */}
       <div>
         <label
-          className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-700"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#3f4851]"
           htmlFor="confirmPassword"
         >
           Xác nhận mật khẩu mới
         </label>
         <div className="relative">
-          <LockIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <LockIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]" />
           <input
             autoComplete="new-password"
-            className={`h-11 w-full rounded-xl border bg-white pl-10 pr-11 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:ring-4 ${
+            className={`h-11 w-full rounded-xl border bg-white pl-10 pr-11 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:ring-4 ${
               isConfirmTouched && !isPasswordMatch
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-500/10'
-                : 'border-slate-200 focus:border-sky-600 focus:ring-sky-600/10'
+                ? 'border-[#ba1a1a]/60 focus:border-[#ba1a1a] focus:ring-[#ba1a1a]/10'
+                : 'border-[#bfc7d2] focus:border-[#006096] focus:ring-[#006096]/10'
             }`}
             id="confirmPassword"
             name="confirmPassword"
@@ -318,7 +318,7 @@ export function ChangePasswordForm() {
           />
           <button
             aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-            className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+            className="absolute right-2.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#707882] transition hover:bg-[#f0f4f8] hover:text-[#006096] focus:outline-none focus:ring-2 focus:ring-[#006096]/20"
             onClick={() => setShowConfirmPassword((prev) => !prev)}
             type="button"
           >
@@ -332,7 +332,7 @@ export function ChangePasswordForm() {
 
         {/* Thông báo cảnh báo khi mật khẩu xác nhận không trùng khớp */}
         {isConfirmTouched && !isPasswordMatch ? (
-          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-red-600">
+          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-[#ba1a1a]">
             <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -343,8 +343,8 @@ export function ChangePasswordForm() {
 
       {/* Thông báo lỗi */}
       {error ? (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
-          <svg className="h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="flex items-center gap-2 rounded-xl border border-[#ffb4ab] bg-[#ffdad6]/60 p-3 text-xs font-medium text-[#93000a]">
+          <svg className="h-4 w-4 shrink-0 text-[#ba1a1a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span>{error}</span>
@@ -353,7 +353,7 @@ export function ChangePasswordForm() {
 
       {/* Nút gửi */}
       <button
-        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc] text-sm font-bold text-white shadow-md transition hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-[#006096]/20 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc] text-sm font-bold text-white shadow-hms-button transition hover:brightness-110 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#006096]/20 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:brightness-100 disabled:active:scale-100"
         disabled={isSubmitting || passedCriteriaCount < 5 || !isPasswordMatch}
         type="submit"
       >

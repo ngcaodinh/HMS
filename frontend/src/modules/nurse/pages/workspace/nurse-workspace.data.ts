@@ -108,7 +108,7 @@ export const screenMeta: Record<
   emergency: {
     title: 'Chuẩn hóa danh tính bệnh nhân cấp cứu vô danh',
     subtitle: 'Khoa Cấp cứu • Khoa Da Liễu • Khẩn cấp • 17/07/2026',
-    titleClass: 'text-[#b91c1c]',
+    titleClass: 'text-[#ba1a1a]',
   },
 };
 
@@ -118,7 +118,7 @@ export const vitalStats: StatCard[] = [
     label: 'Tổng ca đã đo hôm nay',
     delta: '↑ 3 so với hôm qua',
     icon: 'calendar',
-    iconClass: 'bg-blue-50 text-[#0369a1]',
+    iconClass: 'bg-blue-50 text-[#006096]',
   },
   {
     value: '7',
@@ -131,14 +131,14 @@ export const vitalStats: StatCard[] = [
     value: '2',
     label: 'Ca có cảnh báo dị ứng',
     icon: 'alert',
-    iconClass: 'bg-red-50 text-[#b91c1c]',
-    valueClass: 'text-[#b91c1c]',
+    iconClass: 'bg-red-50 text-[#ba1a1a]',
+    valueClass: 'text-[#ba1a1a]',
   },
   {
     value: '8.4',
     label: 'Phút trung bình / bệnh nhân',
     icon: 'heart',
-    iconClass: 'bg-cyan-50 text-[#0891b2]',
+    iconClass: 'bg-cyan-50 text-[#006673]',
   },
 ];
 

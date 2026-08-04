@@ -95,7 +95,7 @@ export function DiagnosisScreen({
             {new Date(record.diagnosis.diagnosedAt).toLocaleString('vi-VN')}
           </span>
           <button
-            className="shrink-0 rounded-md border border-[#15803d] px-3 py-1.5 text-xs font-bold text-[#15803d]"
+            className="shrink-0 rounded-md border border-[#15803d] px-3 py-1.5 text-xs font-bold text-[#15803d] transition hover:bg-[#15803d]/10 focus:outline-none focus:ring-4 focus:ring-[#15803d]/15 active:scale-[0.98]"
             onClick={() => setIsEditing(true)}
             type="button"
           >
@@ -122,7 +122,7 @@ export function DiagnosisScreen({
                 <span className="relative block">
                   <AssetIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 opacity-60" name="icon-search.svg" />
                   <input
-                    className="h-12 w-full rounded-[12px] border border-[#bfc7d2] bg-[#f0f4f8] pl-11 pr-4 text-[13.5px] outline-none"
+                    className={styles.searchInputLg}
                     onChange={(event) => setSearchTerm(event.target.value)}
                     placeholder="Mã hoặc tên bệnh (VD: L50, Mề đay...)"
                     value={searchTerm}
@@ -141,7 +141,7 @@ export function DiagnosisScreen({
                 <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-[12px] border border-[#bfc7d2] bg-white shadow-lg">
                   {icdResults?.map((entry) => (
                     <button
-                      className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-[#f0f4f8]"
+                      className={styles.searchResultItem}
                       key={entry.code}
                       onClick={() => {
                         setSelectedIcd(entry);
@@ -166,7 +166,11 @@ export function DiagnosisScreen({
                 <span className="rounded bg-white/20 px-1.5 py-0.5 text-[9px] uppercase">Chính</span>
                 {selectedIcd.code} {selectedIcd.name && `- ${selectedIcd.name}`}
                 {!isLocked && (
-                  <button onClick={() => setSelectedIcd(null)} type="button">
+                  <button
+                    className="rounded-full p-0.5 transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    onClick={() => setSelectedIcd(null)}
+                    type="button"
+                  >
                     <AssetIcon className="h-3 w-3 brightness-0 invert" name="icon-close.svg" />
                   </button>
                 )}
@@ -253,8 +257,10 @@ function TreatmentChoice({
   return (
     <button
       className={cn(
-        'relative min-h-[156px] rounded-[16px] border-2 p-5 text-left transition focus:outline-none focus:ring-4 focus:ring-[#006096]/15',
-        active ? 'border-[#006096] bg-[rgba(0,96,150,0.06)] shadow-[0_0_0_3px_rgba(0,96,150,0.12)]' : 'border-[#bfc7d2] bg-[#f0f4f8]',
+        'relative min-h-[156px] rounded-[16px] border-2 p-5 text-left transition focus:outline-none focus:ring-4 focus:ring-[#006096]/15 active:scale-[0.99]',
+        active
+          ? 'border-[#006096] bg-[rgba(0,96,150,0.06)] shadow-[0_0_0_3px_rgba(0,96,150,0.12)]'
+          : 'border-[#bfc7d2] bg-[#f0f4f8] hover:border-[#006096]/40 hover:bg-white',
       )}
       onClick={onClick}
       type="button"

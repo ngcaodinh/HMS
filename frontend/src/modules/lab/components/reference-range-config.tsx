@@ -18,10 +18,10 @@ function StatCards({ period }: { period: 'today' | 'week' | 'month' }) {
   const { data: stats, isLoading } = useLabActivityStats({ period });
 
   const cards = [
-    { label: 'Tổng mẫu đã tiếp nhận', value: stats?.totalReceived ?? 0, color: '#dbeafe', icon: 'icon-lab-order.svg' },
-    { label: 'Mẫu hoàn thành (đã ký)', value: stats?.totalCompleted ?? 0, color: '#d4f0e0', icon: 'icon-lab-result.svg' },
-    { label: 'Ca cấp cứu hoàn thành', value: stats?.urgentCompleted ?? 0, color: '#fee2e2', icon: 'icon-close.svg' },
-    { label: 'TAT trung bình (phút)', value: stats?.averageTatMinutes ?? 0, color: '#ffecd4', icon: 'icon-save.svg' },
+    { label: 'Tổng mẫu đã tiếp nhận', value: stats?.totalReceived ?? 0, color: '#dbeafe', icon: 'icon-lab-order.svg', isNeutral: true },
+    { label: 'Mẫu hoàn thành (đã ký)', value: stats?.totalCompleted ?? 0, color: '#d4f0e0', icon: 'icon-lab-result.svg', isNeutral: true },
+    { label: 'Ca cấp cứu hoàn thành', value: stats?.urgentCompleted ?? 0, color: '#fee2e2', icon: 'icon-alert.svg', isNeutral: false },
+    { label: 'TAT trung bình (phút)', value: stats?.averageTatMinutes ?? 0, color: '#ffecd4', icon: 'icon-save.svg', isNeutral: true },
   ];
 
   return (
@@ -29,7 +29,7 @@ function StatCards({ period }: { period: 'today' | 'week' | 'month' }) {
       {cards.map((card) => (
         <div className={styles.statCard} key={card.label}>
           <div className={styles.statIconWrap} style={{ background: card.color }}>
-            <AssetIcon className="h-5 w-5" name={card.icon} />
+            <AssetIcon className={cn('h-5 w-5', card.isNeutral && 'brightness-0')} name={card.icon} />
           </div>
           <div>
             <p className={styles.statValue}>{isLoading ? '—' : card.value}</p>

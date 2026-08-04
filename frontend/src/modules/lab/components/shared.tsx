@@ -50,7 +50,7 @@ export const RESULT_TABLE_TAB_ORDER: Array<'xn_hoa_sinh_mau' | 'xn_vi_sinh' | 'x
 ];
 
 const inputClass =
-  'h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10';
+  'h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10';
 const selectClass = inputClass + ' pr-2';
 const labelClass = 'mb-1.5 block text-xs font-semibold text-[#3f4851]';
 const hintClass = 'mt-1 text-[11px] text-[#8a8f96]';
@@ -144,7 +144,7 @@ export function TextAreaField({
     <label className="block">
       <span className={labelClass}>{label}</span>
       <textarea
-        className="min-h-20 w-full resize-none rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 py-2 text-[13px] leading-6 text-[#171c1f] outline-none focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
+        className="min-h-20 w-full resize-none rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 py-2 text-[13px] leading-6 text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       />

@@ -22,11 +22,11 @@ export default async function ChangePasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50/70 px-4 py-12 sm:px-6">
+    <main className="flex min-h-screen items-center justify-center bg-[#f6fafe] px-4 py-12 font-sans sm:px-6">
       <div className="w-full max-w-md">
-        <section className="w-full rounded-2xl border border-slate-200/80 bg-white p-7 shadow-xl shadow-slate-200/40 transition-all">
-          <div className="mb-5 flex items-center gap-3.5 border-b border-slate-100 pb-5">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-sky-100 bg-sky-50 text-sky-700 shadow-sm">
+        <section className="w-full rounded-2xl border border-[#dfe3e7] bg-white p-7 shadow-hms-card transition-all">
+          <div className="mb-5 flex items-center gap-3.5 border-b border-[#eaeef2] pb-5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#006096]/15 bg-[#006096]/10 text-[#006096] shadow-sm">
               <svg
                 className="h-5 w-5"
                 fill="none"
@@ -42,16 +42,16 @@ export default async function ChangePasswordPage() {
               </svg>
             </div>
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-sky-700">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#006096]">
                 Bảo mật tài khoản
               </p>
-              <h1 className="text-xl font-bold text-slate-900">
+              <h1 className="text-xl font-bold text-[#171c1f]">
                 Đổi mật khẩu bắt buộc
               </h1>
             </div>
           </div>
 
-          <p className="mb-5 rounded-xl border border-slate-100 bg-slate-50 p-3.5 text-xs leading-relaxed text-slate-600">
+          <p className="mb-5 rounded-xl border border-[#dfe3e7] bg-[#f0f4f8] p-3.5 text-xs leading-relaxed text-[#3f4851]">
             Vì lý do an toàn thông tin, bạn cần đổi mật khẩu mới lần đầu đăng nhập tài khoản.
           </p>
 

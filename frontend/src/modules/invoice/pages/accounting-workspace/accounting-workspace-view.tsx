@@ -549,7 +549,7 @@ export function AccountingWorkspaceView() {
       />
 
       {toastMessage ? (
-        <div className="fixed bottom-6 right-6 z-[60] max-w-md rounded-xl bg-[#001d32] px-4 py-3 text-sm font-medium text-white shadow-lg">
+        <div className="fixed bottom-6 right-6 z-[60] max-w-md rounded-xl bg-[#001d32] px-4 py-3 text-sm font-medium text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-white/10 animate-modalIn">
           {toastMessage}
         </div>
       ) : null}

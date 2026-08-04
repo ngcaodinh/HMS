@@ -152,8 +152,8 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
   const summary = summaryParts.join(' ');
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#3a3f47]/70 p-4 print:static print:bg-transparent print:p-0 sm:p-8">
-      <div className="flex max-h-[92vh] w-full max-w-[900px] flex-col overflow-hidden rounded-[4px] bg-white shadow-2xl print:max-h-none print:overflow-visible print:rounded-none print:shadow-none">
+    <div className="fixed inset-0 z-50 flex animate-fadeIn items-center justify-center bg-[#3a3f47]/70 p-4 backdrop-blur-[2px] print:static print:animate-none print:bg-transparent print:p-0 print:backdrop-blur-none sm:p-8">
+      <div className="flex max-h-[92vh] w-full max-w-[900px] animate-modalIn flex-col overflow-hidden rounded-[4px] bg-white shadow-2xl print:max-h-none print:animate-none print:overflow-visible print:rounded-none print:shadow-none">
         <div className="flex shrink-0 items-center justify-between bg-[#171c1f] px-5 py-3 print:hidden">
           <p className="text-sm font-bold text-white">Phân hệ Bác sĩ — Hồ sơ bệnh án (Mẫu 08/BV-01)</p>
           <button className="flex h-8 w-8 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white" onClick={onClose} type="button">

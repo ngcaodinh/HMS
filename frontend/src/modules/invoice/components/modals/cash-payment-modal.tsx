@@ -39,8 +39,8 @@ export function CashPaymentModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-fadeIn">
+      <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-modalIn">
         {/* Header matching lines 1560-1568 */}
         <div className="p-5 border-b border-[#e4e9ed] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#cee5ff] text-[#006096] flex items-center justify-center shrink-0">
@@ -93,7 +93,7 @@ export function CashPaymentModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] transition-colors"
+            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             Hủy bỏ
           </button>
@@ -103,7 +103,7 @@ export function CashPaymentModal({
             onClick={() => {
               void handleConfirm();
             }}
-            className="px-4 py-2 bg-[#006096] text-white rounded-md text-[13px] font-bold hover:bg-[#004a75] transition-colors flex items-center gap-1.5 shadow-sm"
+            className="px-4 py-2 bg-[#006096] text-white rounded-md text-[13px] font-bold hover:bg-[#004a75] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 shadow-[0_2px_8px_rgba(0,96,150,0.24)] hover:shadow-[0_4px_14px_rgba(0,96,150,0.3)] disabled:opacity-50 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
