@@ -67,6 +67,48 @@ test('accounting workspace contract uses backend APIs for candidates, write-off 
   assert.equal(file.includes('advanceReceipts'), false);
 });
 
+test('accounting workspace renders only API data and uses the centered HMS notification', () => {
+  const file = readFileSync(
+    join(
+      process.cwd(),
+      'src/modules/invoice/pages/accounting-workspace/accounting-workspace-view.tsx',
+    ),
+    'utf8',
+  );
+
+  assert.match(file, /useState<PatientRecord\[\]>\(\[\]\)/);
+  assert.match(file, /useState<PatientRecord \| null>\(null\)/);
+  assert.match(file, /<AppToast centered/);
+  assert.equal(file.includes('MOCK_'), false);
+  assert.equal(file.includes('PATIENTS_DB'), false);
+  assert.equal(file.includes('fixed bottom-6 right-6'), false);
+});
+
+test('accounting lookup exposes loading, API error and empty states', () => {
+  const file = readFileSync(
+    join(process.cwd(), 'src/modules/invoice/components/patient-lookup-screen.tsx'),
+    'utf8',
+  );
+
+  assert.match(file, /isLoading\?: boolean/);
+  assert.match(file, /errorMessage\?: string \| null/);
+  assert.match(file, /Đang tải dữ liệu hồ sơ từ hệ thống/);
+  assert.match(file, /Không có hồ sơ phù hợp với bộ lọc hiện tại/);
+});
+
+test('accounting shift report does not expose hard-coded financial totals', () => {
+  const file = readFileSync(
+    join(process.cwd(), 'src/modules/invoice/components/shift-report-screen.tsx'),
+    'utf8',
+  );
+
+  assert.match(file, /summary: ShiftSummary \| null/);
+  assert.match(file, /Chưa có dữ liệu ca trực từ hệ thống/);
+  for (const hardCodedAmount of ['8.650.000', '3.220.000', '5.000.000', '890.000']) {
+    assert.equal(file.includes(hardCodedAmount), false);
+  }
+});
+
 test('accounting screens do not calculate invoice totals in the browser', () => {
   const file = readFileSync(
     join(process.cwd(), 'src/modules/invoice/components/invoice-creation-screen.tsx'),
