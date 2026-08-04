@@ -9,19 +9,11 @@ export const pharmacyWorkspaceStyles = {
   shell: 'flex h-screen w-full overflow-hidden bg-[#f6fafe] text-[#171c1f] font-sans text-sm antialiased',
 
   // Sidebar Dark Midnight (#001d32) - Synchronized with HMS
+  // "sidebar" và "sidebarHeader" vẫn được dùng bởi components/sidebar.tsx (lane cũ, không import ở đâu
+  // nhưng vẫn nằm trong chương trình biên dịch) - không xoá để tránh vỡ typecheck của file đó.
   sidebar: 'relative z-10 flex h-screen w-[280px] min-w-[280px] flex-col overflow-hidden border-r border-white/10 bg-[#001d32] text-white/95',
   sidebarHeader: 'border-b border-white/10 p-4 pb-3',
-  sidebarLogoRow: 'mb-3.5 flex items-center gap-2',
-  sidebarLogoMark: 'flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-xl bg-[#007abc] font-bold text-white shadow-[0_2px_8px_rgba(0,96,150,0.3)] text-sm',
-  sidebarLogoText: 'text-[15px] font-bold leading-tight text-white',
-  sidebarLogoSub: 'mt-0.5 text-[10px] uppercase tracking-[0.4px] text-white/55',
-  
-  sidebarNav: 'flex-1 overflow-y-auto p-3.5 py-3.5',
-  sidebarSectionLabel: 'px-2 pb-2 pt-1 text-[9.5px] font-semibold uppercase tracking-[1.2px] text-white/40',
-  sidebarNavBtn: 'relative mb-[2px] flex min-h-[44px] w-full items-center gap-2.5 rounded-xl border-none bg-transparent px-3 py-2.5 text-left text-[13px] font-medium text-white/75 transition-all duration-200 ease-out hover:bg-white/10 hover:text-white active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-[#55d7ed] focus-visible:outline-offset-2',
-  sidebarNavBtnActive: 'bg-white/15 font-semibold text-white shadow-[inset_3px_0_0_#55d7ed]',
-  
-  sidebarFooter: 'flex flex-col gap-2 border-t border-white/10 bg-black/20 p-4',
+
   sidebarClockRow: 'mb-1 flex w-full items-center justify-between border-b border-dashed border-white/10 pb-1.5',
   sidebarClockLabel: 'text-[11px] font-medium text-white/45',
   sidebarClockValue: 'text-[13px] font-semibold text-white/85 tabular-nums',

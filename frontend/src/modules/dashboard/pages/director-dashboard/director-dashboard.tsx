@@ -1,10 +1,11 @@
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { LogoutButton } from '@/shared/auth/logout-button';
+import { RoleIcon } from '@/shared/components/role-icon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 import { useCurrentPrincipal } from '@/shared/hooks/use-current-principal';
 import {
   useDirectorAuditSummary,
@@ -304,14 +305,6 @@ function formatOccurredAt(value?: string) {
   }).format(date);
 }
 
-function getInitials(fullName?: string) {
-  if (!fullName) return 'GD';
-  const words = fullName.trim().split(/\s+/);
-  const first = words.at(0)?.[0] ?? '';
-  const last = words.at(-1)?.[0] ?? '';
-  return `${first}${last}`.toUpperCase();
-}
-
 function DirectorSidebar({
   activeSection,
   inventoryAlertCount,
@@ -322,82 +315,57 @@ function DirectorSidebar({
   const principalQuery = useCurrentPrincipal();
   const principal = principalQuery.data;
 
+  const sections: SidebarNavSectionConfig[] = navSections.map((section) => ({
+    id: section.title,
+    label: section.title,
+    items: section.items.map((item) => {
+      const isActive = item.section === activeSection;
+      const badge =
+        item.section === 'inventory' && inventoryAlertCount > 0 ? String(inventoryAlertCount) : undefined;
+
+      return {
+        id: item.label,
+        label: item.label,
+        href: item.href,
+        isActive,
+        icon: (
+          <Icon
+            className={cn('h-5 w-5 shrink-0', isActive ? 'text-[#55d7ed]' : 'text-white/65')}
+            name={item.icon}
+          />
+        ),
+        badge: badge ? (
+          <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-4 text-white">{badge}</span>
+        ) : undefined,
+      };
+    }),
+  }));
+
   return (
-    <aside className="flex w-full shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#001d32] font-sans text-white select-none md:w-[260px] lg:h-screen">
-      <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/10 px-4">
-        <div className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#006096] shadow">
-          <Image alt="HMS-VN" height={34} priority src="/hms-login-logo.png" width={34} />
-        </div>
-        <div>
-          <p className="text-[15px] font-bold leading-5 text-white">HMS-VN</p>
-          <p className="mt-0.5 whitespace-nowrap text-[10px] uppercase leading-4 tracking-[0.4px] text-white/55">
-            Bệnh viện da liễu
-          </p>
-        </div>
-      </div>
-
-      <nav className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-4" aria-label="Điều hướng giám đốc">
-        {navSections.map((section) => (
-          <div className="space-y-2" key={section.title}>
-            <p className="px-3 text-[10px] font-bold uppercase leading-4 tracking-[1px] text-white/40">
-              {section.title}
-            </p>
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const isActive = item.section === activeSection;
-                const badge = item.section === 'inventory' && inventoryAlertCount > 0
-                  ? String(inventoryAlertCount)
-                  : undefined;
-
-                return (
-                  <Link
-                    aria-current={isActive ? 'page' : undefined}
-                    className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 text-[12.5px] font-medium leading-5 transition',
-                      isActive
-                        ? 'rounded-lg border-l-4 border-[#22d3ee] bg-white/15 pl-4 font-semibold text-white shadow-sm'
-                        : 'text-white/65 hover:bg-white/10 hover:text-white',
-                    )}
-                    href={item.href}
-                    key={item.label}
-                  >
-                    <Icon
-                      className={cn('h-5 w-5 shrink-0', isActive ? 'text-[#22d3ee]' : 'text-white/65')}
-                      name={item.icon}
-                    />
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {badge ? (
-                      <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] leading-4 text-white">
-                        {badge}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
+    <SharedSidebar
+      footer={
+        <>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#006096] text-sm font-bold text-white shadow transition-transform duration-200 hover:scale-105">
+            <RoleIcon role="director" />
           </div>
-        ))}
-      </nav>
-
-      <div className="mt-auto flex h-[73px] shrink-0 items-center gap-3 border-t border-white/10 bg-black/20 px-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#006096] text-sm font-bold text-white shadow">
-          {getInitials(principal?.fullName)}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold leading-5 text-white">
-            {principal?.fullName ?? 'Giám đốc'}
-          </p>
-          <p className="truncate text-[11px] font-medium leading-4 text-white/50">Giám đốc bệnh viện</p>
-        </div>
-        <LogoutButton
-          ariaLabel="Đăng xuất"
-          className="ml-auto flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/70 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
-          title="Đăng xuất"
-        >
-          <Icon className="h-4 w-4" name="logOut" />
-        </LogoutButton>
-      </div>
-    </aside>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold leading-5 text-white">
+              {principal?.fullName ?? 'Giám đốc'}
+            </p>
+            <p className="truncate text-[11px] font-medium leading-4 text-white/50">Giám đốc bệnh viện</p>
+          </div>
+          <LogoutButton
+            ariaLabel="Đăng xuất"
+            className="ml-auto flex h-8 w-8 items-center justify-center rounded-md border border-white/10 text-white/70 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+            title="Đăng xuất"
+          >
+            <Icon className="h-4 w-4" name="logOut" />
+          </LogoutButton>
+        </>
+      }
+      navAriaLabel="Điều hướng giám đốc"
+      sections={sections}
+    />
   );
 }
 

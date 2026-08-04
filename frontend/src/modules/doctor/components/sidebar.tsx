@@ -1,6 +1,9 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 
+import { RoleIcon } from '@/shared/components/role-icon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+
 import type { WorklistItem } from '../types/medical-record.types';
 import { AssetIcon, calculateAge, cn, genderLabel } from './shared';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
@@ -71,19 +74,26 @@ export function Sidebar({
   ];
 
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.sidebarHeader}>
-        <div className="flex min-w-0 items-center gap-2">
-          <div className={styles.logoWrap}>
-            <Image alt="HMS-VN" className="h-full w-full object-cover" height={34} priority src={`${assetPath}/hospital-logo.jpg`} width={34} />
+    <SharedSidebar
+      footer={
+        <>
+          <div className="relative shrink-0 transition-transform duration-200 hover:scale-105">
+            <Image alt={doctorName} className={styles.userAvatar} height={40} src={`${assetPath}/doctor-avatar.png`} width={40} />
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#006096] ring-2 ring-[#001d32]">
+              <RoleIcon className="h-2.5 w-2.5 text-white" role="doctor" />
+            </span>
           </div>
           <div className="min-w-0">
-            <p className={styles.brandName}>HMS-VN</p>
-            <p className={styles.brandSubtitle}>Hệ thống quản lý bệnh viện</p>
+            <p className={styles.userName}>{doctorName}</p>
+            <p className={styles.userRole}>Bác sĩ</p>
           </div>
-        </div>
-      </div>
-
+          <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
+            <AssetIcon className="h-4 w-4 invert" name="icon-logout.svg" />
+          </button>
+        </>
+      }
+      footerClassName="!hidden lg:!flex"
+    >
       <dl className={styles.statGrid}>
         {stats.map(([value, label, color]) => (
           <div className={styles.statItem} key={label}>
@@ -123,18 +133,7 @@ export function Sidebar({
 
         {worklist.length === 0 && <p className="px-4 py-3 text-[11px] text-white/35">Không có bệnh nhân trong danh sách.</p>}
       </div>
-
-      <div className={styles.sidebarUser}>
-        <Image alt={doctorName} className={styles.userAvatar} height={40} src={`${assetPath}/doctor-avatar.png`} width={40} />
-        <div className="min-w-0">
-          <p className={styles.userName}>{doctorName}</p>
-          <p className={styles.userRole}>Bác sĩ</p>
-        </div>
-        <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
-          <AssetIcon className="h-4 w-4 invert" name="icon-logout.svg" />
-        </button>
-      </div>
-    </aside>
+    </SharedSidebar>
   );
 }
 

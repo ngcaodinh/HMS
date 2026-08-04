@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { getApiErrorMessage } from '@/shared/api-client/api-client';
@@ -34,6 +33,8 @@ import type {
 } from '@/modules/reception/types/reception.types';
 
 import { LogoutButton } from '@/shared/auth/logout-button';
+import { RoleIcon } from '@/shared/components/role-icon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
 
 import { receptionWorkspaceStyles as styles } from './reception-workspace.styles';
 
@@ -174,29 +175,25 @@ function Sidebar({
   const isEmergency = mode === 'emergency';
 
   return (
-    <aside
-      className={cn(styles.sidebar, isEmergency && styles.sidebarEmergency)}
-      suppressHydrationWarning
-    >
-      <div className={styles.sidebarHeader}>
-        <div className="flex min-w-0 items-center gap-2">
-          <div className={styles.logoWrap}>
-            <Image
-              alt="HMS-VN"
-              className="h-full w-full object-cover"
-              height={34}
-              priority
-              src="/hms-login-logo.png"
-              width={34}
-            />
+    <SharedSidebar
+      footer={
+        <>
+          <div className={cn(styles.userAvatar, 'transition-transform duration-200 hover:scale-105')}>
+            <RoleIcon role="receptionist" />
           </div>
           <div className="min-w-0">
-            <p className={styles.brandName}>HMS-VN</p>
-            <p className={styles.brandSubtitle}>HỆ THỐNG QUẢN LÝ BỆNH VIỆN</p>
+            <p className={styles.userName}>Nguyễn Cao Đỉnh</p>
+            <p className={styles.userRole}>Lễ Tân</p>
           </div>
-        </div>
-      </div>
-
+          <LogoutButton className={styles.logoutButton}>
+            <LogoutIcon className="h-4 w-4" />
+          </LogoutButton>
+        </>
+      }
+      footerClassName="!hidden md:!flex"
+      navAriaLabel="Phân hệ lễ tân"
+      tone={isEmergency ? 'danger' : 'default'}
+    >
       <nav
         aria-label="Phân hệ lễ tân"
         className={cn(styles.nav, isEmergency && styles.navEmergency)}
@@ -259,18 +256,7 @@ function Sidebar({
           </span>
         </button>
       </nav>
-
-      <div className={cn(styles.sidebarUser, isEmergency && styles.sidebarUserEmergency)}>
-        <div className={styles.userAvatar}>CĐ</div>
-        <div className="min-w-0">
-          <p className={styles.userName}>Nguyễn Cao Đỉnh</p>
-          <p className={styles.userRole}>Lễ Tân</p>
-        </div>
-        <LogoutButton className={styles.logoutButton}>
-          <LogoutIcon className="h-4 w-4" />
-        </LogoutButton>
-      </div>
-    </aside>
+    </SharedSidebar>
   );
 }
 

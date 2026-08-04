@@ -45,7 +45,10 @@ export default function LoginPage({ searchParams }: LoginPageProps) {
           fill="none"
           viewBox="0 0 900 96"
         >
+          {/* Đường mạch tim được "vẽ" dần từ trái sang phải bằng stroke-dashoffset:
+              đoạn đã chạy qua hiện đầy đủ, đoạn chưa tới hoàn toàn ẩn (không lộ trước) */}
           <path
+            className="login-ekg-beat"
             d="M0 66h64l18-34 18 52 26-82 22 64h78l14-23 18 23h86l20-42 18 64 24-86 25 64h86l16-26 18 26h104l24-48 18 48h126"
             stroke="currentColor"
             strokeLinecap="round"

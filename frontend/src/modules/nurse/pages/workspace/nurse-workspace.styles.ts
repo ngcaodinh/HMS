@@ -1,16 +1,8 @@
 export const nurseWorkspaceStyles = {
   shell:
     'min-h-screen bg-[#f6fafe] font-sans text-[13px] text-[#171c1f] lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:overflow-hidden',
-  sidebar: 'flex min-h-screen flex-col bg-[#0f172a] text-white lg:h-screen lg:overflow-hidden',
-  sidebarHeader: 'flex items-center gap-3 border-b border-white/10 px-5 py-4',
   logoMark:
     'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gradient-to-br from-[#006096] to-[#60a5fa] shadow-[0_2px_8px_rgba(0,96,150,0.3)]',
-  nav: 'flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4',
-  navSection: 'px-3 py-2 text-[10px] font-bold uppercase leading-4 tracking-[0.8px] text-white/40',
-  navItem:
-    'flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-normal text-white/70 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-300/50',
-  navItemActive:
-    'border-l-4 border-[#22d3ee] bg-[#334155] pl-3 font-semibold text-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]',
   badge:
     'ml-auto inline-flex min-w-5 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-4 text-white',
   sidebarFooter: 'mt-auto flex items-center gap-3 border-t border-white/10 bg-black/20 px-4 py-4',

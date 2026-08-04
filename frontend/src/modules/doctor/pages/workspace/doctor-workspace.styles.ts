@@ -1,13 +1,5 @@
 export const doctorWorkspaceStyles = {
   page: 'min-h-screen bg-[#f6fafe] font-sans text-[#171c1f] lg:flex',
-  sidebar:
-    'flex shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#001d32] lg:h-screen lg:w-[260px]',
-  sidebarHeader: 'flex h-[64px] shrink-0 items-center border-b border-white/10 px-4',
-  logoWrap:
-    'relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#006096] shadow-[0_2px_4px_rgba(0,96,150,0.3)]',
-  brandName: 'text-[15px] font-bold leading-[18.75px] text-white',
-  brandSubtitle:
-    'mt-0.5 whitespace-nowrap text-[10px] uppercase leading-[15px] tracking-[0.4px] text-white/55',
   statGrid: 'grid grid-cols-3 border-b border-white/10 bg-white/10',
   statItem: 'border-r border-white/10 bg-white/[0.04] px-1 py-2 text-center last:border-r-0',
   statValue: 'text-xl font-bold leading-5',
@@ -15,19 +7,18 @@ export const doctorWorkspaceStyles = {
   queueScroll: 'flex min-h-0 flex-1 flex-col gap-4 overflow-auto py-4',
   sidebarSearch: 'relative px-4',
   sidebarSearchInput:
-    'h-9 w-full rounded-md border border-white/10 bg-white/10 pl-9 pr-3 text-xs text-white/80 outline-none transition placeholder:text-white/35 focus:border-white/20 focus:bg-white/15 focus:ring-2 focus:ring-[#22d3ee]/40',
+    'h-9 w-full rounded-md border border-white/10 bg-white/10 pl-9 pr-3 text-xs text-white/80 outline-none transition placeholder:text-white/35 focus:border-white/20 focus:bg-white/15 focus:ring-2 focus:ring-[#55d7ed]/40',
   sidebarSection: 'px-4 text-[10px] font-bold uppercase leading-[15px] tracking-[1px] text-white/40',
   queueItem:
-    'mx-0 flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#22d3ee]/40',
+    'mx-0 flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#55d7ed]/40',
   queueItemActive:
-    'rounded-bl-lg rounded-tl-lg rounded-tr-lg border-l-4 border-[#22d3ee] bg-white/15 pl-4 shadow-sm',
+    'rounded-bl-lg rounded-tl-lg rounded-tr-lg border-l-4 border-[#55d7ed] bg-white/15 pl-4 shadow-sm',
   queueNumber:
     'flex h-7 w-7 shrink-0 items-center justify-center rounded text-xs font-bold',
   queueName: 'truncate text-[12.5px] font-medium leading-[18.75px] text-white',
   queueMeta: 'block text-[11px] leading-[16.5px] text-white/50',
   queuePill:
     'shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold leading-[15px]',
-  sidebarUser: 'mt-auto hidden h-[73px] shrink-0 items-center gap-3 border-t border-white/10 px-4 lg:flex',
   userAvatar: 'relative h-10 w-10 shrink-0 overflow-hidden bg-white',
   userName: 'truncate text-sm font-bold leading-5 text-white',
   userRole: 'text-[11px] font-medium leading-[16.5px] text-white/50',

@@ -111,3 +111,27 @@ body {
     transform: scale(0.85);
   }
 }
+
+/* Đường mạch tim (EKG) được vẽ dần từ trái sang phải: đoạn đã qua hiện đầy đủ,
+   đoạn chưa tới hoàn toàn ẩn. Độ dài dash bằng đúng chiều dài thật của path (~1286) */
+.login-ekg-beat {
+  animation: loginEkgBeat 3.6s linear infinite;
+  stroke-dasharray: 1290 1290;
+}
+
+@keyframes loginEkgBeat {
+  from {
+    stroke-dashoffset: 1290;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-ekg-beat {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -2,15 +2,6 @@ export const receptionWorkspaceStyles = {
   // fixed inset-0: khóa đúng viewport, không cuộn cả trang / không khoảng trống dưới.
   // Chỉ áp dụng shell màn tiếp nhận — form/queue list vẫn cuộn nội bộ.
   page: 'fixed inset-0 z-0 flex overflow-hidden flex-col bg-[#f6fafe] font-sans text-[#171c1f] md:flex-row',
-  sidebar:
-    'flex w-full shrink-0 flex-col overflow-hidden border-b border-[#001d32] bg-[#001d32] transition-colors duration-300 md:h-full md:w-[250px] md:border-b-0 md:border-r',
-  sidebarEmergency: 'border-[#7f1010] bg-[#1a0000]',
-  sidebarHeader: 'flex h-[74px] shrink-0 items-center border-b border-white/10 px-4',
-  logoWrap:
-    'relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#007abc] shadow-[0_2px_4px_rgba(0,96,150,0.3)] ring-1 ring-white/10',
-  brandName: 'text-[15px] font-bold leading-[18.75px] text-white',
-  brandSubtitle:
-    'mt-0.5 whitespace-nowrap text-[10px] font-normal uppercase leading-[15px] tracking-[0.4px] text-white/55',
   nav: 'flex gap-2 overflow-x-auto bg-[#0d293c] px-2 py-3 transition-colors duration-300 md:min-h-0 md:flex-1 md:flex-col md:gap-1 md:overflow-y-auto',
   navEmergency: 'bg-[#2b0000]',
   navItem:
@@ -29,9 +20,6 @@ export const receptionWorkspaceStyles = {
   navIconEmergency: 'bg-[rgba(229,57,53,0.12)] text-[#e53935]',
   navTitle: 'whitespace-nowrap text-[12.5px] font-bold leading-[15.63px]',
   navSubtitle: 'mt-0.5 whitespace-nowrap text-[10.5px] font-medium leading-normal',
-  sidebarUser:
-    'mt-auto hidden h-[73px] shrink-0 items-center gap-3 border-t border-[#001728] px-4 transition-colors duration-300 md:flex',
-  sidebarUserEmergency: 'border-[#301919]',
   userAvatar:
     'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#008091] text-sm font-bold text-white shadow-[0_2px_4px_rgba(0,128,145,0.35)]',
   userName: 'truncate text-sm font-semibold leading-5 text-white',

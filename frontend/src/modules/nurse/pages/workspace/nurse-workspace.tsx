@@ -1,10 +1,13 @@
 'use client';
 
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import JsBarcode from 'jsbarcode';
+
+import { RoleIcon } from '@/shared/components/role-icon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 
 import {
   navItems,
@@ -111,79 +114,65 @@ function Sidebar({
     emergency: unidentifiedEmergencyPatients.length,
   };
 
+  const sections: SidebarNavSectionConfig[] = [
+    {
+      id: 'workspace',
+      label: 'Màn hình làm việc',
+      items: navItems.map((item) => {
+        const active = activeScreen === item.id;
+        const badgeCount = badgeCounts[item.id];
+
+        return {
+          id: item.id,
+          label: item.label,
+          isActive: active,
+          onClick: () => onChangeScreen(item.id),
+          icon: (
+            <Icon
+              className={cn('h-5 w-5 shrink-0', active ? 'text-[#55d7ed]' : 'text-white/70')}
+              name={item.icon}
+            />
+          ),
+          badge: badgeCount ? (
+            <span className={cn(styles.badge, item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#ba1a1a]')}>
+              {badgeCount}
+            </span>
+          ) : undefined,
+        };
+      }),
+    },
+  ];
+
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.sidebarHeader}>
-        <div className={styles.logoMark}>
-          <Image
-            alt="HMS-VN"
-            className="h-full w-full object-cover"
-            height={36}
-            priority
-            src="/hms-login-logo.png"
-            width={36}
-          />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold leading-5 text-white">HMS-VN Clinical</p>
-          <p className="mt-0.5 text-[10px] font-medium uppercase leading-4 tracking-[0.4px] text-white/50">
-            Hệ thống quản lý bệnh viện
-          </p>
-        </div>
-      </div>
-
-      <nav aria-label="Màn hình làm việc" className={styles.nav}>
-        <p className={styles.navSection}>Màn hình làm việc</p>
-        {navItems.map((item) => {
-          const active = activeScreen === item.id;
-          const badgeCount = badgeCounts[item.id];
-
-          return (
-            <button
-              aria-current={active ? 'page' : undefined}
-              className={cn(styles.navItem, active && styles.navItemActive)}
-              key={item.id}
-              onClick={() => onChangeScreen(item.id)}
-              type="button"
-            >
-              <Icon
-                className={cn('h-5 w-5 shrink-0', active ? 'text-[#22d3ee]' : 'text-white/70')}
-                name={item.icon}
-              />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              {Boolean(badgeCount) && (
-                <span
-                  className={cn(
-                    styles.badge,
-                    item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#ba1a1a]',
-                  )}
-                >
-                  {badgeCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </nav>
-
-      <div className={styles.sidebarFooter}>
-        <div className={styles.logoMark}>
-          <Icon className="h-5 w-5 text-white" name="user" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold leading-5 text-white">Nguyễn Thị Hương</p>
-          <p className="text-xs font-medium leading-4 text-white/50">Điều dưỡng</p>
-        </div>
-        <button
-          aria-label="Đăng xuất"
-          className={styles.iconButton}
-          onClick={() => router.push('/login')}
-          type="button"
-        >
-          <Icon name="logOut" />
-        </button>
-      </div>
-    </aside>
+    <SharedSidebar
+      brandName="HMS-VN Clinical"
+      footer={
+        <>
+          <div className="relative shrink-0 transition-transform duration-200 hover:scale-105">
+            <div className={styles.logoMark}>
+              <Icon className="h-5 w-5 text-white" name="user" />
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#006096] ring-2 ring-[#001d32]">
+              <RoleIcon className="h-2.5 w-2.5 text-white" role="nurse" />
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold leading-5 text-white">Nguyễn Thị Hương</p>
+            <p className="text-xs font-medium leading-4 text-white/50">Điều dưỡng</p>
+          </div>
+          <button
+            aria-label="Đăng xuất"
+            className={styles.iconButton}
+            onClick={() => router.push('/login')}
+            type="button"
+          >
+            <Icon name="logOut" />
+          </button>
+        </>
+      }
+      navAriaLabel="Màn hình làm việc"
+      sections={sections}
+    />
   );
 }
 

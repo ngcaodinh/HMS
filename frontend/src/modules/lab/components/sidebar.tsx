@@ -1,4 +1,7 @@
-import Image from 'next/image';
+import { RoleIcon } from '@/shared/components/role-icon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import { sidebarStyles } from '@/shared/components/sidebar/sidebar.styles';
+import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 
 import { labWorkspaceStyles as styles } from '../pages/workspace/lab-workspace.styles';
 import { AssetIcon, cn } from './shared';
@@ -23,72 +26,71 @@ const MANAGE_NAV_ITEMS: Array<{ icon: string; id: LabScreen; label: string }> = 
   { id: 'config', icon: 'icon-icd.svg', label: 'Cấu hình & Thống kê' },
 ];
 
+/**
+ * Dựng icon nav với hiệu ứng mờ/rõ theo trạng thái active - dùng chung cho cả 2 nhóm nav bên dưới.
+ * @param iconName - Tên file SVG trong /public/doctor-assets.
+ * @param isActive - Mục nav có đang được chọn hay không.
+ * @returns Icon đã áp opacity phù hợp trạng thái.
+ */
+function renderNavIcon(iconName: string, isActive: boolean) {
+  return (
+    <AssetIcon
+      className={cn(
+        'h-4 w-4 brightness-0 invert transition-opacity duration-200',
+        isActive ? 'opacity-100' : 'opacity-40 group-hover:opacity-75',
+      )}
+      name={iconName}
+    />
+  );
+}
+
 export function Sidebar({ onChangeScreen, onLogout, pendingCount, screen, technicianName }: SidebarProps) {
-  const initial = technicianName.trim().charAt(0).toUpperCase() || 'K';
+  const sections: SidebarNavSectionConfig[] = [
+    {
+      id: 'lab',
+      label: 'Xét nghiệm',
+      items: LAB_NAV_ITEMS.map((item) => ({
+        id: item.id,
+        label: item.label,
+        icon: renderNavIcon(item.icon, screen === item.id),
+        isActive: screen === item.id,
+        onClick: () => onChangeScreen(item.id),
+        badge:
+          item.id === 'queue' && pendingCount > 0 ? (
+            <span className={sidebarStyles.navBadge}>{pendingCount}</span>
+          ) : undefined,
+      })),
+    },
+    {
+      id: 'manage',
+      label: 'Quản lý',
+      items: MANAGE_NAV_ITEMS.map((item) => ({
+        id: item.id,
+        label: item.label,
+        icon: renderNavIcon(item.icon, screen === item.id),
+        isActive: screen === item.id,
+        onClick: () => onChangeScreen(item.id),
+      })),
+    },
+  ];
 
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.sidebarHeader}>
-        <div className={styles.logoWrap}>
-          <Image alt="HMS-VN" className="h-full w-full object-cover" height={34} priority src="/hms-login-logo.png" width={34} />
-        </div>
-        <div className="min-w-0">
-          <p className={styles.brandName}>HMS-VN</p>
-          <p className={styles.brandSubtitle}>Hệ thống quản lý bệnh viện</p>
-        </div>
-      </div>
-
-      <nav className={styles.navSection}>
-        <p className={styles.navSectionLabel}>Xét nghiệm</p>
-        {LAB_NAV_ITEMS.map((item) => (
-          <button
-            className={cn(styles.navItem, screen === item.id && styles.navItemActive)}
-            key={item.id}
-            onClick={() => onChangeScreen(item.id)}
-            type="button"
-          >
-            <AssetIcon
-              className={cn(
-                'h-4 w-4 brightness-0 invert transition-opacity duration-200',
-                screen === item.id ? 'opacity-100' : 'opacity-40 group-hover:opacity-75',
-              )}
-              name={item.icon}
-            />
-            {item.label}
-            {item.id === 'queue' && pendingCount > 0 && <span className={styles.navBadge}>{pendingCount}</span>}
+    <SharedSidebar
+      footer={
+        <>
+          <div className={cn(styles.userAvatar, 'transition-transform duration-200 hover:scale-105')}>
+            <RoleIcon role="lab_tech" />
+          </div>
+          <div className="min-w-0">
+            <p className={styles.userName}>{technicianName}</p>
+            <p className={styles.userRole}>Kỹ thuật viên</p>
+          </div>
+          <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
+            <AssetIcon className="h-4 w-4" name="icon-logout.svg" />
           </button>
-        ))}
-
-        <p className={cn(styles.navSectionLabel, 'mt-4')}>Quản lý</p>
-        {MANAGE_NAV_ITEMS.map((item) => (
-          <button
-            className={cn(styles.navItem, screen === item.id && styles.navItemActive)}
-            key={item.id}
-            onClick={() => onChangeScreen(item.id)}
-            type="button"
-          >
-            <AssetIcon
-              className={cn(
-                'h-4 w-4 brightness-0 invert transition-opacity duration-200',
-                screen === item.id ? 'opacity-100' : 'opacity-40 group-hover:opacity-75',
-              )}
-              name={item.icon}
-            />
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className={styles.sidebarUser}>
-        <div className={styles.userAvatar}>{initial}</div>
-        <div className="min-w-0">
-          <p className={styles.userName}>{technicianName}</p>
-          <p className={styles.userRole}>Kỹ thuật viên</p>
-        </div>
-        <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
-          <AssetIcon className="h-4 w-4" name="icon-logout.svg" />
-        </button>
-      </div>
-    </aside>
+        </>
+      }
+      sections={sections}
+    />
   );
 }

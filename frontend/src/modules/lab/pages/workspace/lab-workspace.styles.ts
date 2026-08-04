@@ -1,20 +1,5 @@
 export const labWorkspaceStyles = {
   page: 'min-h-screen bg-[#f6fafe] font-sans text-[#171c1f] antialiased lg:flex',
-  sidebar:
-    'flex shrink-0 flex-col overflow-hidden border-r border-white/10 bg-[#001d32] lg:h-screen lg:w-[240px]',
-  sidebarHeader: 'flex h-[64px] shrink-0 items-center gap-3 border-b border-white/10 px-4',
-  logoWrap:
-    'relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#006096] shadow-[0_2px_4px_rgba(0,96,150,0.3)]',
-  brandName: 'text-[15px] font-bold leading-[18.75px] text-white',
-  brandSubtitle:
-    'mt-0.5 whitespace-nowrap text-[10px] uppercase leading-[15px] tracking-[0.4px] text-white/55',
-  navSection: 'flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3 py-4',
-  navSectionLabel: 'px-2 pb-1 text-[10px] font-bold uppercase leading-[15px] tracking-[1px] text-white/40',
-  navItem:
-    'group flex w-full items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-[13px] font-medium text-white/40 transition-colors duration-200 hover:bg-white/[0.08] hover:text-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30',
-  navItemActive: 'bg-white/15 text-white shadow-sm',
-  navBadge: 'ml-auto rounded-full bg-[#c62828] px-1.5 py-0.5 text-[10px] font-bold text-white',
-  sidebarUser: 'mt-auto flex h-[73px] shrink-0 items-center gap-3 border-t border-white/10 px-4',
   userAvatar: 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#006096] text-sm font-bold text-white',
   userName: 'truncate text-sm font-bold leading-5 text-white',
   userRole: 'truncate text-[11px] font-medium leading-[16.5px] text-white/50',

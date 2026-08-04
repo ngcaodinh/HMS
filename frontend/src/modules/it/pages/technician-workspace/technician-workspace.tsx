@@ -1,11 +1,13 @@
 'use client';
 
-import Image from 'next/image';
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '@/shared/api-client';
 import { LogoutButton } from '@/shared/auth/logout-button';
+import { RoleIcon } from '@/shared/components/role-icon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 
 import { itTechnicianWorkspaceStyles as styles } from './technician-workspace.styles';
 import {
@@ -532,66 +534,48 @@ function ItSidebar({
   activePage: PageKind;
   onChangePage: (page: PageKind) => void;
 }) {
+  const sections: SidebarNavSectionConfig[] = navGroups.map((group) => ({
+    id: group.label,
+    label: group.label,
+    items: group.items.map((item) => ({
+      id: item.key,
+      label: item.label,
+      isActive: activePage === item.key,
+      onClick: () => onChangePage(item.key),
+      icon: <Icon className={styles.navIcon} name={item.icon} />,
+      badge: item.badge ? (
+        <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+          {item.badge}
+        </span>
+      ) : undefined,
+    })),
+  }));
+
   return (
-    <aside className={styles.sidebar} aria-label="Thanh điều hướng quản trị hệ thống">
-      <div className={styles.sidebarHeader}>
-        <div className="flex items-center gap-3">
-          <div className={styles.logoMark}>
-            <Image alt="HMS-VN" height={40} priority src="/hms-login-logo.png" width={40} />
+    <SharedSidebar
+      footer={
+        <div className="flex w-full flex-col">
+          <div className="flex items-center justify-between text-[10px] text-white/45">
+            <span>Hệ thống trực</span>
+            <span className="font-mono text-xs font-semibold text-white/90">09:51:54</span>
           </div>
-          <div className="min-w-0">
-            <p className="text-base font-bold leading-6">HMS-VN</p>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.6px] text-white/50">
-              Quản trị hệ thống
-            </p>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#55d7ed] to-[#006096] text-sm font-bold text-white shadow-[0_0_0_2px_rgba(255,255,255,0.08)] transition-transform duration-200 hover:scale-105">
+              <RoleIcon role="it_tech" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold text-white/90">Nguyễn Đức Hùng</p>
+              <p className="mt-0.5 text-[10px] text-white/50">Kỹ thuật viên IT</p>
+            </div>
+            <LogoutButton className="rounded-md border border-white/10 p-2 text-white/90">
+              <Icon className="h-4 w-4" name="logOut" />
+            </LogoutButton>
           </div>
         </div>
-      </div>
-
-      <nav className={styles.nav}>
-        {navGroups.map((group) => (
-          <div key={group.label}>
-            <p className={styles.navSection}>{group.label}</p>
-            {group.items.map((item) => (
-              <button
-                aria-current={activePage === item.key ? 'page' : undefined}
-                className={cn(styles.navItem, activePage === item.key && styles.navItemActive)}
-                key={item.key}
-                onClick={() => onChangePage(item.key)}
-                type="button"
-              >
-                <Icon className={styles.navIcon} name={item.icon} />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {item.badge ? (
-                  <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                    {item.badge}
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      <div className={styles.sidebarFooter}>
-        <div className="flex items-center justify-between text-[10px] text-white/45">
-          <span>Hệ thống trực</span>
-          <span className="font-mono text-xs font-semibold text-white/90">09:51:54</span>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#55d7ed] to-[#006096] text-sm font-bold text-white shadow-[0_0_0_2px_rgba(255,255,255,0.08)]">
-            NH
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-bold text-white/90">Nguyễn Đức Hùng</p>
-            <p className="mt-0.5 text-[10px] text-white/50">Kỹ thuật viên IT</p>
-          </div>
-          <LogoutButton className="rounded-md border border-white/10 p-2 text-white/90">
-            <Icon className="h-4 w-4" name="logOut" />
-          </LogoutButton>
-        </div>
-      </div>
-    </aside>
+      }
+      navAriaLabel="Thanh điều hướng quản trị hệ thống"
+      sections={sections}
+    />
   );
 }
 
