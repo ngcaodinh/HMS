@@ -5,6 +5,8 @@ import {
   getAllergyNoteError,
   getBloodPressureRelationError,
   getMissingRequiredVitalFields,
+  getVisibleEmergencyIdentityErrors,
+  getVisibleVitalFieldErrors,
   getVitalFieldError,
   validateEmergencyIdentity,
 } from '../src/modules/nurse/pages/workspace/nurse-validation';
@@ -91,6 +93,79 @@ describe('nurse vitals validation helpers', () => {
       'bpDiastolic',
       'spo2',
     ]);
+  });
+
+  it('does not show untouched errors, but shows required errors after the field is blurred', () => {
+    const emptyVitals = {
+      pulse: '',
+      temperatureC: '',
+      bpSystolic: '',
+      bpDiastolic: '',
+      respiratoryRate: '',
+      spo2: '',
+      heightCm: '',
+      weightKg: '',
+    };
+
+    assert.deepEqual(getVisibleVitalFieldErrors(emptyVitals, {}), {});
+    assert.equal(
+      getVisibleVitalFieldErrors(emptyVitals, { pulse: true }).pulse,
+      'Vui lòng nhập giá trị này',
+    );
+    assert.equal(getVisibleVitalFieldErrors(emptyVitals, { heightCm: true }).heightCm, undefined);
+  });
+
+  it('shows the blood-pressure relation error for both fields after either field is blurred', () => {
+    const vitals = {
+      pulse: '80',
+      temperatureC: '',
+      bpSystolic: '80',
+      bpDiastolic: '120',
+      respiratoryRate: '',
+      spo2: '98',
+      heightCm: '',
+      weightKg: '',
+    };
+
+    assert.deepEqual(getVisibleVitalFieldErrors(vitals, {}), {});
+    const errors = getVisibleVitalFieldErrors(vitals, { bpDiastolic: true });
+    assert.equal(errors.bpSystolic, getBloodPressureRelationError('80', '120'));
+    assert.equal(errors.bpDiastolic, getBloodPressureRelationError('80', '120'));
+  });
+
+  it('does not mask an out-of-range blood-pressure error with the cross-field error', () => {
+    const errors = getVisibleVitalFieldErrors(
+      {
+        bpSystolic: '0',
+        bpDiastolic: '80',
+      },
+      { bpSystolic: true, bpDiastolic: true },
+    );
+
+    assert.equal(errors.bpSystolic, getVitalFieldError('bpSystolic', '0'));
+    assert.equal(errors.bpDiastolic, undefined);
+  });
+
+  it('shows every remaining vital error after a submit attempt', () => {
+    const errors = getVisibleVitalFieldErrors(
+      {
+        pulse: '0',
+        temperatureC: '',
+        bpSystolic: '120',
+        bpDiastolic: '',
+        respiratoryRate: '',
+        spo2: '',
+        heightCm: '',
+        weightKg: '',
+      },
+      {},
+      true,
+    );
+
+    assert.equal(errors.pulse, getVitalFieldError('pulse', '0'));
+    assert.equal(errors.bpDiastolic, 'Vui lòng nhập giá trị này');
+    assert.equal(errors.spo2, 'Vui lòng nhập giá trị này');
+    assert.equal(errors.heightCm, undefined);
   });
 });
 
@@ -186,6 +261,31 @@ describe('nurse emergency identity validation', () => {
     assert.equal(
       validateEmergencyIdentity({ ...validForm, privacyConfirmed: false }).privacyConfirmed,
       'Cần xác nhận đồng ý trước khi gửi',
+    );
+  });
+
+  it('only exposes emergency identity errors after blur, with the identity alternative linked', () => {
+    const invalidForm = {
+      fullName: '',
+      dateOfBirth: '',
+      phoneNumber: '',
+      identityCardNumber: '',
+      guardianFullName: '',
+      guardianPhoneNumber: '',
+      privacyConfirmed: false,
+    };
+
+    assert.deepEqual(getVisibleEmergencyIdentityErrors(invalidForm, {}), {});
+    const errors = getVisibleEmergencyIdentityErrors(invalidForm, { fullName: true });
+    assert.equal(errors.fullName, 'Họ và tên tối thiểu 3 ký tự');
+    assert.equal(errors.dateOfBirth, undefined);
+
+    const guardianErrors = getVisibleEmergencyIdentityErrors(invalidForm, {
+      guardianFullName: true,
+    });
+    assert.equal(
+      guardianErrors.identityCardNumber,
+      'Cần nhập số CCCD hợp lệ, hoặc nhập đầy đủ họ tên và số điện thoại người giám hộ/đại diện',
     );
   });
 });
