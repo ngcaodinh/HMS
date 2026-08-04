@@ -1,10 +1,15 @@
-# Lab Technician Validation TODO
+# Nurse Input Validation TODO
 
-- [x] C0: Chuẩn hóa API field errors và field components.
-- [x] C2-C4: Thêm validation helper cho các nhóm số.
-- [x] C5-C6: Thêm validation Vi sinh/GPB và field GPB còn thiếu.
-- [x] C0-C1: Kết nối panel, submit state và lỗi attachment/conclusion/report code.
-- [x] C7: Hoàn thiện validation reference range và RBAC admin-only.
-- [x] Backend: Zod, unique report code, GPB user/role.
-- [ ] Prisma: kiểm tra migration specimenCollectedAt và precision RBC (chờ BA/PO xác nhận).
-- [x] Chạy test, typecheck, lint frontend, build và code review.
+- [x] Foundation: canonical AppError, P2002 mapping, RBAC policy.
+- [x] Foundation: regression tests for five nurse business errors.
+- [x] Vitals: backend schema and frontend helper/UI validation.
+- [x] Emergency: cross-field identity, guardian phone, date/length/conflict handling.
+- [x] Beds/Orders/Samples: mutation toasts and max-length rules.
+- [x] Verification: test, typecheck, lint, build, review.
+
+## Explicitly deferred pending PO/BA decision
+
+- Queue ticket architecture shared by reception and nurse.
+- Persistent emergency-bed state and audit design.
+- Allergy blocking/test-reaction workflow.
+- Specimen data source and `specimen_collections` domain ownership.

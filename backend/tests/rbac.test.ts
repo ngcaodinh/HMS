@@ -21,6 +21,16 @@ describe('RBAC clinical policy', () => {
     expect(isActionAllowed(['nurse'], 'queue_ticket.call')).toBe(true);
   });
 
+  it('allows nurses to standardize emergency identity and doctors to create treatment orders', () => {
+    expect(getAllowedRoles('patient_identity.standardize')).toEqual(['nurse', 'receptionist']);
+    expect(getAllowedRoles('treatment_order.create')).toEqual(['doctor']);
+    expect(isActionAllowed(['nurse'], 'patient_identity.standardize')).toBe(true);
+    expect(isActionAllowed(['receptionist'], 'patient_identity.standardize')).toBe(true);
+    expect(isActionAllowed(['doctor'], 'patient_identity.standardize')).toBe(false);
+    expect(isActionAllowed(['doctor'], 'treatment_order.create')).toBe(true);
+    expect(isActionAllowed(['nurse'], 'treatment_order.create')).toBe(false);
+  });
+
   it('allows nurse to manage beds and execute discharge workflow after doctor approval', () => {
     expect(getAllowedRoles('bed.assign')).toEqual(['nurse']);
     expect(getAllowedRoles('bed.change')).toEqual(['nurse']);

@@ -1,38 +1,58 @@
-# Implementation Plan: Lab Technician Validation
+# Implementation Plan: Nurse Input Validation
 
-## Phạm vi
+## Overview
 
-Hoàn thiện validation đầu vào cho màn `/lab-technician`, đưa lỗi field-level từ backend
-đến đúng ô nhập, bổ sung kiểm tra nghiệp vụ an toàn cho kết quả xét nghiệm và bảo vệ
-quyền quản lý trị số tham chiếu.
+Hoàn thiện validation hai lớp Frontend/Backend và hiển thị lỗi nghiệp vụ rõ ràng cho các màn
+`/nurse` theo `doc/Plan/PLAN_nurse_input_validation.md`. Dữ liệu y tế phải được kiểm tra ở
+backend trước khi chạm database; frontend chỉ cải thiện phản hồi sớm và không thay thế kiểm tra
+server.
 
-## Giả định nghiệp vụ tạm thời
+## Architecture decisions
 
-- Giữ `in_progress` để không phá vỡ dữ liệu và luồng hiện có; cần BA/PO xác nhận lại
-  state machine theo workflow chính thức trước khi có migration loại bỏ trạng thái này.
-- Chỉ `admin` được quản lý reference range trong phiên bản này vì đây là quyền thay đổi
-  dữ liệu dùng chung và repo chưa có role `Trưởng khoa` riêng.
-- Giữ loại Hoá sinh máu và bảng reference range hiện tại vì chúng đã được code và API sử
-  dụng; việc đồng bộ lại tài liệu SQL là công việc dữ liệu/BA riêng.
-- Giữ precision `DECIMAL(6,2)` cho `rbc` theo Prisma hiện tại; plan đang có mâu thuẫn giữa
-  `(5,2)` và `(5,1)`, nên không tự ý migration khi chưa có SQL/BA chính thức.
+- Dùng một `AppError` canonical tại `backend/src/core/errors/appError.ts`; các đường dẫn cũ chỉ
+  re-export để tương thích, không tạo thêm class làm hỏng `instanceof`.
+- Chuẩn hóa lỗi Prisma `P2002` tại error handler dùng thật bởi `app.ts`, trả `409 CONFLICT_ERROR`
+  và chi tiết field an toàn, không trả stack trace hoặc dữ liệu nhạy cảm.
+- Tách validation thuần của nurse vào helper frontend để kiểm thử độc lập; component chỉ ghép
+  state, hiển thị lỗi và gọi mutation.
+- Giữ nguyên các thiết kế chưa đủ quyết định nghiệp vụ: queue dùng chung, trạng thái emergency
+  bed, allergy workflow và nguồn dữ liệu specimen.
 
-## Các lát triển khai
+## Task list
 
-1. Sửa chuẩn hóa lỗi `rule`, thêm test regression và field components accessible.
-2. Thêm helper validation thuần cho CBC, Hoá sinh, Nước tiểu, Vi sinh và GPB; thêm test
-   boundary/optional/abnormal-clinical-value.
-3. Kết nối helper với result-entry panel/forms, inline lỗi API/local, attachment và
-   conclusion; bổ sung các field GPB còn thiếu.
-4. Siết backend Zod, kiểm tra user/role GPB, map unique report code và validation
-   reference range; thêm migration `specimenCollectedAt`/precision RBC nếu Prisma hiện
-   tại có thể migrate an toàn.
-5. Kiểm tra RBAC, chạy typecheck/lint/test/build và review toàn bộ diff.
+### Phase 1: Shared error and authorization foundation
 
-## Tiêu chí nghiệm thu
+- [x] Hợp nhất `AppError`, bổ sung mapping Prisma `P2002`, thêm policy cho identity/treatment order.
+- [x] Bổ sung test response contract cho `VERSION_CONFLICT`, `BED_UNAVAILABLE`, `TICKET_NOT_CALLED`,
+      `VITALS_ALREADY_RECORDED`, `SPECIMEN_ALREADY_COLLECTED`.
 
-- Field-level backend error giữ nguyên thông điệp tiếng Việt và hiển thị đúng field.
-- Mỗi nhóm số có test giá trị trống, ngoài ngưỡng và bất thường lâm sàng nhưng hợp lệ.
-- Không ghi nhận kết quả vi sinh thiếu kết luận hoặc GPB có userId không hợp lệ/không đúng role.
-- Không cho phép trùng `reportCode` và reference range có bound sai thứ tự.
-- Không để lỗi validation nhạy cảm lọt vào log hoặc response 500 chung.
+### Phase 2: Vitals and emergency identity
+
+- [x] Đồng bộ giới hạn sinh hiệu FE/BE, kiểm tra quan hệ huyết áp, giới hạn allergy note và hiển thị
+      lỗi mutation.
+- [x] Cho phép định danh cấp cứu bằng CCCD hoặc cặp người giám hộ + số điện thoại; thêm giới hạn
+      ngày sinh, độ dài và xử lý conflict.
+
+### Checkpoint: clinical validation
+
+- [x] Backend tests và frontend tests cho boundary, cross-field rules, RBAC và error mapping pass.
+- [x] Typecheck/lint/build của backend và frontend pass.
+
+### Phase 3: Beds and treatment orders
+
+- [x] Đưa mutation Beds/Orders/Samples về toast hoặc inline error nhất quán, giữ cơ chế disable double-submit.
+- [x] Thêm giới hạn ký tự cho lý do chuyển giường và hủy y lệnh.
+
+### Checkpoint: complete
+
+- [x] Chạy full test suite, typecheck, lint, build trong phạm vi môi trường khả dụng.
+- [x] Review diff và xác nhận không triển khai các mục thiết kế đang chờ PO/BA.
+
+## Risks and mitigations
+
+| Risk | Impact | Mitigation |
+| --- | --- | --- |
+| Error class trùng làm response rơi về 500 | Cao | Canonical class + compatibility re-export + regression tests |
+| Sai lệch FE/BE trong rule y tế | Cao | Dùng cùng boundary/message và test hai phía |
+| Hiển thị lỗi server nhạy cảm | Cao | Chỉ expose code/message/details field-level đã chuẩn hóa |
+| Thay đổi nhầm nghiệp vụ chưa chốt | Cao | Giữ ngoài phạm vi các mục 1.2, 1.4, 1.5, 1.6 |

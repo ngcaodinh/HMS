@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { PrismaClient, SpecimenStatus, type Prisma } from '@prisma/client';
-import { AppError } from '../../core/utils/AppError';
+import { AppError } from '../../core/errors/appError';
 import { RealtimePublisher } from '../../ports/RealtimePublisher';
 import { AuditPort } from '../../ports/AuditPort';
 import { sendSuccess } from '../../core/http/response-envelope';
@@ -68,7 +68,7 @@ export class SpecimenController {
       throw new AppError(
         400,
         'SPECIMEN_ALREADY_COLLECTED',
-        'Mẫu bệnh phẩm đã được lấy hoặc đã bàn giao'
+        'Mẫu bệnh phẩm đã được lấy hoặc đã bàn giao',
       );
     }
 
@@ -129,11 +129,7 @@ export class SpecimenController {
     }
 
     if (specimen.status !== SpecimenStatus.collected) {
-      throw new AppError(
-        400,
-        'SPECIMEN_NOT_COLLECTED',
-        'Mẫu bệnh phẩm chưa được lấy thành công'
-      );
+      throw new AppError(400, 'SPECIMEN_NOT_COLLECTED', 'Mẫu bệnh phẩm chưa được lấy thành công');
     }
 
     const body = handoffSpecimenSchema.parse(req.body);

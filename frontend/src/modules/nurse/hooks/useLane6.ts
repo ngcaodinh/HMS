@@ -59,6 +59,68 @@ export interface OrderDto {
   hasAllergyWarning: boolean;
 }
 
+type TreatmentOrderWireDto = {
+  treatmentOrderId?: string;
+  id?: string;
+  orderType?: string;
+  content?: string;
+  note?: string | null;
+  status?: OrderDto['status'];
+  orderedAt?: string;
+  patientName?: string;
+  roomLabel?: string;
+  hasAllergyWarning?: boolean;
+};
+
+const ORDER_STATUSES = new Set<OrderDto['status']>([
+  'pending',
+  'done',
+  'blocked',
+  'delayed',
+  'active',
+  'cancelled',
+]);
+
+/** Kiểm tra tối thiểu payload y lệnh trước khi đưa dữ liệu từ API vào UI nurse. */
+function isTreatmentOrderWireDto(value: unknown): value is TreatmentOrderWireDto {
+  if (!value || typeof value !== 'object') return false;
+
+  const order = value as Record<string, unknown>;
+  const hasId = typeof order.treatmentOrderId === 'string' || typeof order.id === 'string';
+  const hasStatus =
+    typeof order.status === 'string' && ORDER_STATUSES.has(order.status as OrderDto['status']);
+
+  return hasId && hasStatus;
+}
+
+/** Chuẩn hóa payload y lệnh backend thành model hiển thị dùng chung cho các component nurse. */
+export function mapTreatmentOrderDto(value: unknown): OrderDto | null {
+  if (!isTreatmentOrderWireDto(value)) return null;
+
+  const orderId = value.treatmentOrderId ?? value.id;
+  if (!orderId || !value.status) return null;
+
+  const tone: OrderDto['tone'] =
+    value.status === 'cancelled' ? 'danger' : value.status === 'done' ? 'blue' : 'purple';
+
+  return {
+    id: orderId,
+    treatmentOrderId: orderId,
+    title: value.orderType ? value.orderType.toUpperCase() : 'Y LỆNH',
+    instruction: value.content ?? '',
+    note: value.note ?? '',
+    patient: value.patientName ?? '',
+    patientName: value.patientName ?? '',
+    room: value.roomLabel ?? '',
+    roomLabel: value.roomLabel ?? '',
+    status: value.status,
+    time: value.orderedAt ?? '',
+    tone,
+    orderType: value.orderType ?? '',
+    hasAllergyWarning: value.hasAllergyWarning === true,
+  };
+}
+
 export interface AdmissionBoardDto {
   recordId: string;
   recordCode: string;
@@ -101,15 +163,18 @@ export const useBeds = () => {
   return useQuery({
     queryKey: ['beds'],
     queryFn: async () => {
-      const res = await httpClient.get<
-        unknown,
-        { data: ApiEnvelope<BedDto[]> | BedDto[] }
-      >('/beds');
+      const res = await httpClient.get<unknown, { data: ApiEnvelope<BedDto[]> | BedDto[] }>(
+        '/beds',
+      );
       return extractApiListData<BedDto>(res.data);
     },
   });
 };
-export const useOrders = (params?: { recordId?: string; bedId?: string; departmentId?: string }) => {
+export const useOrders = (params?: {
+  recordId?: string;
+  bedId?: string;
+  departmentId?: string;
+}) => {
   return useQuery({
     queryKey: ['orders', params],
     queryFn: async () => {
@@ -118,33 +183,12 @@ export const useOrders = (params?: { recordId?: string; bedId?: string; departme
       if (params?.bedId) queryParams.append('bedId', params.bedId);
       if (params?.departmentId) queryParams.append('departmentId', params.departmentId);
       const queryString = queryParams.toString();
-      const res = await httpClient.get<
-        unknown,
-        { data: ApiEnvelope<any[]> | any[] }
-      >(
-        queryString ? `/treatment-orders?${queryString}` : '/treatment-orders'
+      const res = await httpClient.get<unknown, { data: ApiEnvelope<unknown[]> | unknown[] }>(
+        queryString ? `/treatment-orders?${queryString}` : '/treatment-orders',
       );
-      const orders = extractApiListData<any>(res.data);
-      return orders.map((o: any) => {
-        const tone: 'danger' | 'purple' | 'blue' | 'green' =
-          o.status === 'cancelled' ? 'danger' : o.status === 'done' ? 'blue' : 'purple';
-        return {
-          id: o.treatmentOrderId || o.id,
-          treatmentOrderId: o.treatmentOrderId || o.id,
-          title: o.orderType ? String(o.orderType).toUpperCase() : 'Y LỆNH',
-          instruction: o.content || '',
-          note: o.note || '',
-          patient: o.patientName || '',
-          patientName: o.patientName || '',
-          room: o.roomLabel || '',
-          roomLabel: o.roomLabel || '',
-          status: o.status,
-          time: o.orderedAt || '',
-          tone,
-          orderType: o.orderType || '',
-          hasAllergyWarning: !!o.hasAllergyWarning,
-        };
-      });
+      return extractApiListData<unknown>(res.data)
+        .map(mapTreatmentOrderDto)
+        .filter((order): order is OrderDto => order !== null);
     },
     refetchInterval: 15000,
   });
@@ -157,13 +201,13 @@ export const useAdmissionBoard = () => {
       const res = await httpClient.get<
         unknown,
         {
-          data: ApiEnvelope<{ waitingForBedRecords: AdmissionBoardDto[] }>
+          data:
+            | ApiEnvelope<{ waitingForBedRecords: AdmissionBoardDto[] }>
             | { waitingForBedRecords: AdmissionBoardDto[] };
         }
       >('/inpatient/admission-board');
-      return extractApiData<{ waitingForBedRecords: AdmissionBoardDto[] }>(
-        res.data,
-      ).waitingForBedRecords;
+      return extractApiData<{ waitingForBedRecords: AdmissionBoardDto[] }>(res.data)
+        .waitingForBedRecords;
     },
   });
 };
@@ -172,7 +216,13 @@ export const useAdmissionBoard = () => {
 export const useToggleMaintenance = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ bedId, status }: { bedId: string; status: 'maintenance' | 'available' }) => {
+    mutationFn: async ({
+      bedId,
+      status,
+    }: {
+      bedId: string;
+      status: 'maintenance' | 'available';
+    }) => {
       const res = await httpClient.put(`/beds/${bedId}/maintenance`, { status });
       return res;
     },
@@ -306,7 +356,10 @@ export const useUpdateOrderStatus = () => {
       status: 'done' | 'cancelled' | 'delayed' | 'active';
       cancelReason?: string;
     }) => {
-      const res = await httpClient.put(`/treatment-orders/${orderId}/status`, { status, cancelReason });
+      const res = await httpClient.put(`/treatment-orders/${orderId}/status`, {
+        status,
+        cancelReason,
+      });
       return res;
     },
     onSuccess: () => {
@@ -335,23 +388,25 @@ export const useVitalsQueue = () =>
       const res = await httpClient.get<
         unknown,
         {
-          data: ApiEnvelope<{
-            worklist: VitalsWorklistItemDto[];
-            ticketQueue: {
-              currentCalled: QueueTicketDto | null;
-              waitingCount: number;
-              waitingNumbers: number[];
-            };
-            stats: VitalsQueueStatsDto;
-          }> | {
-            worklist: VitalsWorklistItemDto[];
-            ticketQueue: {
-              currentCalled: QueueTicketDto | null;
-              waitingCount: number;
-              waitingNumbers: number[];
-            };
-            stats: VitalsQueueStatsDto;
-          };
+          data:
+            | ApiEnvelope<{
+                worklist: VitalsWorklistItemDto[];
+                ticketQueue: {
+                  currentCalled: QueueTicketDto | null;
+                  waitingCount: number;
+                  waitingNumbers: number[];
+                };
+                stats: VitalsQueueStatsDto;
+              }>
+            | {
+                worklist: VitalsWorklistItemDto[];
+                ticketQueue: {
+                  currentCalled: QueueTicketDto | null;
+                  waitingCount: number;
+                  waitingNumbers: number[];
+                };
+                stats: VitalsQueueStatsDto;
+              };
         }
       >('/inpatient/vitals-queue');
       return extractApiData(res.data);
@@ -431,9 +486,7 @@ export const useSpecimens = (status?: string) => {
       const res = await httpClient.get<
         unknown,
         { data: ApiEnvelope<SpecimenDto[]> | SpecimenDto[] }
-      >(
-        queryString ? `/specimens?${queryString}` : '/specimens'
-      );
+      >(queryString ? `/specimens?${queryString}` : '/specimens');
       return extractApiListData<SpecimenDto>(res.data);
     },
   });
@@ -536,10 +589,11 @@ export const useStandardizeEmergencyIdentity = () => {
       dateOfBirth: string;
       gender: 'male' | 'female';
       phoneNumber: string;
-      identityCardNumber: string;
+      identityCardNumber?: string;
       address?: string;
       healthInsuranceCode?: string;
-      guardianFullName: string;
+      guardianFullName?: string;
+      guardianPhoneNumber?: string;
       privacyConfirmed: true;
     }) => {
       const { patientId, ...body } = payload;

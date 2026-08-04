@@ -58,42 +58,101 @@ export const cancelOrderSchema = z.object({
   cancelReason: z.string().min(1, 'Lý do hủy y lệnh không được để trống').max(500),
 });
 
-export const recordVitalSignsSchema = z.object({
-  ticketId: z.string().min(1, 'Thiếu số thứ tự đang gọi'),
-  expectedRecordVersion: z.number().int('Version phải là số nguyên'),
-  pulse: z.number().int().min(0).max(300),
-  temperatureC: z.number().min(25).max(45).optional(),
-  bloodPressureSystolic: z.number().int().min(0).max(300),
-  bloodPressureDiastolic: z.number().int().min(0).max(300),
-  respiratoryRate: z.number().int().min(0).max(120).optional(),
-  spo2: z.number().int().min(0).max(100),
-  heightCm: z.number().min(0).max(300).optional(),
-  weightKg: z.number().min(0).max(500).optional(),
-  allergies: z.string().max(1000).optional(),
-});
+export const recordVitalSignsSchema = z
+  .object({
+    ticketId: z.string().min(1, 'Thiếu số thứ tự đang gọi'),
+    expectedRecordVersion: z.number().int('Version phải là số nguyên'),
+    pulse: z
+      .number()
+      .int()
+      .min(1, 'Mạch phải trong khoảng 1-300 lần/phút')
+      .max(300, 'Mạch phải trong khoảng 1-300 lần/phút'),
+    temperatureC: z.number().min(25).max(45).optional(),
+    bloodPressureSystolic: z
+      .number()
+      .int()
+      .min(1, 'Huyết áp tâm thu phải trong khoảng 1-300 mmHg')
+      .max(300, 'Huyết áp tâm thu phải trong khoảng 1-300 mmHg'),
+    bloodPressureDiastolic: z
+      .number()
+      .int()
+      .min(1, 'Huyết áp tâm trương phải trong khoảng 1-200 mmHg')
+      .max(200, 'Huyết áp tâm trương phải trong khoảng 1-200 mmHg'),
+    respiratoryRate: z
+      .number()
+      .int()
+      .min(1, 'Nhịp thở phải trong khoảng 1-100 lần/phút')
+      .max(100, 'Nhịp thở phải trong khoảng 1-100 lần/phút')
+      .optional(),
+    spo2: z.number().int().min(0).max(100),
+    heightCm: z
+      .number()
+      .min(0.1, 'Chiều cao phải lớn hơn 0 và không quá 300cm')
+      .max(300, 'Chiều cao phải lớn hơn 0 và không quá 300cm')
+      .optional(),
+    weightKg: z
+      .number()
+      .min(0.1, 'Cân nặng phải lớn hơn 0 và không quá 500kg')
+      .max(500, 'Cân nặng phải lớn hơn 0 và không quá 500kg')
+      .optional(),
+    allergies: z.string().max(1000, 'Mô tả dị ứng tối đa 1000 ký tự').optional(),
+  })
+  .refine((values) => values.bloodPressureSystolic > values.bloodPressureDiastolic, {
+    message:
+      'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương, vui lòng kiểm tra lại (có thể đã nhập ngược)',
+    path: ['bloodPressureSystolic'],
+  });
 
-export const standardizeEmergencyIdentitySchema = z.object({
-  fullName: z.string().min(3, 'Họ và tên tối thiểu 3 ký tự').max(255, 'Họ và tên tối đa 255 ký tự'),
-  dateOfBirth: z.coerce
-    .date({ errorMap: () => ({ message: 'Ngày sinh không hợp lệ' }) })
-    .refine((d) => d <= new Date(), 'Ngày sinh không được ở tương lai'),
-  gender: z.enum(['male', 'female'], {
-    errorMap: () => ({ message: 'Giới tính phải là male hoặc female' }),
-  }),
-  phoneNumber: z
-    .string()
-    .regex(
-      /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/,
-      'Số điện thoại không đúng định dạng di động Việt Nam hợp lệ (VD: 09xxxxxxxx, 03xxxxxxxx)'
-    ),
-  identityCardNumber: z.string().regex(/^\d{12}$/, 'Số CCCD phải gồm đúng 12 chữ số'),
-  address: z.string().max(500, 'Địa chỉ tối đa 500 ký tự').optional(),
-  healthInsuranceCode: z.string().max(20, 'Mã thẻ BHYT tối đa 20 ký tự').optional(),
-  guardianFullName: z
-    .string()
-    .min(1, 'Họ tên người bảo hộ / liên hệ không được để trống')
-    .max(255, 'Họ tên người bảo hộ tối đa 255 ký tự'),
-  privacyConfirmed: z.literal(true, {
-    errorMap: () => ({ message: 'Cần xác nhận đồng ý cung cấp thông tin và cam kết bảo mật' }),
-  }),
-});
+export const standardizeEmergencyIdentitySchema = z
+  .object({
+    fullName: z
+      .string()
+      .min(3, 'Họ và tên tối thiểu 3 ký tự')
+      .max(255, 'Họ và tên tối đa 255 ký tự'),
+    dateOfBirth: z.coerce
+      .date({ errorMap: () => ({ message: 'Ngày sinh không hợp lệ' }) })
+      .refine(
+        (d) => d >= new Date('1900-01-01T00:00:00.000Z'),
+        'Ngày sinh không hợp lệ (phải từ năm 1900 trở về sau)',
+      )
+      .refine((d) => d <= new Date(), 'Ngày sinh không được ở tương lai'),
+    gender: z.enum(['male', 'female'], {
+      errorMap: () => ({ message: 'Giới tính phải là male hoặc female' }),
+    }),
+    phoneNumber: z
+      .string()
+      .regex(
+        /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/,
+        'Số điện thoại không đúng định dạng di động Việt Nam hợp lệ (VD: 09xxxxxxxx, 03xxxxxxxx)',
+      ),
+    identityCardNumber: z
+      .string()
+      .regex(/^\d{12}$/, 'Số CCCD phải gồm đúng 12 chữ số')
+      .optional(),
+    address: z.string().max(500, 'Địa chỉ tối đa 500 ký tự').optional(),
+    healthInsuranceCode: z.string().max(20, 'Mã thẻ BHYT tối đa 20 ký tự').optional(),
+    guardianFullName: z.string().max(255, 'Họ tên người bảo hộ tối đa 255 ký tự').optional(),
+    guardianPhoneNumber: z
+      .string()
+      .regex(
+        /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/,
+        'Số điện thoại người giám hộ không đúng định dạng di động Việt Nam',
+      )
+      .optional(),
+    privacyConfirmed: z.literal(true, {
+      errorMap: () => ({ message: 'Cần xác nhận đồng ý cung cấp thông tin và cam kết bảo mật' }),
+    }),
+  })
+  .superRefine((values, context) => {
+    const hasIdentityCard = Boolean(values.identityCardNumber);
+    const hasCompleteGuardian = Boolean(values.guardianFullName && values.guardianPhoneNumber);
+
+    if (!hasIdentityCard && !hasCompleteGuardian) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['identityCardNumber'],
+        message:
+          'Cần nhập số CCCD hợp lệ, hoặc nhập đầy đủ họ tên và số điện thoại người giám hộ/đại diện',
+      });
+    }
+  });
