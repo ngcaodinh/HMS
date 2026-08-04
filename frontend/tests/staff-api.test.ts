@@ -34,22 +34,28 @@ describe('listStaffUsers', () => {
     globalThis.fetch = ((input: RequestInfo | URL) => {
       capturedInput = input;
 
-      return Promise.resolve(new Response(JSON.stringify({
-        data: {
-          items: [staffUser],
-          page: 2,
-          pageSize: 1,
-          totalItems: 7,
-          totalPages: 7,
-        },
-      })));
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              items: [staffUser],
+              page: 2,
+              pageSize: 1,
+              totalItems: 7,
+              totalPages: 7,
+            },
+          }),
+        ),
+      );
     }) as typeof fetch;
 
     const result = await listStaffUsers({
+      departmentId: 'clinical',
       isActive: true,
       page: 2,
       pageSize: 1,
       q: ' doctor.managed ',
+      roleCode: 'doctor',
     });
 
     const url = new URL(String(capturedInput), 'http://localhost');
@@ -58,7 +64,9 @@ describe('listStaffUsers', () => {
     assert.equal(url.searchParams.get('page'), '2');
     assert.equal(url.searchParams.get('pageSize'), '1');
     assert.equal(url.searchParams.get('isActive'), 'true');
+    assert.equal(url.searchParams.get('departmentId'), 'clinical');
     assert.equal(url.searchParams.get('q'), 'doctor.managed');
+    assert.equal(url.searchParams.get('roleCode'), 'doctor');
     assert.equal(result.totalItems, 7);
   });
 });

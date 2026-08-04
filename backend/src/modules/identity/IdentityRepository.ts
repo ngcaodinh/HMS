@@ -25,7 +25,7 @@ const mapUser = (user: UserWithRoles): StaffUserRecord => ({
   dateOfBirth: user.dateOfBirth,
   departmentId: user.departmentId,
   fullName: user.fullName,
-  gender: user.gender as StaffUserRecord['gender'],
+  gender: user.gender,
   id: user.id,
   identityCardNumber: user.identityCardNumber,
   isActive: user.isActive,
@@ -43,10 +43,7 @@ const mapUser = (user: UserWithRoles): StaffUserRecord => ({
  * Nhận lỗi thô từ Prisma, ném AppError có field cụ thể hoặc trả lại lỗi gốc cho nhánh khác xử lý.
  */
 const mapUniqueStaffError = (error: unknown): never => {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  ) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     const rawTarget = error.meta?.target;
     const target = Array.isArray(rawTarget)
       ? rawTarget.filter((field): field is string => typeof field === 'string').join('|')
@@ -183,6 +180,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     page: number;
     pageSize: number;
     q?: string;
+    roleCode?: RoleCode;
   }) {
     const filters: Prisma.UserWhereInput[] = [
       {
@@ -211,6 +209,16 @@ export class PrismaIdentityRepository implements IdentityRepository {
     if (input.isActive !== undefined) {
       filters.push({
         isActive: input.isActive,
+      });
+    }
+
+    if (input.roleCode) {
+      filters.push({
+        permissions: {
+          some: {
+            roleCode: input.roleCode,
+          },
+        },
       });
     }
 
@@ -304,10 +312,7 @@ export class PrismaIdentityRepository implements IdentityRepository {
     return mapUser(user);
   }
 
-  async updateStaffUser(input: {
-    data: Prisma.UserUpdateInput;
-    userId: string;
-  }) {
+  async updateStaffUser(input: { data: Prisma.UserUpdateInput; userId: string }) {
     try {
       const user = await this.client.user.update({
         data: input.data,

@@ -87,6 +87,7 @@ export type IdentityRepository = {
     page: number;
     pageSize: number;
     q?: string;
+    roleCode?: RoleCode;
   }): Promise<{ items: StaffUserRecord[]; totalItems: number }>;
   replaceUserRoles(input: {
     assignedBy: string;

@@ -30,7 +30,7 @@ export const editStaffFormFields = [
   'isActive',
 ] as const;
 
-const phoneNumberRegex = /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/;
+const phoneNumberRegex = /^(03[2-9]|05[2689]|07[06-9]|08[1-9]|09[0-9])[0-9]{7}$/;
 const usernameRegex = /^[A-Za-z0-9._]+$/;
 const identityCardRegex = /^[0-9]{12}$/;
 const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
@@ -46,6 +46,14 @@ const getTodayDateValue = () => {
   return localTime.toISOString().slice(0, 10);
 };
 
+/** Tính ngày sinh tối thiểu để form không nhận nhân viên chưa đủ 18 tuổi. */
+const getMinimumAdultBirthDateValue = () => {
+  const today = getTodayDateValue();
+  const [year, month, day] = today.split('-').map(Number);
+
+  return `${String(year - 18).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
 const isRealDateOnly = (value: string) => {
   if (!dateOnlyRegex.test(value)) return false;
 
@@ -59,9 +67,7 @@ const isRealDateOnly = (value: string) => {
   const date = new Date(Date.UTC(year, month - 1, day));
 
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
 };
 
@@ -72,10 +78,14 @@ export const createStaffFormSchema = z.object({
     .min(1, 'Vui lòng nhập ngày sinh')
     .regex(dateOnlyRegex, 'Ngày sinh phải theo định dạng YYYY-MM-DD')
     .refine(isRealDateOnly, 'Ngày sinh không hợp lệ')
-    .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai'),
+    .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai')
+    .refine((value) => value <= getMinimumAdultBirthDateValue(), 'Nhân viên phải đủ 18 tuổi'),
   departmentId: z.string().min(1, 'Vui lòng chọn khoa/phòng').pipe(departmentSchema),
   fullName: z.string().trim().min(2, 'Họ tên phải có ít nhất 2 ký tự').max(255),
-  gender: z.string().min(1, 'Vui lòng chọn giới tính').pipe(z.enum(['male', 'female'])),
+  gender: z
+    .string()
+    .min(1, 'Vui lòng chọn giới tính')
+    .pipe(z.enum(['male', 'female'])),
   identityCardNumber: z
     .string()
     .transform(normalizeWhitespace)
@@ -100,10 +110,14 @@ export const editStaffFormSchema = z.object({
     .min(1, 'Vui lòng nhập ngày sinh')
     .regex(dateOnlyRegex, 'Ngày sinh phải theo định dạng YYYY-MM-DD')
     .refine(isRealDateOnly, 'Ngày sinh không hợp lệ')
-    .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai'),
+    .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai')
+    .refine((value) => value <= getMinimumAdultBirthDateValue(), 'Nhân viên phải đủ 18 tuổi'),
   departmentId: z.string().min(1, 'Vui lòng chọn khoa/phòng').pipe(departmentSchema),
   fullName: z.string().trim().min(2, 'Họ tên phải có ít nhất 2 ký tự').max(255),
-  gender: z.string().min(1, 'Vui lòng chọn giới tính').pipe(z.enum(['male', 'female'])),
+  gender: z
+    .string()
+    .min(1, 'Vui lòng chọn giới tính')
+    .pipe(z.enum(['male', 'female'])),
   identityCardNumber: z
     .string()
     .transform(normalizeWhitespace)
@@ -135,9 +149,7 @@ export type EditStaffFormFieldErrors = Partial<Record<EditStaffFormField, string
  * Chuyển form đã parse thành payload create staff đúng hợp đồng backend.
  * Nhận dữ liệu đã qua schema nên không dùng fallback ngầm cho role hoặc khoa/phòng.
  */
-export const toCreateStaffInput = (
-  values: ParsedCreateStaffFormValues,
-): CreateStaffInput => ({
+export const toCreateStaffInput = (values: ParsedCreateStaffFormValues): CreateStaffInput => ({
   dateOfBirth: values.dateOfBirth,
   departmentId: values.departmentId,
   fullName: values.fullName,
@@ -152,9 +164,7 @@ export const toCreateStaffInput = (
  * Chuyển form chỉnh sửa thành payload PATCH theo đúng các field backend cho phép cập nhật.
  * Các định danh như username, CCCD, ngày sinh và giới tính chỉ hiển thị trong UI, không gửi lên API.
  */
-export const toUpdateStaffInput = (
-  values: ParsedEditStaffFormValues,
-): UpdateStaffInput => ({
+export const toUpdateStaffInput = (values: ParsedEditStaffFormValues): UpdateStaffInput => ({
   dateOfBirth: values.dateOfBirth,
   departmentId: values.departmentId,
   fullName: values.fullName,
@@ -174,9 +184,8 @@ export const normalizeCreateStaffFieldErrors = (
   fields: Record<string, string[] | undefined>,
 ): CreateStaffFormFieldErrors =>
   Object.entries(fields).reduce<CreateStaffFormFieldErrors>((currentFields, [field, messages]) => {
-    const normalizedField = field === 'roleCodes' || field.startsWith('roleCodes.')
-      ? 'roleCode'
-      : field;
+    const normalizedField =
+      field === 'roleCodes' || field.startsWith('roleCodes.') ? 'roleCode' : field;
 
     if (!createStaffFormFieldSet.has(normalizedField) || !messages?.length) {
       return currentFields;
@@ -198,9 +207,8 @@ export const normalizeEditStaffFieldErrors = (
   fields: Record<string, string[] | undefined>,
 ): EditStaffFormFieldErrors =>
   Object.entries(fields).reduce<EditStaffFormFieldErrors>((currentFields, [field, messages]) => {
-    const normalizedField = field === 'roleCodes' || field.startsWith('roleCodes.')
-      ? 'roleCode'
-      : field;
+    const normalizedField =
+      field === 'roleCodes' || field.startsWith('roleCodes.') ? 'roleCode' : field;
 
     if (!editStaffFormFieldSet.has(normalizedField) || !messages?.length) {
       return currentFields;
@@ -237,9 +245,7 @@ export const getCreateStaffValidationFieldErrors = (
 /**
  * Chuyển Zod issues của form edit thành lỗi theo field để modal hiển thị cạnh input tương ứng.
  */
-export const getEditStaffValidationFieldErrors = (
-  error: z.ZodError,
-): EditStaffFormFieldErrors =>
+export const getEditStaffValidationFieldErrors = (error: z.ZodError): EditStaffFormFieldErrors =>
   normalizeEditStaffFieldErrors(
     error.issues.reduce<Record<string, string[]>>((fields, issue) => {
       const field = issue.path.join('.');

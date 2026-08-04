@@ -84,6 +84,7 @@ export class IdentityController extends BaseController {
         page: input.page,
         pageSize: input.pageSize,
         q: input.q,
+        roleCode: input.roleCode,
         requestId,
       });
 
