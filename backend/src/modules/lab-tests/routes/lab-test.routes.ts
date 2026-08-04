@@ -33,7 +33,7 @@ export const labTestRouter = Router();
  * `/:labTestId` routes below — Express would otherwise match them as a labTestId value. */
 labTestRouter.get(
   '/reference-ranges',
-  authorizeAndAudit('catalog.lab_type.manage'),
+  authorizeAndAudit('catalog.lab_type.read'),
   validateRequest({ query: listReferenceRangesQuerySchema }),
   listReferenceRangesController,
 );

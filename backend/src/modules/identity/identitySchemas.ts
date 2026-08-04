@@ -5,9 +5,14 @@ import { roleCodes } from './identityTypes';
 /**
  * Các regex đầu vào cố định giúp route trả lỗi validation trước khi vào service.
  */
-const phoneSchema = z.string().regex(/^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/);
+const phoneSchema = z.string().regex(/^(03[2-9]|05[2689]|07[06-9]|08[1-9]|09[0-9])[0-9]{7}$/);
 const identityCardSchema = z.string().regex(/^[0-9]{12}$/);
-const usernameSchema = z.string().trim().min(3).max(50).regex(/^[A-Za-z0-9._]+$/);
+const usernameSchema = z
+  .string()
+  .trim()
+  .min(3)
+  .max(50)
+  .regex(/^[A-Za-z0-9._]+$/);
 const roleCodeSchema = z.enum(roleCodes);
 
 const getTodayDateValue = () => {
@@ -15,6 +20,16 @@ const getTodayDateValue = () => {
   const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
 
   return localTime.toISOString().slice(0, 10);
+};
+
+/** Tính ngày sinh tối thiểu để tài khoản nhân viên đáp ứng tuổi lao động 18+. */
+const getMinimumAdultBirthDateValue = () => {
+  const today = getTodayDateValue();
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+  const day = Number(today.slice(8, 10));
+
+  return `${String(year - 18).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
 /**
@@ -28,7 +43,8 @@ const dateOnlySchema = z
 
     return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
   }, 'Ngày sinh không hợp lệ')
-  .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai');
+  .refine((value) => value <= getTodayDateValue(), 'Ngày sinh không được ở tương lai')
+  .refine((value) => value <= getMinimumAdultBirthDateValue(), 'Nhân viên phải đủ 18 tuổi');
 
 /**
  * Body đăng nhập nhân viên.
@@ -82,6 +98,7 @@ export const updateStaffSchema = z
     identityCardNumber: identityCardSchema.optional(),
     isActive: z.boolean().optional(),
     phoneNumber: phoneSchema.optional(),
+    reason: z.string().trim().min(10).max(500).optional(),
     roleCodes: z.array(roleCodeSchema).min(1).max(1).optional(),
     username: usernameSchema.optional(),
   })
@@ -106,4 +123,5 @@ export const listStaffSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().min(1).max(100).optional(),
+  roleCode: roleCodeSchema.optional(),
 });

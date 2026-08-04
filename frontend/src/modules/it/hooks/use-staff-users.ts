@@ -8,9 +8,9 @@ import {
   type CreateStaffInput,
   type UpdateStaffInput,
 } from '../api/staff-api';
+import type { StaffListFilter } from '../types/staff.schema';
 
-type StaffUsersQueryInput = {
-  isActive?: boolean;
+type StaffUsersQueryInput = StaffListFilter & {
   page: number;
   pageSize?: number;
   q: string;
@@ -19,16 +19,31 @@ type StaffUsersQueryInput = {
 /**
  * Query key ổn định cho cache danh sách nhân viên theo trang, filter và từ khóa.
  */
-export const staffUsersQueryKey = ({ isActive, page, pageSize = 20, q }: StaffUsersQueryInput) =>
-  ['staff-users', page, pageSize, q, isActive] as const;
+export const staffUsersQueryKey = ({
+  departmentId,
+  isActive,
+  page,
+  pageSize = 20,
+  q,
+  roleCode,
+}: StaffUsersQueryInput) =>
+  ['staff-users', page, pageSize, q, departmentId, isActive, roleCode] as const;
 
 /**
  * Hook đọc danh sách nhân viên, truyền AbortSignal để hủy request khi query đổi.
  */
-export const useStaffUsers = ({ isActive, page, pageSize, q }: StaffUsersQueryInput) =>
+export const useStaffUsers = ({
+  departmentId,
+  isActive,
+  page,
+  pageSize,
+  q,
+  roleCode,
+}: StaffUsersQueryInput) =>
   useQuery({
-    queryFn: ({ signal }) => listStaffUsers({ isActive, page, pageSize, q, signal }),
-    queryKey: staffUsersQueryKey({ isActive, page, pageSize, q }),
+    queryFn: ({ signal }) =>
+      listStaffUsers({ departmentId, isActive, page, pageSize, q, roleCode, signal }),
+    queryKey: staffUsersQueryKey({ departmentId, isActive, page, pageSize, q, roleCode }),
   });
 
 /**
@@ -50,11 +65,8 @@ export const useUpdateStaffUser = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (input: {
-      ifUnmodifiedSince: string;
-      input: UpdateStaffInput;
-      userId: string;
-    }) => updateStaffUser(input),
+    mutationFn: (input: { ifUnmodifiedSince: string; input: UpdateStaffInput; userId: string }) =>
+      updateStaffUser(input),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['staff-users'] }),
   });
 };
@@ -62,7 +74,11 @@ export const useUpdateStaffUser = () => {
 /**
  * Mutation reset mật khẩu; caller tự quyết định cách hiển thị secret một lần.
  */
-export const useResetStaffPassword = () =>
-  useMutation({
+export const useResetStaffPassword = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
     mutationFn: resetStaffPassword,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['staff-users'] }),
   });
+};

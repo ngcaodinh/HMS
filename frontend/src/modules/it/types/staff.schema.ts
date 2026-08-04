@@ -81,8 +81,15 @@ export type UpdateStaffInput = {
   identityCardNumber?: string;
   isActive?: boolean;
   phoneNumber?: string;
+  reason?: string;
   roleCodes?: RoleCode[];
   username?: string;
+};
+
+export type StaffListFilter = {
+  departmentId?: DepartmentCode;
+  isActive?: boolean;
+  roleCode?: RoleCode;
 };
 
 export type StaffUser = z.infer<typeof staffUserSchema>;

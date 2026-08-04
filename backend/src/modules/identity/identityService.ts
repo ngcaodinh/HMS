@@ -96,12 +96,15 @@ export class IdentityService {
       resource: 'session',
     });
 
-    const sessionToken = this.dependencies.jwt.sign({
-      authVersion: user.authVersion,
-      userId: user.id,
-    }, {
-      expiresIn: input.remember ? this.dependencies.jwtRememberExpiresIn : undefined,
-    });
+    const sessionToken = this.dependencies.jwt.sign(
+      {
+        authVersion: user.authVersion,
+        userId: user.id,
+      },
+      {
+        expiresIn: input.remember ? this.dependencies.jwtRememberExpiresIn : undefined,
+      },
+    );
 
     return {
       accessToken: sessionToken.token,
@@ -231,6 +234,7 @@ export class IdentityService {
     page: number;
     pageSize: number;
     q?: string;
+    roleCode?: RoleCode;
     requestId: string;
   }) {
     await this.assertAction(input.actor, 'staff.read');
@@ -244,6 +248,7 @@ export class IdentityService {
       page: input.page,
       pageSize: input.pageSize,
       q: input.q,
+      roleCode: input.roleCode,
     });
 
     await this.dependencies.auditPort.record({
@@ -342,6 +347,7 @@ export class IdentityService {
       isActive?: boolean;
       phoneNumber?: string;
       roleCodes?: RoleCode[];
+      reason?: string;
       username?: string;
     };
     requestId: string;
@@ -375,16 +381,28 @@ export class IdentityService {
       });
     }
 
-    assertCanManageTargetRoles(input.actor, input.input.roleCodes ?? target.roleCodes);
+    const { reason, ...staffInput } = input.input;
+    const isStatusChanged =
+      staffInput.isActive !== undefined && staffInput.isActive !== target.isActive;
 
-    const departmentId = input.input.departmentId
-      ? await this.dependencies.departmentDirectory.resolveDepartmentId(input.input.departmentId)
+    if (isStatusChanged && !reason) {
+      throw new AppError({
+        code: 'STAFF_STATUS_REASON_REQUIRED',
+        message: 'Cần nhập lý do khi khóa hoặc mở khóa tài khoản',
+        status: 400,
+      });
+    }
+
+    assertCanManageTargetRoles(input.actor, staffInput.roleCodes ?? target.roleCodes);
+
+    const departmentId = staffInput.departmentId
+      ? await this.dependencies.departmentDirectory.resolveDepartmentId(staffInput.departmentId)
       : undefined;
 
     if (
       target.roleCodes.includes('admin') &&
       target.isActive &&
-      input.input.isActive === false &&
+      staffInput.isActive === false &&
       (await this.dependencies.repository.countActiveAdminsExcluding(target.id)) === 0
     ) {
       throw new AppError({
@@ -394,29 +412,35 @@ export class IdentityService {
       });
     }
 
+    if (target.id === input.actor.id && staffInput.isActive === false) {
+      throw new AppError({
+        code: 'SELF_LOCK_FORBIDDEN',
+        message: 'Không thể tự khóa tài khoản đang đăng nhập',
+        status: 422,
+      });
+    }
+
     const shouldRevokeTokens =
-      input.input.isActive !== undefined || input.input.roleCodes !== undefined;
+      staffInput.isActive !== undefined || staffInput.roleCodes !== undefined;
     const updateInput = {
       data: {
-        dateOfBirth: input.input.dateOfBirth
-          ? toDateOnly(input.input.dateOfBirth)
-          : undefined,
+        dateOfBirth: staffInput.dateOfBirth ? toDateOnly(staffInput.dateOfBirth) : undefined,
         departmentId,
-        fullName: input.input.fullName,
-        gender: input.input.gender,
-        identityCardNumber: input.input.identityCardNumber,
-        isActive: input.input.isActive,
-        phoneNumber: input.input.phoneNumber,
-        username: input.input.username,
+        fullName: staffInput.fullName,
+        gender: staffInput.gender,
+        identityCardNumber: staffInput.identityCardNumber,
+        isActive: staffInput.isActive,
+        phoneNumber: staffInput.phoneNumber,
+        username: staffInput.username,
         ...(shouldRevokeTokens ? { authVersion: { increment: 1 } } : {}),
       },
       userId: target.id,
     };
-    const updated = input.input.roleCodes
+    const updated = staffInput.roleCodes
       ? await this.dependencies.repository.updateStaffUserWithRoles({
           ...updateInput,
           assignedBy: input.actor.id,
-          roleCodes: input.input.roleCodes,
+          roleCodes: staffInput.roleCodes,
         })
       : await this.dependencies.repository.updateStaffUser(updateInput);
 
@@ -431,7 +455,8 @@ export class IdentityService {
     await this.dependencies.auditPort.record({
       action: 'staff.update',
       actorId: input.actor.id,
-      changedFields: Object.keys(input.input),
+      changedFields: [...Object.keys(staffInput), ...(isStatusChanged ? ['reasonHash'] : [])],
+      reference: isStatusChanged ? createAuditHash(reason as string) : undefined,
       requestId: input.requestId,
       resource: 'staff-user',
       resourceId: target.id,

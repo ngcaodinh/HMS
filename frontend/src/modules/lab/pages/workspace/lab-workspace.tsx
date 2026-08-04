@@ -14,10 +14,19 @@ import { usePendingLabTests } from '../../services/lab-test-api';
 import { labWorkspaceStyles as styles } from './lab-workspace.styles';
 
 const SECTION_COPY: Record<LabScreen, { subtitle: string; title: string }> = {
-  queue: { title: 'Danh sách chỉ định xét nghiệm', subtitle: 'Danh sách phiếu xét nghiệm đã được bác sĩ chỉ định' },
-  'result-entry': { title: 'Nhập kết quả xét nghiệm', subtitle: 'Chọn phiếu chờ kết quả để nhập chỉ số và ký xác nhận' },
+  queue: {
+    title: 'Danh sách chỉ định xét nghiệm',
+    subtitle: 'Danh sách phiếu xét nghiệm đã được bác sĩ chỉ định',
+  },
+  'result-entry': {
+    title: 'Nhập kết quả xét nghiệm',
+    subtitle: 'Chọn phiếu chờ kết quả để nhập chỉ số và ký xác nhận',
+  },
   history: { title: 'Tra cứu lịch sử', subtitle: 'Tra cứu các phiếu xét nghiệm đã có kết quả' },
-  config: { title: 'Thống kê hoạt động & cấu hình tham chiếu', subtitle: 'Theo dõi hoạt động khoa xét nghiệm và quản lý trị số tham chiếu' },
+  config: {
+    title: 'Thống kê hoạt động & cấu hình tham chiếu',
+    subtitle: 'Theo dõi hoạt động khoa xét nghiệm và quản lý trị số tham chiếu',
+  },
 };
 
 export function LabWorkspacePage() {
@@ -25,13 +34,22 @@ export function LabWorkspacePage() {
   const logout = useLogout();
   const isAuthed = Boolean(principal) && !isAuthError;
 
-  const [screen, setScreen] = useState<LabScreen>('queue');
+  const [screen, setScreen] = useState<LabScreen | null>(null);
   const [selectedLabTestId, setSelectedLabTestId] = useState<string | null>(null);
   const [keyword, setKeyword] = useState('');
   const [filterTab, setFilterTab] = useState<QueueFilterTab>('all');
 
-  const { data: queueData, isLoading: isQueueLoading } = usePendingLabTests({});
-  const { data: pendingCountData } = usePendingLabTests({ status: 'ordered' });
+  const isAdmin = principal?.roleCodes.includes('admin') ?? false;
+  const activeScreen = screen ?? (isAdmin ? 'config' : 'queue');
+  const queryEnabled = Boolean(principal) && !isAdmin;
+  const { data: queueData, isLoading: isQueueLoading } = usePendingLabTests(
+    {},
+    { enabled: queryEnabled },
+  );
+  const { data: pendingCountData } = usePendingLabTests(
+    { status: 'ordered' },
+    { enabled: queryEnabled },
+  );
 
   if (isAuthLoading || isAuthError) {
     return (
@@ -44,22 +62,23 @@ export function LabWorkspacePage() {
   }
 
   const technicianName = principal?.fullName ?? 'Kỹ thuật viên';
-  const copy = SECTION_COPY[screen];
+  const copy = SECTION_COPY[activeScreen];
 
   return (
     <main className={`${styles.page} font-sans`}>
       <Sidebar
+        isAdmin={isAdmin}
         onChangeScreen={(next) => {
           setScreen(next);
           if (next !== 'result-entry') setSelectedLabTestId(null);
         }}
         onLogout={logout}
         pendingCount={pendingCountData?.pagination.totalItems ?? 0}
-        screen={screen}
+        screen={activeScreen}
         technicianName={technicianName}
       />
       <section className={styles.workspace}>
-        <Topbar screen={screen} />
+        <Topbar screen={activeScreen} />
 
         <div className={styles.body}>
           <div className={styles.sectionHeading}>
@@ -67,7 +86,7 @@ export function LabWorkspacePage() {
             <p className={styles.sectionSubtitle}>{copy.subtitle}</p>
           </div>
 
-          {screen === 'queue' && (
+          {activeScreen === 'queue' && (
             <QueueList
               filterTab={filterTab}
               isLoading={isQueueLoading}
@@ -83,13 +102,16 @@ export function LabWorkspacePage() {
             />
           )}
 
-          {screen === 'result-entry' && (
-            <ResultEntryScreen onSelect={setSelectedLabTestId} selectedLabTestId={selectedLabTestId} />
+          {activeScreen === 'result-entry' && (
+            <ResultEntryScreen
+              onSelect={setSelectedLabTestId}
+              selectedLabTestId={selectedLabTestId}
+            />
           )}
 
-          {screen === 'history' && <HistoryScreen />}
+          {activeScreen === 'history' && <HistoryScreen />}
 
-          {screen === 'config' && <ReferenceRangeConfig />}
+          {activeScreen === 'config' && <ReferenceRangeConfig canManage={isAdmin} />}
         </div>
         <footer className={styles.footer}>© 2026 HMS-VN Solution. All rights reserved.</footer>
       </section>

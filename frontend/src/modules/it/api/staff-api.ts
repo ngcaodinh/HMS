@@ -9,6 +9,7 @@ import {
   type CreateStaffInput,
   type CreateStaffResult,
   type StaffList,
+  type StaffListFilter,
   type StaffUser,
   type UpdateStaffInput,
 } from '../types/staff.schema';
@@ -34,25 +35,29 @@ const parseApiData = <T>(schema: z.ZodType<T>, raw: unknown): T => {
  * Lấy danh sách nhân viên và parse response bằng Zod trước khi vào UI.
  */
 export const listStaffUsers = async ({
+  departmentId,
   isActive,
   page,
   pageSize = 20,
   q,
+  roleCode,
   signal,
 }: {
-  isActive?: boolean;
-  page: number;
-  pageSize?: number;
-  q: string;
   signal?: AbortSignal;
-}): Promise<StaffList> => {
+} & StaffListFilter & {
+    page: number;
+    pageSize?: number;
+    q: string;
+  }): Promise<StaffList> => {
   const params = new URLSearchParams({
     page: String(page),
     pageSize: String(pageSize),
   });
 
   if (isActive !== undefined) params.set('isActive', String(isActive));
+  if (departmentId) params.set('departmentId', departmentId);
   if (q.trim()) params.set('q', q.trim());
+  if (roleCode) params.set('roleCode', roleCode);
 
   const raw = await apiClient<unknown>(`/api/staff-users?${params.toString()}`, { signal });
   return parseApiData(staffListSchema, raw);

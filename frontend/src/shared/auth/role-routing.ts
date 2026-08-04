@@ -37,15 +37,14 @@ const staffPathRules: StaffPathRule[] = [
   { pathPrefixes: ['/accounting'], roleCodes: ['accountant'] },
   { pathPrefixes: ['/doctor'], roleCodes: ['doctor'] },
   { pathPrefixes: ['/nurse'], roleCodes: ['nurse'] },
-  { pathPrefixes: ['/lab-technician', '/lab'], roleCodes: ['lab_tech'] },
+  { pathPrefixes: ['/lab-technician'], roleCodes: ['lab_tech'] },
+  { pathPrefixes: ['/lab'], roleCodes: ['lab_tech', 'admin'] },
   { pathPrefixes: ['/pharmacy'], roleCodes: ['pharmacist'] },
 ];
 
 const publicPathPrefixes = ['/', '/login', '/kiosk', '/queue-display'];
 
-const supportedRoleCodes = new Set<RoleCode>(
-  roleHomeRules.flatMap((rule) => rule.roleCodes),
-);
+const supportedRoleCodes = new Set<RoleCode>(roleHomeRules.flatMap((rule) => rule.roleCodes));
 
 const normalizePathname = (pathname: string) => {
   if (!pathname.startsWith('/')) return `/${pathname}`;
@@ -60,8 +59,9 @@ const matchesPathPrefix = (pathname: string, prefix: string) =>
 export const normalizeRoleCodes = (roleCodes: unknown): RoleCode[] => {
   if (!Array.isArray(roleCodes)) return [];
 
-  return roleCodes.filter((roleCode): roleCode is RoleCode =>
-    typeof roleCode === 'string' && supportedRoleCodes.has(roleCode as RoleCode),
+  return roleCodes.filter(
+    (roleCode): roleCode is RoleCode =>
+      typeof roleCode === 'string' && supportedRoleCodes.has(roleCode as RoleCode),
   );
 };
 
@@ -80,9 +80,7 @@ export const isPublicPath = (pathname: string): boolean => {
   const normalizedPathname = normalizePathname(pathname);
 
   return publicPathPrefixes.some((prefix) =>
-    prefix === '/'
-      ? normalizedPathname === '/'
-      : matchesPathPrefix(normalizedPathname, prefix),
+    prefix === '/' ? normalizedPathname === '/' : matchesPathPrefix(normalizedPathname, prefix),
   );
 };
 
@@ -96,10 +94,7 @@ export const isStaffPath = (pathname: string): boolean => {
 };
 
 // Kiểm tra principal đã đăng nhập có được mở URL staff theo role hay không.
-export const canAccessStaffPath = (
-  pathname: string,
-  roleCodes: readonly string[],
-): boolean => {
+export const canAccessStaffPath = (pathname: string, roleCodes: readonly string[]): boolean => {
   const normalizedPathname = normalizePathname(pathname);
   const matchedRule = staffPathRules.find((rule) =>
     rule.pathPrefixes.some((prefix) => matchesPathPrefix(normalizedPathname, prefix)),

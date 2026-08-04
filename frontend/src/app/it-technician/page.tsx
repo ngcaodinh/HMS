@@ -18,7 +18,7 @@ export default async function ItTechnicianPage() {
   if (response.status === 401) redirect('/login');
 
   const payload = await response.json();
-  const roleCodes = payload?.data?.roleCodes ?? [];
+  const { id = '', roleCodes = [] } = payload?.data ?? {};
   const canManageStaff = roleCodes.includes('it_tech') || roleCodes.includes('admin');
 
   if (!canManageStaff) {
@@ -35,5 +35,5 @@ export default async function ItTechnicianPage() {
     );
   }
 
-  return <ItTechnicianWorkspace principal={{ roleCodes }} />;
+  return <ItTechnicianWorkspace principal={{ id, roleCodes }} />;
 }

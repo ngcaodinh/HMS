@@ -137,6 +137,33 @@ describe('createStaffSchema', () => {
     }
   });
 
+  it('accepts the valid 087 mobile prefix', () => {
+    expect(
+      createStaffSchema.parse({
+        ...validCreateStaffInput,
+        phoneNumber: '0871234567',
+      }).phoneNumber,
+    ).toBe('0871234567');
+  });
+
+  it('rejects staff younger than 18 years old', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-25T08:00:00.000Z'));
+
+    const result = createStaffSchema.safeParse({
+      ...validCreateStaffInput,
+      dateOfBirth: '2008-07-26',
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.at(-1)).toMatchObject({
+        message: 'Nhân viên phải đủ 18 tuổi',
+        path: ['dateOfBirth'],
+      });
+    }
+  });
+
   it('enforces a single role code from the canonical RBAC catalog', () => {
     expect(
       createStaffSchema.safeParse({
@@ -164,6 +191,7 @@ describe('updateStaffSchema', () => {
         identityCardNumber: '001199200003',
         isActive: false,
         phoneNumber: '0907654321',
+        reason: 'Khóa theo yêu cầu hỗ trợ đã xác minh',
         roleCodes: ['lab_tech'],
         username: 'lab.tech.updated',
       }),
@@ -175,6 +203,7 @@ describe('updateStaffSchema', () => {
       identityCardNumber: '001199200003',
       isActive: false,
       phoneNumber: '0907654321',
+      reason: 'Khóa theo yêu cầu hỗ trợ đã xác minh',
       roleCodes: ['lab_tech'],
       username: 'lab.tech.updated',
     });
@@ -211,6 +240,7 @@ describe('updateStaffSchema', () => {
     if (!result.success) {
       expect(result.error.issues.map((issue) => issue.path.join('.')).sort()).toEqual([
         'dateOfBirth',
+        'dateOfBirth',
         'gender',
         'identityCardNumber',
         'username',
@@ -244,6 +274,7 @@ describe('listStaffSchema', () => {
         page: '2',
         pageSize: '50',
         q: '  nurse  ',
+        roleCode: 'nurse',
       }),
     ).toEqual({
       departmentId: 'it',
@@ -251,6 +282,7 @@ describe('listStaffSchema', () => {
       page: 2,
       pageSize: 50,
       q: 'nurse',
+      roleCode: 'nurse',
     });
   });
 });

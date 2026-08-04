@@ -62,6 +62,14 @@ export function findLabTestById(labTestId: string) {
 
 export type LabTestWithDetails = NonNullable<Awaited<ReturnType<typeof findLabTestById>>>;
 
+export function findLabTestTypeById(labTestTypeId: string) {
+  return prisma.labTestType.findUnique({ where: { id: labTestTypeId } });
+}
+
+export function findReferenceRangeById(referenceRangeId: string) {
+  return prisma.labReferenceRange.findUnique({ where: { id: referenceRangeId } });
+}
+
 export function findAttachmentsForLabTest(labTestId: string) {
   return prisma.attachment.findMany({
     where: { ownerType: 'lab_test', ownerId: labTestId },
@@ -73,11 +81,23 @@ export function findAttachmentById(attachmentId: string) {
   return prisma.attachment.findUnique({ where: { id: attachmentId } });
 }
 
+/**
+ * Lấy trạng thái hoạt động và role của user được gán đọc kết quả GPB.
+ * Trả về null khi userId không tồn tại để service phân biệt lỗi 404 với sai role 422.
+ */
+export function findUserForPathology(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { isActive: true, permissions: { select: { roleCode: true } } },
+  });
+}
+
 class LabTestAlreadyResultedError extends Error {}
 
 interface RecordLabResultParams {
   labTestId: string;
-  resultTableKey: 'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
+  resultTableKey:
+    'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
   structuredResult: Record<string, unknown>;
   resultedBy: string;
   signedBy: string;
@@ -150,7 +170,10 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
       });
       if (updated.count !== 1) throw new LabTestAlreadyResultedError();
 
-      return tx.labTest.findUniqueOrThrow({ where: { id: params.labTestId }, include: detailInclude });
+      return tx.labTest.findUniqueOrThrow({
+        where: { id: params.labTestId },
+        include: detailInclude,
+      });
     });
   } catch (error) {
     if (error instanceof LabTestAlreadyResultedError) return null;
@@ -159,10 +182,17 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
 }
 
 /** Only ever touches `xn_mo_benh_hoc` — never writes `lab_tests.status`/`resultedAt` (Gate G4). */
-export function savePathologyWorkupDraftTx(labTestId: string, structuredResult: Record<string, unknown>) {
+export function savePathologyWorkupDraftTx(
+  labTestId: string,
+  structuredResult: Record<string, unknown>,
+) {
   return prisma.xnMoBenhHoc.upsert({
     where: { labTestId },
-    create: { id: randomUUID(), labTestId, ...structuredResult } as Prisma.XnMoBenhHocUncheckedCreateInput,
+    create: {
+      id: randomUUID(),
+      labTestId,
+      ...structuredResult,
+    } as Prisma.XnMoBenhHocUncheckedCreateInput,
     update: structuredResult as Prisma.XnMoBenhHocUncheckedUpdateInput,
   });
 }
@@ -184,7 +214,12 @@ export async function receiveSpecimenTx(labTestId: string) {
   return prisma.labTest.findUniqueOrThrow({ where: { id: labTestId }, include: detailInclude });
 }
 
-export function listReferenceRanges(filters: { labTestTypeId?: string; keyword?: string; page: number; pageSize: number }) {
+export function listReferenceRanges(filters: {
+  labTestTypeId?: string;
+  keyword?: string;
+  page: number;
+  pageSize: number;
+}) {
   const where: Prisma.LabReferenceRangeWhereInput = {
     isActive: true,
     ...(filters.labTestTypeId ? { labTestTypeId: filters.labTestTypeId } : {}),
@@ -210,14 +245,23 @@ export function createReferenceRange(data: Prisma.LabReferenceRangeUncheckedCrea
   return prisma.labReferenceRange.create({ data, include: { labTestType: true } });
 }
 
-export async function updateReferenceRangeDetail(id: string, data: Prisma.LabReferenceRangeUncheckedUpdateInput) {
+export async function updateReferenceRangeDetail(
+  id: string,
+  data: Prisma.LabReferenceRangeUncheckedUpdateInput,
+) {
   const result = await prisma.labReferenceRange.updateMany({ where: { id }, data });
   if (result.count !== 1) return null;
-  return prisma.labReferenceRange.findUniqueOrThrow({ where: { id }, include: { labTestType: true } });
+  return prisma.labReferenceRange.findUniqueOrThrow({
+    where: { id },
+    include: { labTestType: true },
+  });
 }
 
 export async function softDeleteReferenceRange(id: string) {
-  const result = await prisma.labReferenceRange.updateMany({ where: { id }, data: { isActive: false } });
+  const result = await prisma.labReferenceRange.updateMany({
+    where: { id },
+    data: { isActive: false },
+  });
   return result.count === 1;
 }
 
