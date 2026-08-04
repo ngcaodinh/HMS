@@ -18,6 +18,7 @@ type ApiErrorBody = {
   details?: ApiErrorDetail[];
   fields?: FieldErrors;
   message?: string;
+  retryAfterSeconds?: number;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -127,6 +128,10 @@ export const apiClient = async <T>(path: string, options: RequestOptions = {}): 
       code: error?.code ?? 'REQUEST_FAILED',
       fields: normalizeErrorFields(error),
       message: error?.message ?? 'Yêu cầu không thành công',
+      retryAfterSeconds:
+        typeof error?.retryAfterSeconds === 'number' && Number.isInteger(error.retryAfterSeconds)
+          ? Math.max(0, error.retryAfterSeconds)
+          : undefined,
       status: response.status,
     });
   }

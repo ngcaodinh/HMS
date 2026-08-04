@@ -1,3 +1,4 @@
+import { config } from '../../config/unifiedConfig';
 import { prisma } from '../../core/database/prismaClient';
 import { PrismaIdentityRepository } from './IdentityRepository';
 import { bcryptPort } from './bcryptPort';
@@ -17,6 +18,7 @@ export const identityService = new IdentityService({
   clock: () => new Date(),
   departmentDirectory: departmentDirectoryPort,
   jwt: jwtPort,
+  jwtRememberExpiresIn: config.auth.jwtRememberExpiresIn,
   randomPassword: generateTemporaryPassword,
   repository: identityRepository,
 });

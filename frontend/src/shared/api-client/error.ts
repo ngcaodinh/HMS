@@ -6,22 +6,26 @@ export type FieldErrors = Record<string, string[]>;
 export class ApiError extends Error {
   readonly code: string;
   readonly fields?: FieldErrors;
+  readonly retryAfterSeconds?: number;
   readonly status: number;
 
   constructor({
     code,
     fields,
     message,
+    retryAfterSeconds,
     status,
   }: {
     code: string;
     fields?: FieldErrors;
     message: string;
+    retryAfterSeconds?: number;
     status: number;
   }) {
     super(message);
     this.code = code;
     this.fields = fields;
+    this.retryAfterSeconds = retryAfterSeconds;
     this.status = status;
   }
 

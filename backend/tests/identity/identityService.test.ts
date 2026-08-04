@@ -188,13 +188,17 @@ const createService = (users: StaffUserRecord[], overrides: CreateServiceOverrid
     clock: () => now,
     departmentDirectory: overrides.departmentDirectory ?? departmentDirectory,
     jwt: {
-      sign: () => 'signed.jwt',
+      sign: () => ({
+        expiresAt: '2026-07-25T08:00:00.000Z',
+        token: 'signed.jwt',
+      }),
       verify: () => ({
         authVersion: 1,
         userId: '11111111-1111-4111-8111-111111111111',
       }),
       ...overrides.jwt,
     },
+    jwtRememberExpiresIn: '30d',
     randomPassword: overrides.randomPassword ?? (() => 'Tmp#20260724'),
     repository: createRepository(users, overrides.repository),
   });
@@ -275,6 +279,35 @@ describe('IdentityService staff policy', () => {
     ).rejects.toMatchObject({
       code: 'USER_INACTIVE',
       status: 403,
+    });
+  });
+
+  it('uses the remember expiry option and returns the token expiration', async () => {
+    let signedOptions: { expiresIn?: string } | undefined;
+    const service = createService([createUser()], {
+      jwt: {
+        sign: (_payload, options) => {
+          signedOptions = options;
+
+          return {
+            expiresAt: '2026-08-04T08:00:00.000Z',
+            token: 'remembered.jwt',
+          };
+        },
+      },
+    });
+
+    const result = await service.createSession({
+      password: 'correct-password',
+      remember: true,
+      requestId: 'req-login-remember',
+      username: 'it.tech.dev',
+    });
+
+    expect(signedOptions?.expiresIn).toBe('30d');
+    expect(result).toMatchObject({
+      accessToken: 'remembered.jwt',
+      expiresAt: '2026-08-04T08:00:00.000Z',
     });
   });
 

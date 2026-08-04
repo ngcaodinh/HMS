@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import {
   assertSameOrigin,
   forbiddenOrigin,
+  getSessionMaxAge,
   setSessionCookie,
 } from '@/shared/auth/backend';
 import { buildBackendApiV1Url } from '@/shared/auth/backend-url';
@@ -27,6 +28,32 @@ export async function POST(request: Request) {
   const payload = await response.json();
 
   if (!response.ok) {
+    const retryAfterHeader = response.headers.get('retry-after');
+    const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : NaN;
+
+    if (
+      response.status === 429 &&
+      Number.isInteger(retryAfterSeconds) &&
+      retryAfterSeconds >= 0 &&
+      payload &&
+      typeof payload === 'object' &&
+      'error' in payload &&
+      payload.error &&
+      typeof payload.error === 'object'
+    ) {
+      const nextPayload = {
+        ...payload,
+        error: {
+          ...payload.error,
+          retryAfterSeconds,
+        },
+      };
+      const nextResponse = NextResponse.json(nextPayload, { status: response.status });
+      nextResponse.headers.set('Retry-After', String(retryAfterSeconds));
+
+      return nextResponse;
+    }
+
     return NextResponse.json(payload, { status: response.status });
   }
 
@@ -38,6 +65,6 @@ export async function POST(request: Request) {
     },
   });
 
-  setSessionCookie(nextResponse, payload.data.accessToken);
+  setSessionCookie(nextResponse, payload.data.accessToken, getSessionMaxAge(payload.data.expiresAt));
   return nextResponse;
 }

@@ -1,10 +1,16 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
+import {
+  usernameFormatPattern,
+  usernameMaxLength,
+  usernameMinLength,
+} from '@/modules/auth/constants/login-validation';
+import { LoginSuccessOverlay } from '@/modules/auth/components/login-success-overlay';
 import { getLoginErrorMessage } from '@/modules/auth/utils/login-error';
-import { apiClient } from '@/shared/api-client';
+import { apiClient, ApiError } from '@/shared/api-client';
 
 type IconProps = {
   className?: string;
@@ -13,9 +19,31 @@ type IconProps = {
 type LoginResponse = {
   homePath: string | null;
   principal: {
+    fullName: string;
     mustChangePassword: boolean;
     roleCodes: string[];
   };
+};
+
+type LoginFieldErrors = {
+  password?: string;
+  username?: string;
+};
+
+type LoginFormProps = {
+  initialReason?: string;
+};
+
+const rememberedUsernameStorageKey = 'hms.rememberedUsername';
+
+/** Lưu hoặc xóa username đã nhớ; tuyệt đối không lưu password hay token vào localStorage. */
+const persistRememberedUsername = (username: string, shouldRemember: boolean) => {
+  if (shouldRemember) {
+    window.localStorage.setItem(rememberedUsernameStorageKey, username);
+    return;
+  }
+
+  window.localStorage.removeItem(rememberedUsernameStorageKey);
 };
 
 function UserIcon({ className }: IconProps) {
@@ -120,29 +148,83 @@ function HeadsetIcon({ className }: IconProps) {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ initialReason }: LoginFormProps) {
   const router = useRouter();
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCapsLockOn, setIsCapsLockOn] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [username, setUsername] = useState('');
+  const [retryAfterSeconds, setRetryAfterSeconds] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [successState, setSuccessState] = useState<{
+    fullName: string;
+    mustChangePassword: boolean;
+    nextPath: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const storedUsername = window.localStorage.getItem(rememberedUsernameStorageKey);
+    if (!storedUsername) return;
+
+    setUsername(storedUsername);
+    setRemember(true);
+  }, []);
+
+  useEffect(() => {
+    if (retryAfterSeconds <= 0) return undefined;
+
+    const timer = window.setInterval(() => {
+      setRetryAfterSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [retryAfterSeconds]);
+
+  useEffect(() => {
+    if (!successState) return undefined;
+
+    const timer = window.setTimeout(() => router.replace(successState.nextPath), 900);
+
+    return () => window.clearTimeout(timer);
+  }, [router, successState]);
 
   /**
    * Xử lý gửi form đăng nhập qua BFF.
-   * Kiểm tra thông tin đầu vào (Tên đăng nhập và Mật khẩu) trước khi gọi API authentication.
+   * Kiểm tra đầu vào, chặn gửi trùng, truyền lựa chọn remember và lưu username sau khi thành công.
    *
    * @param event - Sự kiện submit form đăng nhập của người dùng
    */
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting || retryAfterSeconds > 0) return;
+
     setError('');
+    setFieldErrors({});
 
     const formData = new FormData(event.currentTarget);
     const username = String(formData.get('username') ?? '').trim();
     const password = String(formData.get('password') ?? '');
+    const nextFieldErrors: LoginFieldErrors = {};
 
-    if (!username || !password) {
-      setError('Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu');
+    if (!username) {
+      nextFieldErrors.username = 'Vui lòng nhập tên đăng nhập';
+    } else if (
+      username.length < usernameMinLength ||
+      username.length > usernameMaxLength ||
+      !usernameFormatPattern.test(username)
+    ) {
+      nextFieldErrors.username = 'Tên đăng nhập chỉ gồm chữ, số, dấu chấm hoặc gạch dưới';
+    }
+
+    if (!password) {
+      nextFieldErrors.password = 'Vui lòng nhập mật khẩu';
+    }
+
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
       return;
     }
 
@@ -152,23 +234,37 @@ export function LoginForm() {
       const result = await apiClient<LoginResponse>('/api/auth/login', {
         body: {
           password,
+          remember,
           username,
         },
         method: 'POST',
       });
 
       if (result.principal.mustChangePassword) {
-        router.replace('/change-password');
+        setSuccessState({
+          fullName: result.principal.fullName,
+          mustChangePassword: true,
+          nextPath: '/change-password',
+        });
+        persistRememberedUsername(username, remember);
         return;
       }
 
       if (result.homePath) {
-        router.replace(result.homePath);
+        setSuccessState({
+          fullName: result.principal.fullName,
+          mustChangePassword: false,
+          nextPath: result.homePath,
+        });
+        persistRememberedUsername(username, remember);
         return;
       }
 
       setError('Tài khoản chưa được cấu hình trang làm việc phù hợp');
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 429) {
+        setRetryAfterSeconds(caught.retryAfterSeconds ?? 0);
+      }
       setError(getLoginErrorMessage(caught));
     } finally {
       setIsSubmitting(false);
@@ -188,15 +284,29 @@ export function LoginForm() {
           <div className="relative">
             <UserIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]" />
             <input
+              aria-describedby={fieldErrors.username ? 'username-error' : undefined}
+              aria-invalid={Boolean(fieldErrors.username)}
               autoComplete="username"
-              className="h-12 w-full rounded-xl border border-[#bfc7d2] bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
+              autoFocus
+              className={`h-12 w-full rounded-xl border bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:ring-4 ${
+                fieldErrors.username
+                  ? 'border-[#ba1a1a] focus:border-[#ba1a1a] focus:ring-[#ba1a1a]/10'
+                  : 'border-[#bfc7d2] focus:border-[#006096] focus:ring-[#006096]/10'
+              }`}
               id="username"
               name="username"
+              onChange={(event) => setUsername(event.target.value)}
               placeholder="Mã nhân viên hoặc tên đăng nhập"
               required
               type="text"
+              value={username}
             />
           </div>
+          {fieldErrors.username ? (
+            <p className="mt-1.5 pl-1 text-xs text-[#ba1a1a]" id="username-error">
+              {fieldErrors.username}
+            </p>
+          ) : null}
         </div>
 
         <div>
@@ -209,10 +319,17 @@ export function LoginForm() {
           <div className="relative">
             <LockIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]" />
             <input
+              aria-describedby={fieldErrors.password ? 'password-error' : undefined}
+              aria-invalid={Boolean(fieldErrors.password)}
               autoComplete="current-password"
-              className="h-12 w-full rounded-xl border border-[#bfc7d2] bg-white px-12 text-sm text-[#171c1f] outline-none transition placeholder:text-[#bfc7d2] focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
+              className={`h-12 w-full rounded-xl border bg-white px-12 text-sm text-[#171c1f] outline-none transition focus:ring-4 ${
+                fieldErrors.password
+                  ? 'border-[#ba1a1a] focus:border-[#ba1a1a] focus:ring-[#ba1a1a]/10'
+                  : 'border-[#bfc7d2] focus:border-[#006096] focus:ring-[#006096]/10'
+              }`}
               id="password"
               name="password"
+              onKeyUp={(event) => setIsCapsLockOn(event.getModifierState('CapsLock'))}
               placeholder="Nhập mật khẩu"
               required
               type={showPassword ? 'text' : 'password'}
@@ -226,16 +343,31 @@ export function LoginForm() {
               <EyeIcon className="h-5 w-5" />
             </button>
           </div>
+          {isCapsLockOn ? (
+            <p className="mt-1.5 pl-1 text-xs text-[#a05c00]" role="status">
+              Caps Lock đang bật
+            </p>
+          ) : null}
+          {fieldErrors.password ? (
+            <p className="mt-1.5 pl-1 text-xs text-[#ba1a1a]" id="password-error">
+              {fieldErrors.password}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex items-center justify-between gap-4 py-1">
           <label className="flex items-center gap-2 text-[13px] text-[#3f4851]">
             <input
+              checked={remember}
               className="h-5 w-5 rounded-md border-[#bfc7d2] accent-[#006096]"
+              onChange={(event) => setRemember(event.target.checked)}
               name="remember"
               type="checkbox"
             />
-            Ghi nhớ đăng nhập
+            <span>
+              Ghi nhớ đăng nhập
+              <span className="block text-[10px] text-[#707882]">Không dùng trên máy dùng chung</span>
+            </span>
           </label>
           <button
             className="text-[13px] font-semibold text-[#006096] transition hover:text-[#004a75] focus:outline-none focus:ring-4 focus:ring-[#006096]/10"
@@ -246,6 +378,12 @@ export function LoginForm() {
           </button>
         </div>
 
+        {initialReason === 'session_expired' ? (
+          <p className="rounded-lg border border-[#9eefff] bg-[#effbff] px-3 py-2 text-sm text-[#005a7d]">
+            Phiên đăng nhập đã hết hạn hoặc bạn chưa đăng nhập. Vui lòng đăng nhập lại.
+          </p>
+        ) : null}
+
         {error ? (
           <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}
@@ -254,10 +392,14 @@ export function LoginForm() {
 
         <button
           className="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc] text-base font-bold text-white shadow-hms-button transition hover:brightness-110 focus:outline-none focus:ring-4 focus:ring-[#006096]/20 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
+          disabled={isSubmitting || retryAfterSeconds > 0}
           type="submit"
         >
-          {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
+          {isSubmitting
+            ? 'Đang đăng nhập...'
+            : retryAfterSeconds > 0
+              ? `Vui lòng thử lại sau ${retryAfterSeconds}s`
+              : 'Đăng nhập'}
           <ArrowRightIcon className="h-4 w-4" />
         </button>
       </form>
@@ -321,6 +463,13 @@ export function LoginForm() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {successState ? (
+        <LoginSuccessOverlay
+          fullName={successState.fullName}
+          mustChangePassword={successState.mustChangePassword}
+        />
       ) : null}
     </>
   );

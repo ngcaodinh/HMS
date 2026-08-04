@@ -11,6 +11,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(1),
   JWT_EXPIRES_IN: z.string().default('8h'),
+  JWT_REMEMBER_EXPIRES_IN: z.string().default('30d'),
   JWT_ISSUER: z.string().default('hms-vn'),
   JWT_AUDIENCE: z.string().default('hms-vn-staff'),
   IT_DEV_PASSWORD: z.string().default(''),
@@ -54,6 +55,7 @@ export const config = {
   auth: {
     jwtSecret: env.JWT_SECRET,
     jwtExpiresIn: env.JWT_EXPIRES_IN,
+    jwtRememberExpiresIn: env.JWT_REMEMBER_EXPIRES_IN,
     jwtIssuer: env.JWT_ISSUER,
     jwtAudience: env.JWT_AUDIENCE,
     itDevPassword: env.IT_DEV_PASSWORD,

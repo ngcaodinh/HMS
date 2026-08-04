@@ -16,14 +16,26 @@ export const getSessionToken = () => cookies().get(sessionCookieName)?.value;
  * Lưu JWT vào cookie bảo mật để BFF tự gắn Authorization khi gọi backend.
  * Nhận response Next.js và access token, side effect là set cookie httpOnly trên response.
  */
-export const setSessionCookie = (response: NextResponse, token: string) => {
+export const setSessionCookie = (response: NextResponse, token: string, maxAge: number) => {
   response.cookies.set(sessionCookieName, token, {
     httpOnly: true,
-    maxAge: 8 * 60 * 60,
+    maxAge: Math.max(0, Math.floor(maxAge)),
     path: '/',
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   });
+};
+
+/**
+ * Chuyển thời điểm hết hạn JWT thành thời lượng cookie; giá trị không hợp lệ sẽ fail closed.
+ */
+export const getSessionMaxAge = (expiresAt: unknown) => {
+  if (typeof expiresAt !== 'string') return 0;
+
+  const expiresAtMilliseconds = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresAtMilliseconds)) return 0;
+
+  return Math.max(0, Math.floor((expiresAtMilliseconds - Date.now()) / 1000));
 };
 
 /**
