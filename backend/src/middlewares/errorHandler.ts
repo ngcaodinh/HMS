@@ -13,8 +13,10 @@ export function errorHandler(
   error: unknown,
   req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ): void {
+  // Express nhận diện error middleware qua đủ bốn tham số; nhánh này luôn tự trả response.
+  void next;
   const requestId = req.requestId;
 
   if (error instanceof AppError) {
@@ -28,17 +30,17 @@ export function errorHandler(
   }
 
   if (error instanceof ZodError) {
-    sendError(
-      res,
-      400,
-      'VALIDATION_ERROR',
-      'Dữ liệu đầu vào không hợp lệ',
-      error.issues.map((issue) => ({
-        field: issue.path.join('.') || 'body',
-        rule: issue.code,
-      })),
-      requestId,
-    );
+    const details = error.issues.map((issue) => ({
+      field: issue.path.join('.') || 'body',
+      rule: issue.code,
+      message: issue.message,
+    }));
+    const message =
+      details.length === 1
+        ? (details[0]?.message ?? 'Dữ liệu đầu vào không hợp lệ')
+        : 'Dữ liệu đầu vào không hợp lệ';
+
+    sendError(res, 400, 'VALIDATION_ERROR', message, details, requestId);
     return;
   }
 

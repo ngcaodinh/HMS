@@ -131,13 +131,10 @@ export async function createReception(body: {
     address?: string | null;
     healthInsuranceCode?: string | null;
     healthInsuranceExpiryDate?: string | null;
-    privacyNoticeAccepted: true;
+    privacyNoticeAccepted: boolean;
   };
   chiefComplaint?: string;
 }): Promise<CreateReceptionResponse> {
-  const response = await apiClient.post<ApiSuccess<CreateReceptionResponse>>(
-    '/receptions',
-    body,
-  );
+  const response = await apiClient.post<ApiSuccess<CreateReceptionResponse>>('/receptions', body);
   return response.data.data;
 }

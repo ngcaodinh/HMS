@@ -6,7 +6,7 @@ export type ApiErrorBody = {
   error: {
     code: string;
     message: string;
-    details?: Array<{ field: string; rule: string }>;
+    details?: Array<{ field: string; rule: string; message?: string }>;
     requestId?: string;
   };
 };

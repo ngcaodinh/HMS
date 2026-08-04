@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { InputHTMLAttributes } from 'react';
 
 import { getApiErrorMessage } from '@/shared/api-client/api-client';
 import { AppToast } from '@/shared/components/app-toast';
@@ -14,8 +15,10 @@ import {
 } from '@/modules/queue/services/queue.api';
 import type { QueueTicketDto } from '@/modules/queue/types';
 import {
+  classifyPatientSearchQuery,
   emptyNewPatientForm,
   IDENTITY_CARD_REGEX,
+  isInsuranceExpired,
   MAX_QUEUE_CALL_ATTEMPTS,
   VN_MOBILE_PHONE_REGEX,
 } from '@/modules/reception/constants/reception.constants';
@@ -52,6 +55,10 @@ type FieldProps = {
   type?: string;
   value?: string;
   disabled?: boolean;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  min?: string;
+  max?: string;
+  maxLength?: number;
   onChange?: (value: string) => void;
 };
 
@@ -64,6 +71,23 @@ function getLegalDateString(reference: Date = new Date()): string {
     month: '2-digit',
     day: '2-digit',
   }).format(reference);
+}
+
+/** Kiểm tra chuỗi ngày có tồn tại trên lịch trước khi gửi dữ liệu tiếp nhận. */
+function isRealDateString(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
 }
 
 function formatTicketNumber(ticketNumber: number) {
@@ -385,16 +409,13 @@ function QueueTicketPanel({
     [],
   );
 
-  const setActiveSession = useCallback(
-    (ticket: QueueTicketDto | null, attemptCount = 1) => {
-      activeTicketRef.current = ticket;
-      onActiveTicketChangeRef.current(ticket);
-      const nextCount = ticket ? attemptCount : 0;
-      callAttemptCountRef.current = nextCount;
-      setCallAttemptCount(nextCount);
-    },
-    [],
-  );
+  const setActiveSession = useCallback((ticket: QueueTicketDto | null, attemptCount = 1) => {
+    activeTicketRef.current = ticket;
+    onActiveTicketChangeRef.current(ticket);
+    const nextCount = ticket ? attemptCount : 0;
+    callAttemptCountRef.current = nextCount;
+    setCallAttemptCount(nextCount);
+  }, []);
 
   const refreshLists = useCallback(async () => {
     const date = getLegalDateString();
@@ -683,6 +704,10 @@ function Field({
   type = 'text',
   value = '',
   disabled = false,
+  inputMode,
+  min,
+  max,
+  maxLength,
   onChange,
 }: FieldProps) {
   return (
@@ -693,6 +718,10 @@ function Field({
       <input
         className={styles.input}
         disabled={disabled}
+        inputMode={inputMode}
+        min={min}
+        max={max}
+        maxLength={maxLength}
         onChange={(event) => onChange?.(event.target.value)}
         placeholder={placeholder}
         type={type}
@@ -784,10 +813,16 @@ function PatientReceptionForm({
         identityCardNumber?: string;
       } = {};
 
-      if (/^\d{12}$/.test(q)) {
+      const queryKind = classifyPatientSearchQuery(q);
+      if (queryKind === 'identityCardNumber') {
         params.identityCardNumber = q;
-      } else if (/^\d{10}$/.test(q)) {
+      } else if (queryKind === 'phoneNumber') {
         params.phoneNumber = q;
+      } else if (queryKind === 'invalidNumeric') {
+        setFormError('Số điện thoại cần đúng 10 số, CCCD cần đúng 12 số');
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
       } else {
         params.fullName = q;
       }
@@ -828,8 +863,17 @@ function PatientReceptionForm({
     if (!form.fullName.trim()) {
       return 'Họ và tên là bắt buộc';
     }
+    if (form.fullName.trim().replace(/\s+/g, ' ').length > 255) {
+      return 'Họ và tên tối đa 255 ký tự';
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dateOfBirth)) {
       return 'Ngày sinh phải dạng YYYY-MM-DD';
+    }
+    if (!isRealDateString(form.dateOfBirth) || form.dateOfBirth < '1900-01-01') {
+      return 'Ngày sinh không hợp lệ';
+    }
+    if (form.dateOfBirth > getLegalDateString()) {
+      return 'Ngày sinh không được ở tương lai';
     }
     if (!form.privacyNoticeAccepted) {
       return 'Cần xác nhận thông báo bảo vệ dữ liệu cá nhân';
@@ -839,7 +883,7 @@ function PatientReceptionForm({
       if (!VN_MOBILE_PHONE_REGEX.test(phone)) {
         return 'Số điện thoại phải 10 số đầu di động Việt Nam';
       }
-    } else if (!noPhone || !form.phoneNumberUnavailableReason.trim()) {
+    } else if (!noPhone || form.phoneNumberUnavailableReason.trim().length < 3) {
       return 'Nhập SĐT hoặc tích không có SĐT và ghi lý do';
     }
     const cccd = form.identityCardNumber.trim();
@@ -874,7 +918,7 @@ function PatientReceptionForm({
         body.existingPatientId = existingPatientId;
       } else {
         body.newPatient = {
-          fullName: form.fullName.trim(),
+          fullName: form.fullName.trim().replace(/\s+/g, ' '),
           dateOfBirth: form.dateOfBirth,
           gender: form.gender,
           phoneNumber: noPhone ? null : form.phoneNumber.trim() || null,
@@ -885,7 +929,7 @@ function PatientReceptionForm({
           address: form.address.trim() || null,
           healthInsuranceCode: form.healthInsuranceCode.trim() || null,
           healthInsuranceExpiryDate: form.healthInsuranceExpiryDate.trim() || null,
-          privacyNoticeAccepted: true,
+          privacyNoticeAccepted: form.privacyNoticeAccepted,
         };
       }
 
@@ -905,6 +949,10 @@ function PatientReceptionForm({
 
   // Khóa field khi chưa có session số hoặc đang submit (không khóa vì status flicker).
   const fieldsDisabled = !canComplete || isSubmitting;
+  const shouldShowInsuranceExpiredWarning = isInsuranceExpired(
+    form.healthInsuranceExpiryDate,
+    getLegalDateString(),
+  );
 
   return (
     <section className={styles.formArea}>
@@ -947,6 +995,7 @@ function PatientReceptionForm({
               aria-label="Tìm kiếm bệnh nhân cũ"
               className={styles.input}
               disabled={fieldsDisabled}
+              maxLength={255}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Họ tên · Số điện thoại · CCCD..."
               value={searchQuery}
@@ -998,6 +1047,7 @@ function PatientReceptionForm({
               <Field
                 disabled={fieldsDisabled || Boolean(existingPatientId)}
                 label="Họ và tên"
+                maxLength={255}
                 onChange={(value) => updateForm('fullName', value)}
                 required
                 value={form.fullName}
@@ -1006,6 +1056,8 @@ function PatientReceptionForm({
             <Field
               disabled={fieldsDisabled || Boolean(existingPatientId)}
               label="Ngày sinh"
+              max={getLegalDateString()}
+              min="1900-01-01"
               onChange={(value) => updateForm('dateOfBirth', value)}
               placeholder="YYYY-MM-DD"
               required
@@ -1044,14 +1096,20 @@ function PatientReceptionForm({
             <Field
               disabled={fieldsDisabled || Boolean(existingPatientId)}
               label="Số CCCD"
-              onChange={(value) => updateForm('identityCardNumber', value)}
+              inputMode="numeric"
+              maxLength={12}
+              onChange={(value) =>
+                updateForm('identityCardNumber', value.replace(/\D/g, '').slice(0, 12))
+              }
               placeholder="12 chữ số"
               value={form.identityCardNumber}
             />
             <Field
               disabled={fieldsDisabled || noPhone || Boolean(existingPatientId)}
               label="Số điện thoại"
-              onChange={(value) => updateForm('phoneNumber', value)}
+              inputMode="numeric"
+              maxLength={10}
+              onChange={(value) => updateForm('phoneNumber', value.replace(/\D/g, '').slice(0, 10))}
               placeholder="09x xxxx xxxx"
               value={form.phoneNumber}
             />
@@ -1074,6 +1132,7 @@ function PatientReceptionForm({
                 <Field
                   disabled={fieldsDisabled || Boolean(existingPatientId)}
                   label="Lý do không có SĐT"
+                  maxLength={255}
                   onChange={(value) => updateForm('phoneNumberUnavailableReason', value)}
                   required
                   value={form.phoneNumberUnavailableReason}
@@ -1084,6 +1143,7 @@ function PatientReceptionForm({
               <Field
                 disabled={fieldsDisabled || Boolean(existingPatientId)}
                 label="Địa chỉ"
+                maxLength={500}
                 onChange={(value) => updateForm('address', value)}
                 value={form.address}
               />
@@ -1097,6 +1157,7 @@ function PatientReceptionForm({
             <Field
               disabled={fieldsDisabled || Boolean(existingPatientId)}
               label="Mã số thẻ BHYT"
+              maxLength={20}
               onChange={(value) => updateForm('healthInsuranceCode', value)}
               placeholder="XX XXXXXXXXX XXXX"
               value={form.healthInsuranceCode}
@@ -1109,6 +1170,12 @@ function PatientReceptionForm({
               value={form.healthInsuranceExpiryDate}
             />
           </div>
+          {shouldShowInsuranceExpiredWarning ? (
+            <p className="mt-3 rounded-lg bg-[#ffeccc] px-3 py-2 text-[11px] font-medium text-[#895500]">
+              Thẻ BHYT đã hết hạn — hệ thống sẽ tự động chuyển sang diện tự chi trả (không hưởng
+              BHYT).
+            </p>
+          ) : null}
         </div>
 
         <div className={styles.formCard}>
@@ -1135,6 +1202,7 @@ function PatientReceptionForm({
             <Field
               disabled={fieldsDisabled}
               label="Lý do khám"
+              maxLength={500}
               onChange={setChiefComplaint}
               value={chiefComplaint}
             />
@@ -1316,6 +1384,7 @@ function EmergencyWorkspace({
           <span className={styles.emergencyKicker}>2 · LÝ DO CẤP CỨU *</span>
           <textarea
             className={styles.textarea}
+            maxLength={500}
             onChange={(event) => setReason(event.target.value)}
             placeholder="Mô tả tình trạng cấp cứu (tối thiểu 10 ký tự)..."
             value={reason}
@@ -1342,9 +1411,8 @@ function EmergencyWorkspace({
         </button>
 
         <p className={styles.emergencyNote}>
-          <strong className="text-[#c62828]">Hệ thống sẽ tự động:</strong> Tạo tên tạm
-          &quot;Vô danh&quot;, bật cờ bypass, bệnh án isEmergency,{' '}
-          <strong>không</strong> lấy số hàng đợi.
+          <strong className="text-[#c62828]">Hệ thống sẽ tự động:</strong> Tạo tên tạm &quot;Vô
+          danh&quot;, bật cờ bypass, bệnh án isEmergency, <strong>không</strong> lấy số hàng đợi.
         </p>
       </div>
     </section>
