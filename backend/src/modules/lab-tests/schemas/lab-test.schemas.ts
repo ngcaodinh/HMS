@@ -31,6 +31,8 @@ const decimalRange = ({ label, max, min, precision, scale }: DecimalRangeOptions
     .union([z.string(), z.number()])
     .transform((value) => String(value).trim())
     .superRefine((value, context) => {
+      // Cho phép form gửi chuỗi rỗng; đây là field optional và sẽ được chuẩn hóa thành undefined.
+      if (value === '') return;
       if (!/^-?\d+(?:\.\d+)?$/.test(value)) {
         context.addIssue({ code: z.ZodIssueCode.custom, message: `${label} phải là số hợp lệ.` });
         return;
@@ -63,7 +65,8 @@ const decimalRange = ({ label, max, min, precision, scale }: DecimalRangeOptions
           message: `${label} phải nhỏ hơn hoặc bằng ${max}.`,
         });
       }
-    });
+    })
+    .transform((value) => (value === '' ? undefined : value));
 
 const cbcNonNegative = (label: string, precision: number, scale: number) =>
   decimalRange({ label, min: 0, precision, scale });

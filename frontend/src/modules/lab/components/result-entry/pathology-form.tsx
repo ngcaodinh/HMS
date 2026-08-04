@@ -72,6 +72,8 @@ export function PathologyForm({ errors, onChange, onFieldBlur, value }: Patholog
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold text-[#3f4851]">Ngày pha</span>
           <input
+            aria-describedby={errors.ngayPha ? 'ngayPha-error' : undefined}
+            aria-invalid={Boolean(errors.ngayPha)}
             className="h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
             onChange={(event) =>
               set(
@@ -79,9 +81,19 @@ export function PathologyForm({ errors, onChange, onFieldBlur, value }: Patholog
                 event.target.value ? new Date(event.target.value).toISOString() : undefined,
               )
             }
+            onBlur={() => onFieldBlur('ngayPha')}
             type="date"
             value={value.ngayPha ? value.ngayPha.slice(0, 10) : ''}
           />
+          {errors.ngayPha && (
+            <p
+              className="mt-1 text-[11px] font-medium text-[#ba1a1a]"
+              id="ngayPha-error"
+              role="alert"
+            >
+              {errors.ngayPha}
+            </p>
+          )}
         </label>
         <TextField
           label="Phương pháp nhuộm"
@@ -100,6 +112,8 @@ export function PathologyForm({ errors, onChange, onFieldBlur, value }: Patholog
             Ngày làm tiêu bản
           </span>
           <input
+            aria-describedby={errors.ngayLamTieuBan ? 'ngayLamTieuBan-error' : undefined}
+            aria-invalid={Boolean(errors.ngayLamTieuBan)}
             className="h-10 w-full rounded-md border border-[#bfc7d2] bg-[#f0f4f8] px-3 text-[13px] text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10"
             onChange={(event) =>
               set(
@@ -107,9 +121,19 @@ export function PathologyForm({ errors, onChange, onFieldBlur, value }: Patholog
                 event.target.value ? new Date(event.target.value).toISOString() : undefined,
               )
             }
+            onBlur={() => onFieldBlur('ngayLamTieuBan')}
             type="date"
             value={value.ngayLamTieuBan ? value.ngayLamTieuBan.slice(0, 10) : ''}
           />
+          {errors.ngayLamTieuBan && (
+            <p
+              className="mt-1 text-[11px] font-medium text-[#ba1a1a]"
+              id="ngayLamTieuBan-error"
+              role="alert"
+            >
+              {errors.ngayLamTieuBan}
+            </p>
+          )}
         </label>
         <TextField
           label="Nhuộm đặc biệt / IHC"

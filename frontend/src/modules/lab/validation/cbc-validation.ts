@@ -1,7 +1,7 @@
 import type { CbcResult } from '../types/lab-test.types';
 import { getDecimalFieldErrors, type DecimalRule } from './numeric-validation';
 
-const CBC_RULES: Record<string, DecimalRule> = {
+export const CBC_RULES: Record<string, DecimalRule> = {
   wbc: { label: 'WBC', min: 0, precision: 6, scale: 2 },
   neu: { label: 'NEU', max: 100, min: 0, precision: 5, scale: 2 },
   lym: { label: 'LYM', max: 100, min: 0, precision: 5, scale: 2 },

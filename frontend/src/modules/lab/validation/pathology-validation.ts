@@ -3,6 +3,12 @@ import type { PathologyResult } from '../types/lab-test.types';
 const ICD10_MORPHOLOGY_REGEX = /^[A-Z][0-9]{2}(\.[0-9]{1,2})?$/;
 const USER_ID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PATHOLOGY_USER_FIELDS = ['bacSiGiaiPhauBenh', 'nguoiPhaBenhPham', 'nguoiLamTieuBan'] as const;
+const PATHOLOGY_DATE_FIELDS = [
+  'thoiGianCoDinh',
+  'ngayPha',
+  'ngayLamTieuBan',
+  'ngayTraKetQua',
+] as const;
 
 /** Kiểm tra mã ICD-10, UUID nhân sự và điều kiện bắt buộc khi hoàn tất GPB. */
 export function getPathologyFieldErrors(value: PathologyResult): Record<string, string> {
@@ -28,8 +34,10 @@ export function getPathologyFieldErrors(value: PathologyResult): Record<string, 
     errors.soManh = 'Số mảnh phải là số nguyên dương.';
   }
 
-  if (value.ngayTraKetQua && Number.isNaN(new Date(value.ngayTraKetQua).getTime())) {
-    errors.ngayTraKetQua = 'Ngày trả kết quả không hợp lệ.';
+  for (const field of PATHOLOGY_DATE_FIELDS) {
+    if (value[field] && Number.isNaN(new Date(value[field]).getTime())) {
+      errors[field] = 'Ngày giờ không hợp lệ.';
+    }
   }
 
   if (value.trangThai === 'da_co_ket_qua') {

@@ -42,7 +42,7 @@ const BIO_CHEMISTRY_PRECISION: Record<string, [number, number]> = {
   kiemDu: [5, 2],
 };
 
-const BIO_CHEMISTRY_RULES: Record<string, DecimalRule> = Object.fromEntries(
+export const BIO_CHEMISTRY_RULES: Record<string, DecimalRule> = Object.fromEntries(
   Object.entries(BIO_CHEMISTRY_PRECISION).map(([field, [precision, scale]]) => [
     field,
     {

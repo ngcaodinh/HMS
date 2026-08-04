@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+import { AppToast } from '@/shared/components/app-toast';
 
 import { labWorkspaceStyles as styles } from '../pages/workspace/lab-workspace.styles';
 import {
@@ -106,7 +108,13 @@ function HourlyChart({ period }: { period: 'today' | 'week' | 'month' }) {
   );
 }
 
-function EditableRow({ row }: { row: ReferenceRangeRow }) {
+function EditableRow({
+  onNotify,
+  row,
+}: {
+  onNotify: (message: string) => void;
+  row: ReferenceRangeRow;
+}) {
   const [isEditing, setIsEditing] = useState(false);
   const [lowerBound, setLowerBound] = useState(row.lowerBound ?? '');
   const [upperBound, setUpperBound] = useState(row.upperBound ?? '');
@@ -114,6 +122,26 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const updateMutation = useUpdateReferenceRangeDetail();
   const deleteMutation = useDeleteReferenceRange();
+
+  function validateBounds(nextLowerBound: string, nextUpperBound: string) {
+    const lower = nextLowerBound.trim() ? Number(nextLowerBound) : undefined;
+    const upper = nextUpperBound.trim() ? Number(nextUpperBound) : undefined;
+    const nextErrors: Record<string, string> = {};
+    if (lower !== undefined && !Number.isFinite(lower))
+      nextErrors.lowerBound = 'Ngưỡng dưới phải là số hợp lệ.';
+    if (upper !== undefined && !Number.isFinite(upper))
+      nextErrors.upperBound = 'Ngưỡng trên phải là số hợp lệ.';
+    if (
+      lower !== undefined &&
+      upper !== undefined &&
+      Number.isFinite(lower) &&
+      Number.isFinite(upper) &&
+      lower >= upper
+    ) {
+      nextErrors.upperBound = 'Ngưỡng trên phải lớn hơn ngưỡng dưới.';
+    }
+    setErrors(nextErrors);
+  }
 
   function save() {
     const lower = lowerBound.trim() ? Number(lowerBound) : undefined;
@@ -141,7 +169,10 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
         upperBound: upperBound || undefined,
         unit: unit || undefined,
       },
-      { onSuccess: () => setIsEditing(false) },
+      {
+        onError: () => onNotify('Không thể cập nhật trị số tham chiếu.'),
+        onSuccess: () => setIsEditing(false),
+      },
     );
   }
 
@@ -172,7 +203,10 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
             <input
               aria-invalid={Boolean(errors.lowerBound)}
               className={styles.input}
-              onChange={(e) => setLowerBound(e.target.value)}
+              onChange={(e) => {
+                setLowerBound(e.target.value);
+                validateBounds(e.target.value, upperBound);
+              }}
               value={lowerBound}
             />
             <InlineError message={errors.lowerBound} />
@@ -187,7 +221,10 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
             <input
               aria-invalid={Boolean(errors.upperBound)}
               className={styles.input}
-              onChange={(e) => setUpperBound(e.target.value)}
+              onChange={(e) => {
+                setUpperBound(e.target.value);
+                validateBounds(lowerBound, e.target.value);
+              }}
               value={upperBound}
             />
             <InlineError message={errors.upperBound} />
@@ -228,7 +265,11 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
             <button
               className={styles.mutedButton}
               disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(row.referenceRangeId)}
+              onClick={() =>
+                deleteMutation.mutate(row.referenceRangeId, {
+                  onError: () => onNotify('Không thể xoá trị số tham chiếu.'),
+                })
+              }
               type="button"
             >
               Xoá
@@ -240,7 +281,13 @@ function EditableRow({ row }: { row: ReferenceRangeRow }) {
   );
 }
 
-function CreateRangeForm({ onDone }: { onDone: () => void }) {
+function CreateRangeForm({
+  onDone,
+  onNotify,
+}: {
+  onDone: () => void;
+  onNotify: (message: string) => void;
+}) {
   const { data: types } = useLabTestTypes();
   const createMutation = useCreateReferenceRange();
   const [form, setForm] = useState({
@@ -257,6 +304,30 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
   const selectedType = (types ?? []).find((type) => type.labTestTypeId === form.labTestTypeId);
   const fieldOptions = selectedType ? REFERENCE_RANGE_FIELDS[selectedType.resultTableKey] : [];
 
+  function updateField<K extends keyof typeof form>(field: K, value: (typeof form)[K]) {
+    const nextForm = {
+      ...form,
+      [field]: value,
+      ...(field === 'labTestTypeId' ? { fieldKey: '' } : {}),
+    };
+    const nextErrors = getReferenceRangeFormErrors(nextForm);
+    const impactedFields = new Set<string>([String(field)]);
+    if (field === 'labTestTypeId') impactedFields.add('fieldKey');
+    if (field === 'lowerBound' || field === 'upperBound') {
+      impactedFields.add('lowerBound');
+      impactedFields.add('upperBound');
+    }
+    setErrors((current) => {
+      const next = { ...current };
+      impactedFields.forEach((key) => {
+        if (nextErrors[key]) next[key] = nextErrors[key];
+        else delete next[key];
+      });
+      return next;
+    });
+    setForm(nextForm);
+  }
+
   function submit() {
     const nextErrors = getReferenceRangeFormErrors(form);
     setErrors(nextErrors);
@@ -272,7 +343,10 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
         upperBound: form.upperBound || undefined,
         condition: form.condition,
       },
-      { onSuccess: onDone },
+      {
+        onError: () => onNotify('Không thể tạo trị số tham chiếu.'),
+        onSuccess: onDone,
+      },
     );
   }
 
@@ -283,7 +357,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
           <select
             className={styles.select}
             aria-invalid={Boolean(errors.labTestTypeId)}
-            onChange={(e) => setForm({ ...form, labTestTypeId: e.target.value, fieldKey: '' })}
+            onChange={(e) => updateField('labTestTypeId', e.target.value)}
             value={form.labTestTypeId}
           >
             <option value="">— Loại xét nghiệm —</option>
@@ -299,7 +373,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
           <select
             className={styles.select}
             aria-invalid={Boolean(errors.fieldKey)}
-            onChange={(e) => setForm({ ...form, fieldKey: e.target.value })}
+            onChange={(e) => updateField('fieldKey', e.target.value)}
             value={form.fieldKey}
           >
             <option value="">— Chỉ số —</option>
@@ -315,7 +389,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
           <input
             aria-invalid={Boolean(errors.code)}
             className={styles.input}
-            onChange={(e) => setForm({ ...form, code: e.target.value })}
+            onChange={(e) => updateField('code', e.target.value)}
             placeholder="Mã (vd: HSM-039)"
             value={form.code}
           />
@@ -325,7 +399,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
           <input
             aria-invalid={Boolean(errors.label)}
             className={styles.input}
-            onChange={(e) => setForm({ ...form, label: e.target.value })}
+            onChange={(e) => updateField('label', e.target.value)}
             placeholder="Tên chỉ số"
             value={form.label}
           />
@@ -333,7 +407,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
         </div>
         <input
           className={styles.input}
-          onChange={(e) => setForm({ ...form, unit: e.target.value })}
+          onChange={(e) => updateField('unit', e.target.value)}
           placeholder="Đơn vị"
           value={form.unit}
         />
@@ -341,7 +415,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
           <input
             aria-invalid={Boolean(errors.lowerBound)}
             className={styles.input}
-            onChange={(e) => setForm({ ...form, lowerBound: e.target.value })}
+            onChange={(e) => updateField('lowerBound', e.target.value)}
             placeholder="Ngưỡng dưới"
             value={form.lowerBound}
           />
@@ -351,7 +425,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
           <input
             aria-invalid={Boolean(errors.upperBound)}
             className={styles.input}
-            onChange={(e) => setForm({ ...form, upperBound: e.target.value })}
+            onChange={(e) => updateField('upperBound', e.target.value)}
             placeholder="Ngưỡng trên"
             value={form.upperBound}
           />
@@ -359,7 +433,7 @@ function CreateRangeForm({ onDone }: { onDone: () => void }) {
         </div>
         <select
           className={styles.select}
-          onChange={(e) => setForm({ ...form, condition: e.target.value as typeof form.condition })}
+          onChange={(e) => updateField('condition', e.target.value as typeof form.condition)}
           value={form.condition}
         >
           <option value="all">Tất cả</option>
@@ -388,8 +462,27 @@ export function ReferenceRangeConfig() {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [keyword, setKeyword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [popupMessage, setPopupMessage] = useState<string | null>(null);
+  const popupTimerRef = useRef<number | null>(null);
   const { data, isLoading } = useReferenceRanges({ keyword: keyword || undefined });
   const rows = data?.data ?? [];
+
+  useEffect(
+    () => () => {
+      if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
+    },
+    [],
+  );
+
+  /** Hiển thị thông báo lỗi theo cùng AppToast với các workspace khác. */
+  function showPopup(message: string) {
+    if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
+    setPopupMessage(message);
+    popupTimerRef.current = window.setTimeout(() => {
+      setPopupMessage(null);
+      popupTimerRef.current = null;
+    }, 4500);
+  }
 
   return (
     <div>
@@ -434,7 +527,7 @@ export function ReferenceRangeConfig() {
           </div>
         </div>
 
-        {isCreating && <CreateRangeForm onDone={() => setIsCreating(false)} />}
+        {isCreating && <CreateRangeForm onDone={() => setIsCreating(false)} onNotify={showPopup} />}
 
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -465,11 +558,14 @@ export function ReferenceRangeConfig() {
                 </tr>
               )}
               {!isLoading &&
-                rows.map((row) => <EditableRow key={row.referenceRangeId} row={row} />)}
+                rows.map((row) => (
+                  <EditableRow key={row.referenceRangeId} onNotify={showPopup} row={row} />
+                ))}
             </tbody>
           </table>
         </div>
       </div>
+      <AppToast centered message={popupMessage} tone="error" />
     </div>
   );
 }

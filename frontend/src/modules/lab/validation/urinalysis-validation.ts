@@ -19,7 +19,7 @@ const URINALYSIS_PRECISION: Record<string, [number, number]> = {
   dcdProtein: [6, 2],
 };
 
-const URINALYSIS_RULES: Record<string, DecimalRule> = {
+export const URINALYSIS_RULES: Record<string, DecimalRule> = {
   ph: { label: 'pH', max: 14, min: 0, precision: 3, scale: 1 },
   tyTrong: { label: 'Tỷ trọng', max: 1.06, min: 1, precision: 5, scale: 3 },
   ...Object.fromEntries(

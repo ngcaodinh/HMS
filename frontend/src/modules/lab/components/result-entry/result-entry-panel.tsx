@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { ApiError } from '@/shared/api-client';
+import { AppToast } from '@/shared/components/app-toast';
 
 import { labWorkspaceStyles as styles } from '../../pages/workspace/lab-workspace.styles';
 import {
@@ -89,7 +90,8 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
   const [attachment, setAttachment] = useState<LabTestAttachment | null>(null);
   const [conclusion, setConclusion] = useState('');
   const [reportCode, setReportCode] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [popupMessage, setPopupMessage] = useState<string | null>(null);
+  const popupTimerRef = useRef<number | null>(null);
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -134,6 +136,13 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.status, labTestId]);
 
+  useEffect(
+    () => () => {
+      if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
+    },
+    [],
+  );
+
   if (isLoading || !detail || !structuredResult) {
     return <p className="py-10 text-center text-sm text-[#707882]">Đang tải phiếu xét nghiệm...</p>;
   }
@@ -171,18 +180,47 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
     setTouchedFields((current) => new Set(current).add(field));
   }
 
+  /** Hiển thị popup thống nhất của HMS cho lỗi thao tác, tự đóng sau một khoảng ngắn. */
+  function showPopup(message: string) {
+    if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
+    setPopupMessage(message);
+    popupTimerRef.current = window.setTimeout(() => {
+      setPopupMessage(null);
+      popupTimerRef.current = null;
+    }, 4500);
+  }
+
+  /** Đánh dấu field vừa thay đổi để lỗi xuất hiện ngay khi người dùng nhập dữ liệu sai. */
+  function handleStructuredResultChange(next: StructuredResult) {
+    const previous = (structuredResult ?? {}) as Record<string, unknown>;
+    const current = (next ?? {}) as Record<string, unknown>;
+    new Set([...Object.keys(previous), ...Object.keys(current)]).forEach((field) => {
+      if (current[field] !== previous[field]) touchField(field);
+    });
+    if (detail?.resultTableKey === 'xn_vi_sinh') {
+      Object.keys(getMicrobiologyFieldErrors(next as MicrobiologyResult)).forEach(touchField);
+    }
+    setApiFieldErrors({});
+    setStructuredResult(next);
+  }
+
+  function handleReportCodeChange(value: string) {
+    touchField('reportCode');
+    setApiFieldErrors({});
+    setReportCode(value);
+  }
+
   function submitFinal() {
     setHasSubmitted(true);
     setTouchedFields(new Set(Object.keys(localFieldErrors)));
     if (!attachment) {
-      setErrorMessage('Cần tải lên tệp đính kèm trước khi xác nhận kết quả.');
+      showPopup('Cần tải lên tệp đính kèm trước khi xác nhận kết quả.');
       return;
     }
     if (Object.keys(localFieldErrors).length > 0 || reportCodeError || conclusionError) {
-      setErrorMessage('Vui lòng kiểm tra và sửa các trường đang báo lỗi trước khi xác nhận.');
+      showPopup('Vui lòng kiểm tra và sửa các trường đang báo lỗi trước khi xác nhận.');
       return;
     }
-    setErrorMessage(null);
     const finalResult = isPathology
       ? { ...(structuredResult as PathologyResult), trangThai: 'da_co_ket_qua' as const }
       : structuredResult;
@@ -199,7 +237,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
         onSuccess: () => onDone(),
         onError: (error) => {
           if (error instanceof ApiError && error.fields) setApiFieldErrors(error.fields);
-          setErrorMessage(error instanceof Error ? error.message : 'Không thể ghi nhận kết quả.');
+          showPopup(error instanceof Error ? error.message : 'Không thể ghi nhận kết quả.');
         },
       },
     );
@@ -211,7 +249,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
         labTestId,
         structuredResult: { ...(structuredResult as PathologyResult), trangThai: 'cho_ket_qua' },
       },
-      { onError: () => setErrorMessage('Không thể lưu nháp.') },
+      { onError: () => showPopup('Không thể lưu nháp.') },
     );
   }
 
@@ -259,14 +297,12 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
 
       <div className={styles.resultEntryGrid}>
         <div className={styles.card}>
-          {errorMessage && <div className={styles.alertDanger}>{errorMessage}</div>}
-
           <div className="mb-5 grid gap-4 sm:grid-cols-2">
             <TextField
               error={hasSubmitted || touchedFields.has('reportCode') ? reportCodeError : undefined}
               label="Mã phiếu (tuỳ chọn)"
               onBlur={() => touchField('reportCode')}
-              onChange={setReportCode}
+              onChange={handleReportCodeChange}
               value={reportCode}
             />
           </div>
@@ -274,7 +310,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           {currentDetail.resultTableKey === 'xn_hoa_sinh_mau' && (
             <BioChemistryForm
               errors={visibleFieldErrors}
-              onChange={(v) => setStructuredResult(v)}
+              onChange={handleStructuredResultChange}
               onFieldBlur={touchField}
               patientGender={currentDetail.patient.gender}
               referenceRanges={currentDetail.referenceRanges}
@@ -284,7 +320,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           {currentDetail.resultTableKey === 'xn_cong_thuc_mau' && (
             <CbcForm
               errors={visibleFieldErrors}
-              onChange={(v) => setStructuredResult(v)}
+              onChange={handleStructuredResultChange}
               onFieldBlur={touchField}
               value={structuredResult as CbcResult}
             />
@@ -292,7 +328,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           {currentDetail.resultTableKey === 'xn_nuoc_tieu' && (
             <UrinalysisForm
               errors={visibleFieldErrors}
-              onChange={(v) => setStructuredResult(v)}
+              onChange={handleStructuredResultChange}
               onFieldBlur={touchField}
               value={structuredResult as UrinalysisResult}
             />
@@ -300,7 +336,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           {currentDetail.resultTableKey === 'xn_vi_sinh' && (
             <MicrobiologyForm
               errors={visibleFieldErrors}
-              onChange={(v) => setStructuredResult(v)}
+              onChange={handleStructuredResultChange}
               onFieldBlur={touchField}
               value={structuredResult as MicrobiologyResult}
             />
@@ -308,7 +344,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           {isPathology && (
             <PathologyForm
               errors={visibleFieldErrors}
-              onChange={(v) => setStructuredResult(v)}
+              onChange={handleStructuredResultChange}
               onFieldBlur={touchField}
               value={structuredResult as PathologyResult}
             />
@@ -330,7 +366,10 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
                 )}
                 className={styles.textarea}
                 onBlur={() => touchField('conclusion')}
-                onChange={(event) => setConclusion(event.target.value)}
+                onChange={(event) => {
+                  touchField('conclusion');
+                  setConclusion(event.target.value);
+                }}
                 value={conclusion}
               />
               {conclusionError && (hasSubmitted || touchedFields.has('conclusion')) && (
@@ -396,6 +435,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           </div>
         </div>
       </div>
+      <AppToast centered message={popupMessage} tone="error" />
     </div>
   );
 }
