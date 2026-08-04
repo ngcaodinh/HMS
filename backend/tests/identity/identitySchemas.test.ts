@@ -22,6 +22,18 @@ const validCreateStaffInput = {
 };
 
 describe('createSessionSchema', () => {
+  it('accepts a normal login payload when remember is omitted', () => {
+    expect(
+      createSessionSchema.parse({
+        password: 'secret',
+        username: 'it.tech.dev',
+      }),
+    ).toEqual({
+      password: 'secret',
+      username: 'it.tech.dev',
+    });
+  });
+
   it('accepts the optional remember flag as a boolean', () => {
     expect(
       createSessionSchema.parse({

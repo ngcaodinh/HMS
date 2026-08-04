@@ -48,63 +48,137 @@ describe('apiClient', () => {
 
   it('throws ApiError with normalized field errors from error.fields', async () => {
     globalThis.fetch = (() =>
-      Promise.resolve(createJsonResponse({
-        error: {
-          code: 'VALIDATION_ERROR',
-          fields: {
-            password: 'invalid-shape',
-            username: ['Tên đăng nhập đã tồn tại'],
+      Promise.resolve(
+        createJsonResponse(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              fields: {
+                password: 'invalid-shape',
+                username: ['Tên đăng nhập đã tồn tại'],
+              },
+              message: 'Dữ liệu đầu vào không hợp lệ',
+            },
           },
-          message: 'Dữ liệu đầu vào không hợp lệ',
-        },
-      }, { status: 400 }))) as typeof fetch;
+          { status: 400 },
+        ),
+      )) as typeof fetch;
 
-    await assert.rejects(
-      apiClient('/api/staff-users'),
-      (error) => {
-        assert.equal(error instanceof ApiError, true);
-        if (!(error instanceof ApiError)) return false;
+    await assert.rejects(apiClient('/api/staff-users'), (error) => {
+      assert.equal(error instanceof ApiError, true);
+      if (!(error instanceof ApiError)) return false;
 
-        assert.equal(error.code, 'VALIDATION_ERROR');
-        assert.equal(error.status, 400);
-        assert.deepEqual(error.fields, {
-          username: ['Tên đăng nhập đã tồn tại'],
-        });
-        assert.equal(error.hasFieldErrors, true);
+      assert.equal(error.code, 'VALIDATION_ERROR');
+      assert.equal(error.status, 400);
+      assert.deepEqual(error.fields, {
+        username: ['Tên đăng nhập đã tồn tại'],
+      });
+      assert.equal(error.hasFieldErrors, true);
 
-        return true;
-      },
-    );
+      return true;
+    });
   });
 
   it('falls back to error.details when a legacy backend omits error.fields', async () => {
     globalThis.fetch = (() =>
-      Promise.resolve(createJsonResponse({
-        error: {
-          code: 'VALIDATION_ERROR',
-          details: [
-            { field: 'identityCardNumber', message: 'CCCD đã tồn tại', rule: 'unique' },
-            { field: 'phoneNumber', rule: 'invalid_string' },
-            { rule: 'custom' },
-          ],
-          message: 'Dữ liệu đầu vào không hợp lệ',
-        },
-      }, { status: 400 }))) as typeof fetch;
+      Promise.resolve(
+        createJsonResponse(
+          {
+            error: {
+              code: 'VALIDATION_ERROR',
+              details: [
+                { field: 'identityCardNumber', message: 'CCCD đã tồn tại', rule: 'unique' },
+                { field: 'phoneNumber', rule: 'invalid_string' },
+                { rule: 'custom' },
+              ],
+              message: 'Dữ liệu đầu vào không hợp lệ',
+            },
+          },
+          { status: 400 },
+        ),
+      )) as typeof fetch;
 
-    await assert.rejects(
-      apiClient('/api/staff-users'),
-      (error) => {
-        assert.equal(error instanceof ApiError, true);
-        if (!(error instanceof ApiError)) return false;
+    await assert.rejects(apiClient('/api/staff-users'), (error) => {
+      assert.equal(error instanceof ApiError, true);
+      if (!(error instanceof ApiError)) return false;
 
-        assert.deepEqual(error.fields, {
-          identityCardNumber: ['CCCD đã tồn tại'],
-          phoneNumber: ['Dữ liệu không hợp lệ'],
-        });
+      assert.deepEqual(error.fields, {
+        identityCardNumber: ['CCCD đã tồn tại'],
+        phoneNumber: ['Dữ liệu không hợp lệ'],
+      });
 
-        return true;
-      },
-    );
+      return true;
+    });
+  });
+
+  it('preserves a valid Retry-After value from the backend error envelope', async () => {
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        createJsonResponse(
+          {
+            error: {
+              code: 'LOGIN_RATE_LIMITED',
+              message: 'Too many attempts',
+              retryAfterSeconds: 45,
+            },
+          },
+          { status: 429 },
+        ),
+      )) as typeof fetch;
+
+    await assert.rejects(apiClient('/api/auth/login', { method: 'POST' }), (error) => {
+      assert.equal(error instanceof ApiError, true);
+      if (!(error instanceof ApiError)) return false;
+
+      assert.equal(error.retryAfterSeconds, 45);
+      return true;
+    });
+  });
+
+  it('clamps negative Retry-After values and ignores non-integer values', async () => {
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        createJsonResponse(
+          {
+            error: {
+              code: 'LOGIN_RATE_LIMITED',
+              message: 'Too many attempts',
+              retryAfterSeconds: -1,
+            },
+          },
+          { status: 429 },
+        ),
+      )) as typeof fetch;
+
+    await assert.rejects(apiClient('/api/auth/login', { method: 'POST' }), (error) => {
+      assert.equal(error instanceof ApiError, true);
+      if (!(error instanceof ApiError)) return false;
+
+      assert.equal(error.retryAfterSeconds, 0);
+      return true;
+    });
+
+    globalThis.fetch = (() =>
+      Promise.resolve(
+        createJsonResponse(
+          {
+            error: {
+              code: 'LOGIN_RATE_LIMITED',
+              message: 'Too many attempts',
+              retryAfterSeconds: 1.5,
+            },
+          },
+          { status: 429 },
+        ),
+      )) as typeof fetch;
+
+    await assert.rejects(apiClient('/api/auth/login', { method: 'POST' }), (error) => {
+      assert.equal(error instanceof ApiError, true);
+      if (!(error instanceof ApiError)) return false;
+
+      assert.equal(error.retryAfterSeconds, undefined);
+      return true;
+    });
   });
 
   it('treats malformed JSON and missing data envelopes as invalid responses', async () => {
@@ -117,7 +191,9 @@ describe('apiClient', () => {
     });
 
     globalThis.fetch = (() =>
-      Promise.resolve(createJsonResponse({ meta: { requestId: 'req-missing-data' } }))) as typeof fetch;
+      Promise.resolve(
+        createJsonResponse({ meta: { requestId: 'req-missing-data' } }),
+      )) as typeof fetch;
 
     await assert.rejects(apiClient('/api/staff-users'), {
       code: 'INVALID_RESPONSE',

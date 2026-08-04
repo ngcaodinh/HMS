@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 
 import { backendApiV1BaseUrl, buildBackendApiV1Url } from './backend-url';
 import { sessionCookieName } from './session-cookie';
+import { getSessionMaxAge } from './session-expiration';
+
+export { getSessionMaxAge } from './session-expiration';
 
 export const backendBaseUrl = backendApiV1BaseUrl;
 
@@ -24,18 +27,6 @@ export const setSessionCookie = (response: NextResponse, token: string, maxAge: 
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
   });
-};
-
-/**
- * Chuyển thời điểm hết hạn JWT thành thời lượng cookie; giá trị không hợp lệ sẽ fail closed.
- */
-export const getSessionMaxAge = (expiresAt: unknown) => {
-  if (typeof expiresAt !== 'string') return 0;
-
-  const expiresAtMilliseconds = Date.parse(expiresAt);
-  if (!Number.isFinite(expiresAtMilliseconds)) return 0;
-
-  return Math.max(0, Math.floor((expiresAtMilliseconds - Date.now()) / 1000));
 };
 
 /**

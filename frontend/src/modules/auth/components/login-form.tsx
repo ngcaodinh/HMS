@@ -3,11 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import {
-  usernameFormatPattern,
-  usernameMaxLength,
-  usernameMinLength,
-} from '@/modules/auth/constants/login-validation';
+import { validateLoginCredentials } from '@/modules/auth/constants/login-validation';
+import type { LoginFieldErrors } from '@/modules/auth/constants/login-validation';
 import { LoginSuccessOverlay } from '@/modules/auth/components/login-success-overlay';
 import { getLoginErrorMessage } from '@/modules/auth/utils/login-error';
 import { apiClient, ApiError } from '@/shared/api-client';
@@ -23,11 +20,6 @@ type LoginResponse = {
     mustChangePassword: boolean;
     roleCodes: string[];
   };
-};
-
-type LoginFieldErrors = {
-  password?: string;
-  username?: string;
 };
 
 type LoginFormProps = {
@@ -48,12 +40,7 @@ const persistRememberedUsername = (username: string, shouldRemember: boolean) =>
 
 function UserIcon({ className }: IconProps) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-    >
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
       <path
         d="M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm-5 6a5 5 0 0 1 10 0"
         stroke="currentColor"
@@ -67,12 +54,7 @@ function UserIcon({ className }: IconProps) {
 
 function LockIcon({ className }: IconProps) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-    >
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
       <path
         d="M6.5 8V6.5a3.5 3.5 0 0 1 7 0V8m-8 0h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Zm4.5 3.25v1.5"
         stroke="currentColor"
@@ -86,12 +68,7 @@ function LockIcon({ className }: IconProps) {
 
 function EyeIcon({ className }: IconProps) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-    >
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
       <path
         d="M2.5 10s2.75-4.5 7.5-4.5 7.5 4.5 7.5 4.5-2.75 4.5-7.5 4.5S2.5 10 2.5 10Z"
         stroke="currentColor"
@@ -112,12 +89,7 @@ function EyeIcon({ className }: IconProps) {
 
 function ArrowRightIcon({ className }: IconProps) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-    >
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
       <path
         d="M4 10h11m-4-4 4 4-4 4"
         stroke="currentColor"
@@ -131,12 +103,7 @@ function ArrowRightIcon({ className }: IconProps) {
 
 function HeadsetIcon({ className }: IconProps) {
   return (
-    <svg
-      aria-hidden="true"
-      className={className}
-      fill="none"
-      viewBox="0 0 20 20"
-    >
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 20 20">
       <path
         d="M4 11V9a6 6 0 0 1 12 0v2M4 11h2v4H4a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Zm10 0h2a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1h-2v-4Zm0 4c0 1.1-.9 2-2 2h-2"
         stroke="currentColor"
@@ -207,21 +174,7 @@ export function LoginForm({ initialReason }: LoginFormProps) {
     const formData = new FormData(event.currentTarget);
     const username = String(formData.get('username') ?? '').trim();
     const password = String(formData.get('password') ?? '');
-    const nextFieldErrors: LoginFieldErrors = {};
-
-    if (!username) {
-      nextFieldErrors.username = 'Vui lòng nhập tên đăng nhập';
-    } else if (
-      username.length < usernameMinLength ||
-      username.length > usernameMaxLength ||
-      !usernameFormatPattern.test(username)
-    ) {
-      nextFieldErrors.username = 'Tên đăng nhập chỉ gồm chữ, số, dấu chấm hoặc gạch dưới';
-    }
-
-    if (!password) {
-      nextFieldErrors.password = 'Vui lòng nhập mật khẩu';
-    }
+    const nextFieldErrors = validateLoginCredentials(username, password);
 
     if (Object.keys(nextFieldErrors).length > 0) {
       setFieldErrors(nextFieldErrors);
@@ -366,7 +319,9 @@ export function LoginForm({ initialReason }: LoginFormProps) {
             />
             <span>
               Ghi nhớ đăng nhập
-              <span className="block text-[10px] text-[#707882]">Không dùng trên máy dùng chung</span>
+              <span className="block text-[10px] text-[#707882]">
+                Không dùng trên máy dùng chung
+              </span>
             </span>
           </label>
           <button
@@ -406,16 +361,12 @@ export function LoginForm({ initialReason }: LoginFormProps) {
 
       <div className="mt-8 flex items-center gap-4">
         <span className="h-px flex-1 bg-[#dfe3e7]" />
-        <p className="text-[10px] font-bold uppercase leading-4 text-[#707882]">
-          Hỗ trợ & liên hệ
-        </p>
+        <p className="text-[10px] font-bold uppercase leading-4 text-[#707882]">Hỗ trợ & liên hệ</p>
         <span className="h-px flex-1 bg-[#dfe3e7]" />
       </div>
 
       <footer className="mt-7 flex items-center justify-between gap-4 text-[11px]">
-        <p className="font-medium text-[#3f4851]/60">
-          © 2025 Clinical Excellence
-        </p>
+        <p className="font-medium text-[#3f4851]/60">© 2025 Clinical Excellence</p>
         <button
           className="flex items-center gap-1.5 font-bold text-[#006096] transition hover:text-[#004a75] focus:outline-none focus:ring-4 focus:ring-[#006096]/10"
           onClick={() => setShowForgotPasswordModal(true)}

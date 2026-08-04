@@ -90,8 +90,7 @@ const createRepository = (
     }),
   findRoleCodesForUser: (userId) =>
     Promise.resolve(users.find((user) => user.id === userId)?.roleCodes ?? []),
-  findUserById: (userId) =>
-    Promise.resolve(users.find((user) => user.id === userId) ?? null),
+  findUserById: (userId) => Promise.resolve(users.find((user) => user.id === userId) ?? null),
   findUserByUsername: (username) =>
     Promise.resolve(users.find((user) => user.username === username) ?? null),
   listStaffUsers: ({ excludedRoleCodes }) => {
@@ -230,7 +229,9 @@ describe('IdentityService staff policy', () => {
         const service = createService([actor]);
 
         if (roleActionPolicy[roleCode].includes(actionCode)) {
-          await expect(service.assertAction(toPrincipal(actor), actionCode)).resolves.toBeUndefined();
+          await expect(
+            service.assertAction(toPrincipal(actor), actionCode),
+          ).resolves.toBeUndefined();
         } else {
           await expect(service.assertAction(toPrincipal(actor), actionCode)).rejects.toMatchObject({
             code: 'FORBIDDEN',
@@ -310,6 +311,76 @@ describe('IdentityService staff policy', () => {
       expiresAt: '2026-08-04T08:00:00.000Z',
     });
   });
+
+  it('rejects an unknown username with the same generic credential error', async () => {
+    const service = createService([]);
+
+    await expect(
+      service.createSession({
+        password: 'Correct#2026',
+        requestId: 'req-login-unknown-user',
+        username: 'unknown.user',
+      }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_CREDENTIALS',
+      status: 401,
+    });
+  });
+
+  it.each([undefined, false])(
+    'creates a normal session without remember expiry override (%s)',
+    async (remember) => {
+      let signedOptions: { expiresIn?: string } | undefined;
+      let lastLogin: { userId: string; occurredAt: Date } | undefined;
+      const service = createService([createUser()], {
+        auditPort: {
+          record: (event) => {
+            expect(event).toMatchObject({
+              action: 'auth.session.create',
+              actorId: '11111111-1111-4111-8111-111111111111',
+              requestId: 'req-login-normal',
+              resource: 'session',
+            });
+            return Promise.resolve();
+          },
+        },
+        jwt: {
+          sign: (_payload, options) => {
+            signedOptions = options;
+
+            return {
+              expiresAt: '2026-07-25T08:00:00.000Z',
+              token: 'normal.jwt',
+            };
+          },
+        },
+        repository: {
+          updateLastLogin: (userId, occurredAt) => {
+            lastLogin = { occurredAt, userId };
+            return Promise.resolve();
+          },
+        },
+      });
+
+      const result = await service.createSession({
+        password: 'correct-password',
+        remember,
+        requestId: 'req-login-normal',
+        username: 'it.tech.dev',
+      });
+
+      expect(signedOptions).toEqual({ expiresIn: undefined });
+      expect(lastLogin).toEqual({
+        occurredAt: now,
+        userId: '11111111-1111-4111-8111-111111111111',
+      });
+      expect(result).toMatchObject({
+        accessToken: 'normal.jwt',
+        expiresAt: '2026-07-25T08:00:00.000Z',
+      });
+      expect(result.principal).not.toHaveProperty('password');
+    },
+  );
 
   it('rejects wrong login passwords without exposing account state', async () => {
     const service = createService([createUser()], {
@@ -412,12 +483,14 @@ describe('IdentityService staff policy', () => {
         createStaffUser: (input) => {
           createPayload = input;
 
-          return Promise.resolve(createUser({
-            ...input.data,
-            id: '33333333-3333-4333-8333-333333333333',
-            password: input.passwordHash,
-            roleCodes: input.data.roleCodes,
-          }));
+          return Promise.resolve(
+            createUser({
+              ...input.data,
+              id: '33333333-3333-4333-8333-333333333333',
+              password: input.passwordHash,
+              roleCodes: input.data.roleCodes,
+            }),
+          );
         },
       },
     });
@@ -657,6 +730,7 @@ describe('IdentityService staff policy', () => {
     });
 
     expect(result.accessToken).toBe('signed.jwt');
+    expect(result.expiresAt).toBe('2026-07-25T08:00:00.000Z');
     expect(result.principal.mustChangePassword).toBe(false);
     expect(result.principal.authVersion).toBe(2);
     expect(result.principal).not.toHaveProperty('password');
@@ -915,12 +989,14 @@ describe('IdentityService staff policy', () => {
         createStaffUser: (input) => {
           createPayload = input;
 
-          return Promise.resolve(createUser({
-            ...input.data,
-            id: '33333333-3333-4333-8333-333333333333',
-            password: input.passwordHash,
-            roleCodes: input.data.roleCodes,
-          }));
+          return Promise.resolve(
+            createUser({
+              ...input.data,
+              id: '33333333-3333-4333-8333-333333333333',
+              password: input.passwordHash,
+              roleCodes: input.data.roleCodes,
+            }),
+          );
         },
       },
     });
@@ -966,8 +1042,7 @@ describe('IdentityService staff policy', () => {
   it('checks department existence before creating a staff account', async () => {
     const service = createService([createUser()], {
       departmentDirectory: {
-        resolveDepartmentId: () =>
-          Promise.reject(new Error('department lookup failed')),
+        resolveDepartmentId: () => Promise.reject(new Error('department lookup failed')),
       },
     });
 
@@ -1021,8 +1096,7 @@ describe('IdentityService staff policy', () => {
     });
     const service = createService([createUser(), target], {
       departmentDirectory: {
-        resolveDepartmentId: () =>
-          Promise.reject(new Error('department update failed')),
+        resolveDepartmentId: () => Promise.reject(new Error('department update failed')),
       },
     });
 

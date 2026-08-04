@@ -34,8 +34,8 @@ const normalizeFieldMap = (fields: unknown): FieldErrors | undefined => {
     (currentFields, [field, messages]) => {
       if (!Array.isArray(messages)) return currentFields;
 
-      const normalizedMessages = messages.filter((message): message is string =>
-        typeof message === 'string',
+      const normalizedMessages = messages.filter(
+        (message): message is string => typeof message === 'string',
       );
 
       if (!normalizedMessages.length) return currentFields;
@@ -119,9 +119,8 @@ export const apiClient = async <T>(path: string, options: RequestOptions = {}): 
 
   const text = await response.text();
   const payload = parseJsonPayload(text, response.status);
-  const error = isRecord(payload) && isRecord(payload.error)
-    ? (payload.error as ApiErrorBody)
-    : undefined;
+  const error =
+    isRecord(payload) && isRecord(payload.error) ? (payload.error as ApiErrorBody) : undefined;
 
   if (!response.ok || error) {
     throw new ApiError({
