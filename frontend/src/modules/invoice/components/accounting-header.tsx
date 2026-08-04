@@ -8,10 +8,11 @@ interface AccountingHeaderProps {
 }
 
 export function AccountingHeader({ activeScreen, patientCount }: AccountingHeaderProps) {
+  const currentDate = new Date().toLocaleDateString('vi-VN');
   const titles: Record<AccountingScreenId, { title: string; sub: string }> = {
     s1: {
       title: 'Bệnh Viện Da Liễu TP.HCM — Phân Hệ Thu Ngân & Kế Toán',
-      sub: 'Ca làm việc: Ca Sáng (07:00 - 15:00) · 20/07/2026',
+      sub: `Ca làm việc: Ca Sáng (07:00 - 15:00) · ${currentDate}`,
     },
     s2: {
       title: 'Lập Hóa Đơn & Chi Tiết BHYT Bệnh Nhân',

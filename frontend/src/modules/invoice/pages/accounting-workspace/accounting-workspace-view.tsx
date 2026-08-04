@@ -48,6 +48,14 @@ function moneyToNumber(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function mapInvoiceItemCategory(category: string): Invoice['items'][number]['category'] {
+  if (category === 'consultation') return 'khambenh';
+  if (category === 'lab') return 'xetnghiem';
+  if (category === 'medicine') return 'thuoc';
+  if (category === 'procedure') return 'phauthuat';
+  return 'khac';
+}
+
 function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null): Invoice {
   const fullName = dto.patient?.fullName ?? patient?.fullName ?? 'Bệnh nhân';
   return {
@@ -55,7 +63,7 @@ function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null)
     invoiceNumber: dto.invoiceId.slice(0, 8).toUpperCase(),
     patientId: dto.patient?.patientId ?? patient?.id ?? '',
     patientName: fullName,
-    createdAt: new Date().toISOString(),
+    createdAt: patient?.admissionDate ?? new Date().toISOString(),
     status:
       dto.status === 'paid'
         ? 'paid'
@@ -68,7 +76,7 @@ function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null)
       id: item.invoiceItemId,
       code: `DV-${index + 1}`,
       name: item.description,
-      category: 'khambenh',
+      category: mapInvoiceItemCategory(item.category),
       quantity: moneyToNumber(item.quantity),
       unitPrice: moneyToNumber(item.unitPrice),
       totalPrice: moneyToNumber(item.amount),
@@ -82,31 +90,40 @@ function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null)
     finalAmount: moneyToNumber(dto.amountDue),
     paymentMethod:
       dto.paymentMethod === 'momo' ? 'momo' : dto.paymentMethod === 'cash' ? 'cash' : undefined,
+    receiptNumber: dto.receiptNumber,
+    paidAt: dto.paidAt,
   };
 }
 
-function mapInvoiceToPatient(dto: InvoiceApiDto): PatientRecord {
+function mapInvoiceToPatient(dto: InvoiceApiDto, fallback?: PatientRecord | null): PatientRecord {
+  const healthInsuranceEligibility = dto.healthInsuranceEligibility;
   return {
     id: dto.patient?.patientId ?? dto.recordId,
     recordId: dto.recordId,
     code: dto.patient?.patientCode ?? '—',
     fullName: dto.patient?.fullName ?? 'Bệnh nhân',
-    dob: '—',
-    gender: 'Nam',
-    bhytCardNumber: '—',
-    bhytBenefitRate: 0.8,
-    bhytCategory: 'Theo hóa đơn',
-    department: dto.patient?.department ?? 'Chưa phân khoa',
-    admissionDate: '—',
+    dob: fallback?.dob ?? 'Chưa cập nhật',
+    gender: fallback?.gender ?? 'Chưa cập nhật',
+    bhytCardNumber: fallback?.bhytCardNumber ?? 'Chưa cập nhật',
+    bhytBenefitRate: healthInsuranceEligibility
+      ? moneyToNumber(healthInsuranceEligibility.effectiveBenefitRate)
+      : (fallback?.bhytBenefitRate ?? 0),
+    bhytCategory:
+      healthInsuranceEligibility?.healthInsuranceRouteType ??
+      fallback?.bhytCategory ??
+      'Chưa cập nhật',
+    department: dto.patient?.department ?? fallback?.department ?? 'Chưa phân khoa',
+    admissionDate: fallback?.admissionDate ?? 'Chưa cập nhật',
     status: dto.status === 'paid' ? 'settled' : 'pending_payment',
-    depositAmount: 0,
+    depositAmount: moneyToNumber(dto.advanceAppliedAmount),
     totalServicesAmount: moneyToNumber(dto.subtotal),
     bhytTotalPays: moneyToNumber(dto.healthInsuranceDiscountAmount),
     patientCoPayAmount: moneyToNumber(dto.amountDue),
     remainingAmount: dto.status === 'paid' ? 0 : moneyToNumber(dto.amountDue),
-    healthInsuranceExpiryDate: null,
+    healthInsuranceExpiryDate: fallback?.healthInsuranceExpiryDate ?? null,
     treatmentType: dto.patient?.treatmentType,
     bedId: dto.patient?.bedId,
+    isEmergency: fallback?.isEmergency,
   };
 }
 
@@ -133,10 +150,15 @@ function mapCandidateToPatient(
     code: candidate.patient.patientCode,
     fullName: candidate.patient.fullName,
     dob: new Date(candidate.patient.dateOfBirth).toLocaleDateString('vi-VN'),
-    gender: candidate.patient.gender === 'female' ? 'Nữ' : 'Nam',
-    bhytCardNumber: candidate.patient.healthInsuranceCode ?? '—',
+    gender:
+      candidate.patient.gender === 'female'
+        ? 'Nữ'
+        : candidate.patient.gender === 'male'
+          ? 'Nam'
+          : 'Chưa cập nhật',
+    bhytCardNumber: candidate.patient.healthInsuranceCode ?? 'Chưa cập nhật',
     bhytBenefitRate: candidate.patient.healthInsuranceCode ? 0.8 : 0,
-    bhytCategory: 'Theo hồ sơ',
+    bhytCategory: candidate.patient.healthInsuranceCode ? 'Theo hồ sơ' : 'Không có BHYT',
     department: candidate.department ?? 'Chưa phân khoa',
     admissionDate: new Date(candidate.createdAt).toLocaleString('vi-VN'),
     status: 'pending_payment',
@@ -221,7 +243,7 @@ export function AccountingWorkspaceView() {
       }
       setPendingInvoices(result.items);
       setPatients([
-        ...result.items.map(mapInvoiceToPatient),
+        ...result.items.map((invoice) => mapInvoiceToPatient(invoice)),
         ...candidates.items.map(mapCandidateToPatient),
       ]);
       setPatientsError(null);
@@ -274,11 +296,11 @@ export function AccountingWorkspaceView() {
   }, [activeScreen, loadAdvanceSummary, selectedPatient?.recordId]);
 
   const openInvoiceFromApi = useCallback(
-    async (invoiceId: string) => {
+    async (invoiceId: string, fallbackPatient?: PatientRecord | null) => {
       setIsBusy(true);
       try {
         const dto = await getInvoice(invoiceId);
-        const patient = mapInvoiceToPatient(dto);
+        const patient = mapInvoiceToPatient(dto, fallbackPatient);
         setSelectedPatient(patient);
         setApiInvoiceId(dto.invoiceId);
         setApiInvoiceVersion(dto.version);
@@ -368,7 +390,7 @@ export function AccountingWorkspaceView() {
       (inv) => inv.patient?.patientCode === patient.code || inv.patient?.patientId === patient.id,
     );
     if (match) {
-      void openInvoiceFromApi(match.invoiceId);
+      void openInvoiceFromApi(match.invoiceId, patient);
       return;
     }
     setActiveScreen('s2');
@@ -618,9 +640,6 @@ export function AccountingWorkspaceView() {
               }}
               onOpenCancelModal={() => setIsCancelOpen(true)}
               onOpenWriteoffModal={() => setIsWriteoffOpen(true)}
-              onConfirmSuccess={() => {
-                void handleCashConfirm();
-              }}
               onBack={() => setActiveScreen('s1')}
             />
           )}

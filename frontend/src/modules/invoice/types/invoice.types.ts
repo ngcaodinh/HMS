@@ -6,7 +6,7 @@ export interface ServiceItem {
   id: string;
   code: string;
   name: string;
-  category: 'khambenh' | 'xetnghiem' | 'sieuan' | 'thuoc' | 'phauthuat';
+  category: 'khambenh' | 'xetnghiem' | 'sieuan' | 'thuoc' | 'phauthuat' | 'khac';
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -21,7 +21,7 @@ export interface PatientRecord {
   code: string; // e.g. BN-2026-0089
   fullName: string;
   dob: string;
-  gender: 'Nam' | 'Nữ';
+  gender: 'Nam' | 'Nữ' | 'Chưa cập nhật';
   bhytCardNumber: string;
   bhytBenefitRate: number; // e.g. 0.8
   bhytCategory: string; // e.g. Tuyến tỉnh - Đã thông tuyến
@@ -55,18 +55,8 @@ export interface Invoice {
   advanceDeduction: number;
   finalAmount: number;
   paymentMethod?: 'cash' | 'vietqr' | 'momo';
-}
-
-export interface AdvanceReceipt {
-  id: string;
-  receiptNumber: string;
-  patientId: string;
-  patientName: string;
-  amount: number;
-  reason: string;
-  paymentMethod: 'cash' | 'transfer';
-  createdAt: string;
-  cashierName: string;
+  receiptNumber?: string | null;
+  paidAt?: string | null;
 }
 
 export interface ShiftSummary {
