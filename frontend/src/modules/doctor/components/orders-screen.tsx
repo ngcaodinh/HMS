@@ -3,8 +3,13 @@
 import { useState } from 'react';
 
 import { ApiError } from '@/shared/api-client';
-import { useLabTestTypes, useOrderLabTests } from '../services/medical-record-api';
+import {
+  useLabTestTypes,
+  useOrderLabTests,
+  useRefreshMedicalRecord,
+} from '../services/medical-record-api';
 import type { LabTestTypeOption, MedicalRecordDetail } from '../types/medical-record.types';
+import { DoctorFeedbackModal } from './doctor-feedback-modal';
 import { AssetIcon, cn } from './shared';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
 
@@ -16,13 +21,21 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const { data: searchResults } = useLabTestTypes(searchTerm);
   const orderLabTests = useOrderLabTests(record.recordId);
+  const refreshRecord = useRefreshMedicalRecord(record.recordId);
+  const isClosed = record.status === 'closed';
 
   function addItem(item: LabTestTypeOption) {
+    if (isClosed) return;
     const isDuplicate =
       selected.some((entry) => entry.labTestTypeId === item.labTestTypeId) ||
       record.labTests.some((test) => test.testName === item.name);
     if (isDuplicate) {
       setWarningMessage('Dịch vụ đã có trong danh sách.');
+      setSearchTerm('');
+      return;
+    }
+    if (selected.length >= 20) {
+      setWarningMessage('Chỉ được chọn tối đa 20 chỉ định trong một lần gửi.');
       setSearchTerm('');
       return;
     }
@@ -32,6 +45,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
   }
 
   function removeItem(labTestTypeId: string) {
+    if (isClosed) return;
     setSelected((current) => current.filter((entry) => entry.labTestTypeId !== labTestTypeId));
   }
 
@@ -48,9 +62,20 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
         items: selected.map((item) => ({ labTestTypeId: item.labTestTypeId })),
       });
       setSelected([]);
-      setSuccessMessage(`Đã gửi chỉ định lúc ${new Date().toLocaleTimeString('vi-VN')} — xem tiến độ ở Tab Kết quả CLS.`);
+      setSuccessMessage(
+        `Đã gửi chỉ định lúc ${new Date().toLocaleTimeString('vi-VN')} — xem tiến độ ở Tab Kết quả CLS.`,
+      );
     } catch (error) {
-      setErrorMessage(error instanceof ApiError ? error.message : 'Không thể gửi chỉ định xét nghiệm.');
+      if (error instanceof ApiError && error.code === 'VERSION_CONFLICT') {
+        await refreshRecord();
+        setErrorMessage(
+          'Hồ sơ vừa được cập nhật bởi thao tác khác — dữ liệu đã được tải lại, vui lòng kiểm tra và gửi lại chỉ định.',
+        );
+        return;
+      }
+      setErrorMessage(
+        error instanceof ApiError ? error.message : 'Không thể gửi chỉ định xét nghiệm.',
+      );
     }
   }
 
@@ -58,7 +83,6 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
 
   return (
     <section className={styles.card}>
-      {successMessage && <div className={cn(styles.alertInfo, 'mb-4')}>{successMessage}</div>}
       <h2 className={styles.cardTitle}>
         <span className="flex h-[30px] w-[30px] items-center justify-center rounded-lg bg-[#e0f7fa]">
           <AssetIcon className="h-5 w-5" name="icon-lab-order.svg" />
@@ -66,15 +90,23 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
         Chỉ định dịch vụ xét nghiệm
       </h2>
 
+      {isClosed && (
+        <p className={cn(styles.alertDanger, 'mt-4')}>Hồ sơ đã đóng, không thể thêm chỉ định.</p>
+      )}
+
       <div className="relative mt-6">
         <label className="block">
           <span className="mb-2 block text-xs font-bold uppercase tracking-[0.3px] text-[#707882]">
             Tìm dịch vụ cận lâm sàng
           </span>
           <span className="relative block">
-            <AssetIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 opacity-60" name="icon-search.svg" />
+            <AssetIcon
+              className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 opacity-60"
+              name="icon-search.svg"
+            />
             <input
               className={styles.searchInputLg}
+              disabled={isClosed}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Gõ tên dịch vụ (VD: Hóa sinh máu, IgE...)"
               value={searchTerm}
@@ -86,22 +118,25 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
             {searchResults?.map((item) => (
               <button
                 className={styles.searchResultItem}
+                disabled={isClosed}
                 key={item.labTestTypeId}
                 onClick={() => addItem(item)}
                 type="button"
               >
                 <span>
                   <span className="block font-semibold text-[#171c1f]">{item.name}</span>
-                  <span className="block text-xs text-[#707882]">{item.specimen ?? 'Chưa xác định loại mẫu'}</span>
+                  <span className="block text-xs text-[#707882]">
+                    {item.specimen ?? 'Chưa xác định loại mẫu'}
+                  </span>
                 </span>
-                <span className="text-xs font-bold text-[#006096]">{Number(item.price).toLocaleString('vi-VN')}đ</span>
+                <span className="text-xs font-bold text-[#006096]">
+                  {Number(item.price).toLocaleString('vi-VN')}đ
+                </span>
               </button>
             ))}
           </div>
         )}
       </div>
-
-      {warningMessage && <p className={cn(styles.alertDanger, 'mt-4')}>{warningMessage}</p>}
 
       <div className="mt-5 overflow-x-auto">
         <div className={styles.tableWrap}>
@@ -134,6 +169,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                   <td className={styles.td}>
                     <button
                       className={styles.dangerLink}
+                      disabled={isClosed}
                       onClick={() => removeItem(item.labTestTypeId)}
                       type="button"
                     >
@@ -148,8 +184,16 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                   <td className={cn(styles.td, 'font-bold text-[#001d32]')}>{test.testName}</td>
                   <td className={styles.td}>{test.specimenType ?? '—'}</td>
                   <td className={styles.td}>
-                    <span className={test.status === 'resulted' ? styles.statusNormal : styles.statusPending}>
-                      {test.status === 'resulted' ? 'Có kết quả' : test.status === 'in_progress' ? 'Đang thực hiện' : 'Đã chỉ định'}
+                    <span
+                      className={
+                        test.status === 'resulted' ? styles.statusNormal : styles.statusPending
+                      }
+                    >
+                      {test.status === 'resulted'
+                        ? 'Có kết quả'
+                        : test.status === 'in_progress'
+                          ? 'Đang thực hiện'
+                          : 'Đã chỉ định'}
                     </span>
                   </td>
                   <td className={styles.td}>—</td>
@@ -160,18 +204,48 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
         </div>
       </div>
 
-      {errorMessage && <p className={cn(styles.alertDanger, 'mt-4')}>{errorMessage}</p>}
-
       <div className="mt-6 flex justify-end">
+        {selected.length === 0 && !isClosed && (
+          <p className="mr-auto self-center text-xs text-[#707882]">
+            Chọn ít nhất 1 dịch vụ để bật nút gửi chỉ định.
+          </p>
+        )}
         <button
-          className={cn(styles.primaryButton, (selected.length === 0 || orderLabTests.isPending) && 'opacity-60')}
-          disabled={selected.length === 0 || orderLabTests.isPending}
+          className={cn(
+            styles.primaryButton,
+            (selected.length === 0 || orderLabTests.isPending || isClosed) && 'opacity-60',
+          )}
+          disabled={selected.length === 0 || orderLabTests.isPending || isClosed}
           onClick={handleSubmit}
           type="button"
         >
           {orderLabTests.isPending ? 'Đang gửi...' : 'Gửi chỉ định xét nghiệm'}
         </button>
       </div>
+
+      {warningMessage && (
+        <DoctorFeedbackModal
+          message={warningMessage}
+          onClose={() => setWarningMessage(null)}
+          title="Kiểm tra chỉ định"
+          tone="info"
+        />
+      )}
+      {errorMessage && (
+        <DoctorFeedbackModal
+          message={errorMessage}
+          onClose={() => setErrorMessage(null)}
+          title="Không thể gửi chỉ định"
+        />
+      )}
+      {successMessage && (
+        <DoctorFeedbackModal
+          message={successMessage}
+          onClose={() => setSuccessMessage(null)}
+          title="Đã gửi chỉ định"
+          tone="success"
+        />
+      )}
     </section>
   );
 }

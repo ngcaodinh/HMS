@@ -2,12 +2,7 @@ export type RecordStatus = 'open' | 'waiting_results' | 'diagnosed' | 'closed';
 export type TreatmentType = 'outpatient' | 'inpatient';
 export type ItchSeverity = 'none' | 'mild' | 'moderate' | 'severe';
 export type SkinLesionDistribution =
-  | 'localized'
-  | 'scattered'
-  | 'generalized'
-  | 'symmetric'
-  | 'dermatomal'
-  | 'flexural';
+  'localized' | 'scattered' | 'generalized' | 'symmetric' | 'dermatomal' | 'flexural';
 
 export interface WorklistQuery {
   doctorId: string;
@@ -46,6 +41,11 @@ export interface ClinicalAssessmentInput {
   itchSeverity?: ItchSeverity;
   notes?: string;
 }
+
+export type VitalSignsWithAssessmentInput = VitalSignsInput &
+  Omit<ClinicalAssessmentInput, 'chiefComplaint'> & {
+    chiefComplaint: string;
+  };
 
 export interface OrderLabTestsInput {
   expectedRecordVersion: number;

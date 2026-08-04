@@ -58,7 +58,8 @@ export interface RecordLabTestSummary {
   specimenType: string | null;
 }
 
-export type ResultTableKey = 'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
+export type ResultTableKey =
+  'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
 
 export interface ReferenceRange {
   fieldKey: string;
@@ -112,7 +113,7 @@ export interface RecordDiagnosis {
   icd10: string;
   icdCodingSystem: string;
   diagnosisText: string;
-  treatmentType: TreatmentType;
+  treatmentType: TreatmentType | null;
   diagnosedAt: string;
   diagnosisSignedAt: string;
 }

@@ -1,8 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import type { Prisma } from '@prisma/client';
-
 import { AppError } from '../../../core/errors/app-error';
 import { config } from '../../../config/unifiedConfig';
 import { recordAuditLog } from '../../audit/services/audit.service';
@@ -25,6 +23,8 @@ import {
   type PrescriptionWithDetails,
 } from '../repositories/prescription.repository';
 import { findAllergyConflict } from './allergy-matcher';
+import { isChronicDiseaseCode } from '../constants/chronic-disease-catalog';
+import { findActivePrescriptionForRecord } from '../../medical-records/repositories/medical-record.repository';
 import type {
   CancelPrescriptionInput,
   CreatePrescriptionDraftInput,
@@ -36,22 +36,33 @@ const CHRONIC_DAYS_THRESHOLD = 30;
 const MAX_DAYS = 90;
 const DISPENSE_IDEMPOTENCY_ROUTE = 'POST /prescriptions/:prescriptionId/dispenses';
 
-async function loadAssignedOutpatientRecord(recordId: string, doctorId: string) {
+/** Kiểm tra hồ sơ thuộc bác sĩ; hàm này không áp đặt trạng thái để phục vụ các API đọc. */
+async function loadAssignedRecord(recordId: string, doctorId: string) {
   const record = await findRecordForPrescription(recordId);
   if (!record) throw AppError.notFound('MEDICAL_RECORD_NOT_FOUND', 'Không tìm thấy hồ sơ khám.');
   if (record.doctorId !== doctorId) {
     throw AppError.forbidden('FORBIDDEN_ACCESS', 'Bạn không có quyền kê đơn trên hồ sơ này.');
   }
+  return record;
+}
+
+async function loadAssignedOutpatientRecord(recordId: string, doctorId: string) {
+  const record = await loadAssignedRecord(recordId, doctorId);
   if (record.status === 'closed') {
     throw AppError.badRequest('RECORD_ALREADY_CLOSED', 'Hồ sơ khám đã đóng.');
   }
-  if (record.treatmentType !== 'outpatient') {
+  // Chỉ hồ sơ đã chẩn đoán ngoại trú mới được phép đi vào luồng kê đơn.
+  // Kiểm tra status là bắt buộc vì dữ liệu cũ có thể từng được gán default outpatient.
+  if (record.status !== 'diagnosed' || record.treatmentType !== 'outpatient') {
     throw AppError.badRequest('RECORD_NOT_OUTPATIENT', 'Hồ sơ chưa chẩn đoán hướng ngoại trú.');
   }
   return record;
 }
 
-async function loadOwnedPrescription(prescriptionId: string, doctorId: string): Promise<PrescriptionWithDetails> {
+async function loadOwnedPrescription(
+  prescriptionId: string,
+  doctorId: string,
+): Promise<PrescriptionWithDetails> {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
   if (prescription.medicalRecord.doctorId !== doctorId) {
@@ -60,9 +71,25 @@ async function loadOwnedPrescription(prescriptionId: string, doctorId: string): 
   return prescription;
 }
 
+/** Không cho ký draft sau khi hồ sơ đã rời luồng chẩn đoán ngoại trú. */
+function assertPrescriptionRecordIsOutpatient(prescription: PrescriptionWithDetails) {
+  if (prescription.medicalRecord.status === 'closed') {
+    throw AppError.badRequest('RECORD_ALREADY_CLOSED', 'Hồ sơ khám đã đóng.');
+  }
+  if (
+    prescription.medicalRecord.status !== 'diagnosed' ||
+    prescription.medicalRecord.treatmentType !== 'outpatient'
+  ) {
+    throw AppError.badRequest('RECORD_NOT_OUTPATIENT', 'Hồ sơ chưa chẩn đoán hướng ngoại trú.');
+  }
+}
+
 /** Cho phép bác sĩ sở hữu, nhân sự dược hoặc admin thao tác hậu ký như hủy/xuất XML.
  */
-async function loadPrescriptionForStaffAccess(prescriptionId: string, principal: Principal): Promise<PrescriptionWithDetails> {
+async function loadPrescriptionForStaffAccess(
+  prescriptionId: string,
+  principal: Principal,
+): Promise<PrescriptionWithDetails> {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
   const isOwnerDoctor = prescription.medicalRecord.doctorId === principal.userId;
@@ -74,12 +101,29 @@ async function loadPrescriptionForStaffAccess(prescriptionId: string, principal:
   return prescription;
 }
 
-function assertLongTermReason(items: CreatePrescriptionDraftInput['items'], longTermReason?: string) {
+/**
+ * Kiểm tra giới hạn ngày dùng và điều kiện pháp nghiệp vụ cho đơn thuốc dài ngày.
+ * Mã ICD-10 của hồ sơ được dùng làm nguồn quyết định, không tin vào dữ liệu từ client.
+ */
+function assertLongTermReason(
+  items: CreatePrescriptionDraftInput['items'],
+  longTermReason: string | undefined,
+  icd10: string | null,
+) {
   const maxDays = Math.max(0, ...items.map((item) => item.days));
   if (maxDays > MAX_DAYS) {
     throw AppError.badRequest('DURATION_EXCEEDED', 'Số ngày kê vượt quá 90 ngày cho phép.');
   }
-  if (maxDays > CHRONIC_DAYS_THRESHOLD && (!longTermReason || longTermReason.trim().length < MIN_OVERRIDE_REASON_LENGTH)) {
+  if (maxDays > CHRONIC_DAYS_THRESHOLD && !isChronicDiseaseCode(icd10)) {
+    throw AppError.badRequest(
+      'DURATION_EXCEEDED',
+      'Chẩn đoán hiện tại không thuộc danh mục bệnh mãn tính được kê thuốc dài ngày.',
+    );
+  }
+  if (
+    maxDays > CHRONIC_DAYS_THRESHOLD &&
+    (!longTermReason || longTermReason.trim().length < MIN_OVERRIDE_REASON_LENGTH)
+  ) {
     throw AppError.badRequest(
       'DURATION_EXCEEDED',
       'Kê thuốc trên 30 ngày cần lý do chuyên môn (bệnh mãn tính) tối thiểu 15 ký tự.',
@@ -87,25 +131,34 @@ function assertLongTermReason(items: CreatePrescriptionDraftInput['items'], long
   }
 }
 
-async function resolveAndValidateItems(input: CreatePrescriptionDraftInput, patientAllergies: string | null) {
-  assertLongTermReason(input.items, input.longTermReason);
+async function resolveAndValidateItems(
+  input: CreatePrescriptionDraftInput,
+  patientAllergies: string | null,
+  icd10: string | null,
+) {
+  assertLongTermReason(input.items, input.longTermReason, icd10);
 
   const medicines = await findActiveMedicinesByIds(input.items.map((item) => item.medicineId));
   const medicineById = new Map(medicines.map((medicine) => [medicine.id, medicine]));
 
-  let conflictDrugName: string | null = null;
-  let conflictAllergy: string | null = null;
+  const conflictDetails: { value: { drugName: string; allergy: string } | null } = { value: null };
 
   const resolved = input.items.map((item) => {
     const medicine = medicineById.get(item.medicineId);
     if (!medicine) {
-      throw AppError.badRequest('INVALID_PRESCRIPTION', `Thuốc không tồn tại hoặc đã ngừng kinh doanh (${item.medicineId}).`);
+      throw AppError.badRequest(
+        'INVALID_PRESCRIPTION',
+        `Thuốc không tồn tại hoặc đã ngừng kinh doanh (${item.medicineId}).`,
+      );
     }
 
-    const conflict = findAllergyConflict(medicine.activeIngredient, medicine.name, patientAllergies);
-    if (conflict && !conflictDrugName) {
-      conflictDrugName = medicine.name;
-      conflictAllergy = conflict;
+    const conflict = findAllergyConflict(
+      medicine.activeIngredient,
+      medicine.name,
+      patientAllergies,
+    );
+    if (conflict && !conflictDetails.value) {
+      conflictDetails.value = { drugName: medicine.name, allergy: conflict };
     }
 
     return {
@@ -125,11 +178,12 @@ async function resolveAndValidateItems(input: CreatePrescriptionDraftInput, pati
     };
   });
 
-  const hasValidOverride = (input.allergyOverrideReason?.trim().length ?? 0) >= MIN_OVERRIDE_REASON_LENGTH;
-  if (conflictDrugName && !hasValidOverride) {
+  const hasValidOverride =
+    (input.allergyOverrideReason?.trim().length ?? 0) >= MIN_OVERRIDE_REASON_LENGTH;
+  if (conflictDetails.value && !hasValidOverride) {
     throw AppError.unprocessable(
       'ALLERGY_WARNING',
-      `Thuốc ${conflictDrugName} trùng dị ứng "${conflictAllergy}" đã ghi nhận trên hồ sơ bệnh nhân. Cần lý do chuyên môn ghi đè (tối thiểu 15 ký tự).`,
+      `Thuốc ${conflictDetails.value.drugName} trùng dị ứng "${conflictDetails.value.allergy}" đã ghi nhận trên hồ sơ bệnh nhân. Cần lý do chuyên môn ghi đè (tối thiểu 15 ký tự).`,
     );
   }
 
@@ -143,22 +197,33 @@ async function resolveAndValidateItems(input: CreatePrescriptionDraftInput, pati
  * @throws {AppError} 400 INVALID_PRESCRIPTION, 400 DURATION_EXCEEDED, 422 ALLERGY_WARNING,
  * 400 RECORD_NOT_OUTPATIENT, 403 FORBIDDEN_ACCESS, 409 VERSION_CONFLICT
  */
-export async function createPrescriptionDraft(recordId: string, doctorId: string, input: CreatePrescriptionDraftInput) {
+export async function createPrescriptionDraft(
+  recordId: string,
+  doctorId: string,
+  input: CreatePrescriptionDraftInput,
+) {
   const record = await loadAssignedOutpatientRecord(recordId, doctorId);
   if (record.version !== input.expectedRecordVersion) {
     throw AppError.conflict('VERSION_CONFLICT', 'Hồ sơ đã bị thay đổi bởi thao tác khác.');
   }
   if (input.items.length === 0 && !input.noDrugConfirmation) {
-    throw AppError.badRequest('INVALID_PRESCRIPTION', 'Đơn trống — kê ít nhất 1 thuốc hoặc xác nhận Không dùng thuốc.');
+    throw AppError.badRequest(
+      'INVALID_PRESCRIPTION',
+      'Đơn trống — kê ít nhất 1 thuốc hoặc xác nhận Không dùng thuốc.',
+    );
   }
 
-  const resolvedItems = input.items.length > 0 ? await resolveAndValidateItems(input, record.patient.allergies) : [];
+  const resolvedItems =
+    input.items.length > 0
+      ? await resolveAndValidateItems(input, record.patient.allergies, record.icd10)
+      : [];
   const roundNumber = await findNextRoundNumber(recordId);
   const { prescription, items } = await createDraftPrescription(
     recordId,
     doctorId,
     roundNumber,
     input.prescriptionType ?? 'C',
+    input.expectedRecordVersion,
     resolvedItems,
     input.allergyOverrideReason,
   );
@@ -194,42 +259,46 @@ export async function createPrescriptionDraft(recordId: string, doctorId: string
 
 /**
  * @route GET /api/v1/medical-records/:recordId/prescriptions/latest
- * @desc Convenience read for the doctor's own Rx tab — the current non-cancelled prescription
- * (if any) for this record, so the UI can restore draft/signed state on reload.
+ * @desc Đọc đơn gần nhất và cờ tồn tại đơn active/xml_exported cho bác sĩ được phân công.
  * @access doctor
  */
 export async function getLatestPrescriptionForRecord(recordId: string, doctorId: string) {
-  await loadAssignedOutpatientRecord(recordId, doctorId).catch((error) => {
-    if (error instanceof AppError && error.code === 'RECORD_NOT_OUTPATIENT') return;
-    throw error;
-  });
+  await loadAssignedRecord(recordId, doctorId);
 
-  const prescription = await findLatestPrescriptionForRecord(recordId);
-  if (!prescription) return null;
+  const [prescription, activePrescription] = await Promise.all([
+    findLatestPrescriptionForRecord(recordId),
+    findActivePrescriptionForRecord(recordId),
+  ]);
+  if (!prescription) {
+    return { prescription: null, hasActivePrescription: Boolean(activePrescription) };
+  }
 
   return {
-    prescriptionId: prescription.id,
-    recordId: prescription.recordId,
-    status: prescription.status,
-    isSigned: prescription.isSigned,
-    signedAt: prescription.signedAt,
-    xmlExportedAt: prescription.xmlExportedAt,
-    allergyOverrideReason: prescription.allergyOverrideReason,
-    items: prescription.prescriptionItems.map((item) => ({
-      prescriptionItemId: item.id,
-      medicineId: item.medicineId,
-      medicineNameSnapshot: item.medicineNameSnapshot,
-      activeIngredientSnapshot: item.activeIngredientSnapshot,
-      quantity: item.quantity,
-      days: item.days,
-      dosePerUse: item.dosePerUse,
-      usesPerDay: item.usesPerDay,
-      useTiming: item.useTiming,
-      dosageInstruction: item.dosageInstruction,
-      unitPrice: item.unitPrice.toString(),
-      total: item.total.toString(),
-    })),
-    version: prescription.version,
+    prescription: {
+      prescriptionId: prescription.id,
+      recordId: prescription.recordId,
+      status: prescription.status,
+      isSigned: prescription.isSigned,
+      signedAt: prescription.signedAt,
+      xmlExportedAt: prescription.xmlExportedAt,
+      allergyOverrideReason: prescription.allergyOverrideReason,
+      items: prescription.prescriptionItems.map((item) => ({
+        prescriptionItemId: item.id,
+        medicineId: item.medicineId,
+        medicineNameSnapshot: item.medicineNameSnapshot,
+        activeIngredientSnapshot: item.activeIngredientSnapshot,
+        quantity: item.quantity,
+        days: item.days,
+        dosePerUse: item.dosePerUse,
+        usesPerDay: item.usesPerDay,
+        useTiming: item.useTiming,
+        dosageInstruction: item.dosageInstruction,
+        unitPrice: item.unitPrice.toString(),
+        total: item.total.toString(),
+      })),
+      version: prescription.version,
+    },
+    hasActivePrescription: Boolean(activePrescription),
   };
 }
 
@@ -239,24 +308,45 @@ export async function getLatestPrescriptionForRecord(recordId: string, doctorId:
  * @access doctor
  * @throws {AppError} 400 PRESCRIPTION_NOT_DRAFT, 422 ALLERGY_WARNING, 409 VERSION_CONFLICT
  */
-export async function signPrescription(prescriptionId: string, doctorId: string, input: SignPrescriptionInput) {
+export async function signPrescription(
+  prescriptionId: string,
+  doctorId: string,
+  input: SignPrescriptionInput,
+) {
   const prescription = await loadOwnedPrescription(prescriptionId, doctorId);
+  assertPrescriptionRecordIsOutpatient(prescription);
   if (prescription.status !== 'draft') {
     throw AppError.badRequest('PRESCRIPTION_NOT_DRAFT', 'Đơn thuốc không ở trạng thái nháp.');
   }
 
   const patientAllergies = prescription.medicalRecord.patient.allergies;
   const conflict = prescription.prescriptionItems
-    .map((item) => findAllergyConflict(item.activeIngredientSnapshot, item.medicineNameSnapshot ?? '', patientAllergies))
+    .map((item) =>
+      findAllergyConflict(
+        item.activeIngredientSnapshot,
+        item.medicineNameSnapshot ?? '',
+        patientAllergies,
+      ),
+    )
     .find(Boolean);
   const hasOverride =
-    Boolean(prescription.allergyOverrideReason) || (input.allergyOverrideReason?.trim().length ?? 0) >= MIN_OVERRIDE_REASON_LENGTH;
+    Boolean(prescription.allergyOverrideReason) ||
+    (input.allergyOverrideReason?.trim().length ?? 0) >= MIN_OVERRIDE_REASON_LENGTH;
   if (conflict && !hasOverride) {
-    throw AppError.unprocessable('ALLERGY_WARNING', `Đơn còn thuốc trùng dị ứng "${conflict}" chưa được ghi đè lý do chuyên môn.`);
+    throw AppError.unprocessable(
+      'ALLERGY_WARNING',
+      `Đơn còn thuốc trùng dị ứng "${conflict}" chưa được ghi đè lý do chuyên môn.`,
+    );
   }
 
-  const updated = await signPrescriptionTx(prescriptionId, input.expectedVersion, doctorId, input.allergyOverrideReason);
-  if (!updated) throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
+  const updated = await signPrescriptionTx(
+    prescriptionId,
+    input.expectedVersion,
+    doctorId,
+    input.allergyOverrideReason,
+  );
+  if (!updated)
+    throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
 
   await recordAuditLog({
     userId: doctorId,
@@ -282,14 +372,24 @@ export async function signPrescription(prescriptionId: string, doctorId: string,
  * @access doctor, pharmacist, admin
  * @throws {AppError} 409 INVALID_PRESCRIPTION_TRANSITION, 409 VERSION_CONFLICT
  */
-export async function cancelPrescription(prescriptionId: string, principal: Principal, input: CancelPrescriptionInput) {
+export async function cancelPrescription(
+  prescriptionId: string,
+  principal: Principal,
+  input: CancelPrescriptionInput,
+) {
   const prescription = await loadPrescriptionForStaffAccess(prescriptionId, principal);
   if (prescription.status === 'cancelled') {
     throw AppError.conflict('INVALID_PRESCRIPTION_TRANSITION', 'Đơn thuốc đã bị hủy trước đó.');
   }
 
-  const updated = await cancelPrescriptionTx(prescriptionId, input.expectedVersion, principal.userId, input.cancelReason);
-  if (!updated) throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
+  const updated = await cancelPrescriptionTx(
+    prescriptionId,
+    input.expectedVersion,
+    principal.userId,
+    input.cancelReason,
+  );
+  if (!updated)
+    throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -300,7 +400,12 @@ export async function cancelPrescription(prescriptionId: string, principal: Prin
     resourceId: prescriptionId,
   });
 
-  return { prescriptionId: updated.id, status: updated.status, cancelledAt: updated.cancelledAt, version: updated.version };
+  return {
+    prescriptionId: updated.id,
+    status: updated.status,
+    cancelledAt: updated.cancelledAt,
+    version: updated.version,
+  };
 }
 
 function escapeXml(value: string | null | undefined): string {
@@ -346,7 +451,11 @@ ${itemsXml}
  * @access doctor, pharmacist, admin
  * @throws {AppError} 400 PRESCRIPTION_NOT_SIGNED, 409 VERSION_CONFLICT
  */
-export async function exportPrescriptionXml(prescriptionId: string, principal: Principal, expectedVersion: number) {
+export async function exportPrescriptionXml(
+  prescriptionId: string,
+  principal: Principal,
+  expectedVersion: number,
+) {
   const prescription = await loadPrescriptionForStaffAccess(prescriptionId, principal);
   if (prescription.status !== 'active') {
     throw AppError.badRequest('PRESCRIPTION_NOT_SIGNED', 'Chỉ xuất XML sau khi đơn đã ký.');
@@ -360,7 +469,8 @@ export async function exportPrescriptionXml(prescriptionId: string, principal: P
   await writeFile(filePath, xml, 'utf-8');
 
   const updated = await markXmlExportedTx(prescriptionId, expectedVersion, filePath);
-  if (!updated) throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
+  if (!updated)
+    throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
 
   await recordAuditLog({
     userId: principal.userId,
@@ -375,7 +485,11 @@ export async function exportPrescriptionXml(prescriptionId: string, principal: P
     prescriptionId: updated.id,
     status: updated.status,
     xmlExportedAt: updated.xmlExportedAt,
-    download: { endpoint: `/api/v1/prescriptions/${prescriptionId}/xml-file`, fileType: 'xml', originalName: fileName },
+    download: {
+      endpoint: `/api/v1/prescriptions/${prescriptionId}/xml-file`,
+      fileType: 'xml',
+      originalName: fileName,
+    },
     version: updated.version,
   };
 }
@@ -396,33 +510,39 @@ export async function downloadPrescriptionXml(prescriptionId: string, principal:
 
 function shapeDispensablePrescription(prescription: DispensablePrescription) {
   const record = prescription.medicalRecord;
-  const allocationsByItemId = prescription.stockMovements.reduce((current, movement) => {
-    if (!movement.prescriptionItemId) return current;
+  const allocationsByItemId = prescription.stockMovements.reduce(
+    (current, movement) => {
+      if (!movement.prescriptionItemId) return current;
 
-    const allocations = current.get(movement.prescriptionItemId) ?? [];
-    allocations.push({
-      balanceAfter: movement.balanceAfter,
-      batchId: movement.batchId,
-      batchNumber: movement.batch.batchNumber,
-      expiryDate: movement.batch.expiryDate,
-      quantityAllocated: Math.abs(movement.quantityChange),
-      warehouse: {
-        code: movement.warehouse.code,
-        name: movement.warehouse.name,
-        warehouseId: movement.warehouse.id,
-      },
-    });
-    current.set(movement.prescriptionItemId, allocations);
+      const allocations = current.get(movement.prescriptionItemId) ?? [];
+      allocations.push({
+        balanceAfter: movement.balanceAfter,
+        batchId: movement.batchId,
+        batchNumber: movement.batch.batchNumber,
+        expiryDate: movement.batch.expiryDate,
+        quantityAllocated: Math.abs(movement.quantityChange),
+        warehouse: {
+          code: movement.warehouse.code,
+          name: movement.warehouse.name,
+          warehouseId: movement.warehouse.id,
+        },
+      });
+      current.set(movement.prescriptionItemId, allocations);
 
-    return current;
-  }, new Map<string, Array<{
-    balanceAfter: number;
-    batchId: string;
-    batchNumber: string;
-    expiryDate: Date;
-    quantityAllocated: number;
-    warehouse: { code: string; name: string; warehouseId: string };
-  }>>());
+      return current;
+    },
+    new Map<
+      string,
+      Array<{
+        balanceAfter: number;
+        batchId: string;
+        batchNumber: string;
+        expiryDate: Date;
+        quantityAllocated: number;
+        warehouse: { code: string; name: string; warehouseId: string };
+      }>
+    >(),
+  );
   const firstWarehouse = prescription.stockMovements[0]?.warehouse;
 
   return {
@@ -498,18 +618,26 @@ export async function listDispensablePrescriptions(query: {
  * @access pharmacist, admin
  * @throws {AppError} 400 PRESCRIPTION_NOT_SIGNED, 400 PRESCRIPTION_ALREADY_DISPENSED, 409 VERSION_CONFLICT
  */
-async function dispensePrescriptionWithoutIdempotency(prescriptionId: string, pharmacistId: string, expectedVersion: number) {
+async function dispensePrescriptionWithoutIdempotency(
+  prescriptionId: string,
+  pharmacistId: string,
+  expectedVersion: number,
+) {
   const prescription = await findPrescriptionById(prescriptionId);
   if (!prescription) throw AppError.notFound('PRESCRIPTION_NOT_FOUND', 'Không tìm thấy đơn thuốc.');
   if (prescription.status !== 'active' && prescription.status !== 'xml_exported') {
     throw AppError.badRequest('PRESCRIPTION_NOT_SIGNED', 'Đơn thuốc chưa được ký hoặc đã bị hủy.');
   }
   if (prescription.dispensedAt) {
-    throw AppError.badRequest('PRESCRIPTION_ALREADY_DISPENSED', 'Đơn thuốc đã được cấp phát trước đó.');
+    throw AppError.badRequest(
+      'PRESCRIPTION_ALREADY_DISPENSED',
+      'Đơn thuốc đã được cấp phát trước đó.',
+    );
   }
 
   const updated = await dispensePrescriptionTx(prescriptionId, expectedVersion, pharmacistId);
-  if (!updated) throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
+  if (!updated)
+    throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
 
   await recordAuditLog({
     userId: pharmacistId,
@@ -538,21 +666,24 @@ export async function dispensePrescription(
   idempotencyKey?: string,
 ) {
   if (idempotencyKey) {
-    const cached = await findIdempotencyResult<Awaited<ReturnType<typeof dispensePrescriptionWithoutIdempotency>>>(
-      idempotencyKey,
-      DISPENSE_IDEMPOTENCY_ROUTE,
-    );
+    const cached = await findIdempotencyResult<
+      Awaited<ReturnType<typeof dispensePrescriptionWithoutIdempotency>>
+    >(idempotencyKey, DISPENSE_IDEMPOTENCY_ROUTE);
     if (cached) return cached;
   }
 
-  const response = await dispensePrescriptionWithoutIdempotency(prescriptionId, pharmacistId, expectedVersion);
+  const response = await dispensePrescriptionWithoutIdempotency(
+    prescriptionId,
+    pharmacistId,
+    expectedVersion,
+  );
 
   if (idempotencyKey) {
     await saveIdempotencyResult({
       key: idempotencyKey,
       route: DISPENSE_IDEMPOTENCY_ROUTE,
       statusCode: 201,
-      responseJson: response as unknown as Prisma.InputJsonValue,
+      responseJson: response,
     });
   }
 

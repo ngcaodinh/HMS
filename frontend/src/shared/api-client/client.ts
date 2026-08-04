@@ -57,7 +57,12 @@ const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
   const fields = details.reduce<FieldErrors>((currentFields, detail) => {
     if (!isRecord(detail) || typeof detail.field !== 'string') return currentFields;
 
-    const message = typeof detail.message === 'string' ? detail.message : 'Dữ liệu không hợp lệ';
+    const message =
+      typeof detail.rule === 'string'
+        ? detail.rule
+        : typeof detail.message === 'string'
+          ? detail.message
+          : 'Dữ liệu không hợp lệ';
 
     return {
       ...currentFields,

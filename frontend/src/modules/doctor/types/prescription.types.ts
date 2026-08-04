@@ -37,13 +37,19 @@ export interface Prescription {
   version: number;
 }
 
+export interface LatestPrescriptionResponse {
+  prescription: Prescription | null;
+  hasActivePrescription: boolean;
+}
+
 /** Local (not-yet-submitted) prescription line — mirrors doctor.html's `rx.lines` shape. */
 export interface DraftRxLine {
   medicineId: string;
   name: string;
   activeIngredient: string | null;
-  quantity: number;
-  days: number;
+  /** Giữ chuỗi thô để hiển thị lỗi ngay khi người dùng nhập số âm/rỗng/thập phân. */
+  quantity: string;
+  days: string;
   dosePerUse: string;
   useTiming: string;
 }
