@@ -47,9 +47,11 @@ describe('nurse vitals seed data', () => {
         id: 'usr-nurse-01',
       },
     });
-    const nurseRecord = nurse ?? failWithDiagnostics('Không tìm thấy tài khoản nurse demo.', {
-      expectedUserId: 'usr-nurse-01',
-    });
+    const nurseRecord =
+      nurse ??
+      failWithDiagnostics('Không tìm thấy tài khoản nurse demo.', {
+        expectedUserId: 'usr-nurse-01',
+      });
 
     const roleCodes = nurseRecord.permissions.map((permission) => permission.roleCode);
     const worklist = await prisma.medicalRecord.findMany({
@@ -148,7 +150,10 @@ describe('nurse vitals seed data', () => {
     }
 
     if (worklist.length === 0) {
-      failWithDiagnostics('Không có hồ sơ nào chưa đo sinh hiệu trong khoa của nurse.', diagnostics);
+      failWithDiagnostics(
+        'Không có hồ sơ nào chưa đo sinh hiệu trong khoa của nurse.',
+        diagnostics,
+      );
     }
 
     if (toNumber(queue.activeTicketCount) === 0) {
@@ -166,9 +171,11 @@ describe('nurse vitals seed data', () => {
         id: 'usr-nurse-01',
       },
     });
-    const nurseRecord = nurse ?? failWithDiagnostics('Không tìm thấy tài khoản nurse demo.', {
-      expectedUserId: 'usr-nurse-01',
-    });
+    const nurseRecord =
+      nurse ??
+      failWithDiagnostics('Không tìm thấy tài khoản nurse demo.', {
+        expectedUserId: 'usr-nurse-01',
+      });
     const accessToken = jwtPort.sign({
       authVersion: nurseRecord.authVersion,
       userId: nurseRecord.id,
@@ -176,7 +183,7 @@ describe('nurse vitals seed data', () => {
 
     const response = await request(app)
       .get('/api/v1/inpatient/vitals-queue')
-      .set('Authorization', `Bearer ${accessToken}`);
+      .set('Authorization', `Bearer ${accessToken.token}`);
 
     expect(response.status).toBe(200);
     expect(response.body.data.worklist.length).toBeGreaterThan(0);
@@ -190,9 +197,11 @@ describe('nurse vitals seed data', () => {
         id: 'usr-nurse-01',
       },
     });
-    const nurseRecord = nurse ?? failWithDiagnostics('Không tìm thấy tài khoản nurse demo.', {
-      expectedUserId: 'usr-nurse-01',
-    });
+    const nurseRecord =
+      nurse ??
+      failWithDiagnostics('Không tìm thấy tài khoản nurse demo.', {
+        expectedUserId: 'usr-nurse-01',
+      });
     const accessToken = jwtPort.sign({
       authVersion: nurseRecord.authVersion,
       userId: nurseRecord.id,
@@ -200,11 +209,13 @@ describe('nurse vitals seed data', () => {
 
     const response = await request(app)
       .get('/api/v1/treatment-orders')
-      .set('Authorization', `Bearer ${accessToken}`);
+      .set('Authorization', `Bearer ${accessToken.token}`);
 
     expect(response.status).toBe(200);
     expect(response.body.data.length).toBeGreaterThan(0);
-    expect(response.body.data.some((order: { status: string }) => order.status === 'active')).toBe(true);
+    expect(response.body.data.some((order: { status: string }) => order.status === 'active')).toBe(
+      true,
+    );
   });
 
   it('API /api/v1/inpatient/vitals-queue tra worklist khi nurse thuoc khoa Da Lieu moi', async () => {
@@ -220,9 +231,11 @@ describe('nurse vitals seed data', () => {
         },
       },
     });
-    const nurseRecord = nurse ?? failWithDiagnostics('Khong tim thay nurse thuoc department dermatology.', {
-      expectedDepartmentId: 'dermatology',
-    });
+    const nurseRecord =
+      nurse ??
+      failWithDiagnostics('Khong tim thay nurse thuoc department dermatology.', {
+        expectedDepartmentId: 'dermatology',
+      });
     const accessToken = jwtPort.sign({
       authVersion: nurseRecord.authVersion,
       userId: nurseRecord.id,
@@ -230,7 +243,7 @@ describe('nurse vitals seed data', () => {
 
     const response = await request(app)
       .get('/api/v1/inpatient/vitals-queue')
-      .set('Authorization', `Bearer ${accessToken}`);
+      .set('Authorization', `Bearer ${accessToken.token}`);
 
     expect(response.status).toBe(200);
     expect(response.body.data.worklist.length).toBeGreaterThan(0);
@@ -249,9 +262,11 @@ describe('nurse vitals seed data', () => {
         },
       },
     });
-    const nurseRecord = nurse ?? failWithDiagnostics('Khong tim thay nurse thuoc department dermatology.', {
-      expectedDepartmentId: 'dermatology',
-    });
+    const nurseRecord =
+      nurse ??
+      failWithDiagnostics('Khong tim thay nurse thuoc department dermatology.', {
+        expectedDepartmentId: 'dermatology',
+      });
     const accessToken = jwtPort.sign({
       authVersion: nurseRecord.authVersion,
       userId: nurseRecord.id,
@@ -259,7 +274,7 @@ describe('nurse vitals seed data', () => {
 
     const response = await request(app)
       .get('/api/v1/treatment-orders')
-      .set('Authorization', `Bearer ${accessToken}`);
+      .set('Authorization', `Bearer ${accessToken.token}`);
 
     expect(response.status).toBe(200);
     expect(response.body.data.length).toBeGreaterThan(0);
