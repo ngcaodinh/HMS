@@ -643,8 +643,12 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                   <button
                     type="button"
                     className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`}
-                    disabled={selectedRx.invoiceStatus !== 'paid' || selectedRx.items.some((item) => !item.isStockSufficient)}
-                    title={selectedRx.invoiceStatus !== 'paid' ? 'Bệnh nhân chưa thanh toán viện phí.' : undefined}
+                    disabled={selectedRx.status !== 'pending' || selectedRx.invoiceStatus !== 'paid' || selectedRx.items.some((item) => !item.isStockSufficient)}
+                    title={selectedRx.status !== 'pending'
+                      ? 'Đơn thuốc không còn ở trạng thái chờ cấp phát.'
+                      : selectedRx.invoiceStatus !== 'paid'
+                        ? 'Bệnh nhân chưa thanh toán viện phí.'
+                        : undefined}
                     onClick={() => onOpenDispenseModal(selectedRx)}
                     aria-label="Xác nhận cấp phát thuốc và trừ kho FEFO"
                   >
