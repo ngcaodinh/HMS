@@ -1,6 +1,16 @@
 import type { StaffUser } from '../types/staff.schema';
 
-const escapeCsvCell = (value: string) => `"${value.replaceAll('"', '""')}"`;
+const spreadsheetFormulaPattern = /^[\s]*[=+\-@]/u;
+
+/**
+ * Escape cú pháp CSV và vô hiệu hóa công thức spreadsheet trong dữ liệu do người dùng kiểm soát.
+ * Prefix dấu nháy đơn để Excel/Google Sheets đọc ô là text thay vì thực thi công thức.
+ */
+const escapeCsvCell = (value: string) => {
+  const safeValue = spreadsheetFormulaPattern.test(value) ? `'${value}` : value;
+
+  return `"${safeValue.replaceAll('"', '""')}"`;
+};
 
 /** Tạo CSV từ danh sách đã parse, không đưa password hoặc CCCD vào file báo cáo. */
 export const buildStaffUsersCsv = (
