@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { AppError } from '../../../core/errors/appError';
 import { auditPort } from '../../../core/ports/auditPort';
 import { realtimePort } from '../../../core/ports/realtimePort';
@@ -7,20 +5,16 @@ import {
   formatVietnamDbDateTime,
   getVietnamLegalDate,
   getVietnamLegalDateString,
-  toVietnamDbDateTime,
 } from '../../../core/time/vietnamClock';
 import {
   IDENTITY_CARD_REGEX,
   VN_MOBILE_PHONE_REGEX,
 } from '../../patients/constants/patient.constants';
 import { patientRepository } from '../../patients/repositories/patient.repository';
-import { queueRepository } from '../../queue/repositories/queue.repository';
-import { queueService } from '../../queue/services/queue.service';
 import { receptionRepository } from '../repositories/reception.repository';
 
 export type CreateReceptionInput = {
   queueTicketId?: string;
-  createDirectTicket?: boolean;
   doctorId: string;
   departmentId?: string;
   consultationServiceId?: string;
@@ -50,14 +44,19 @@ export class ReceptionService {
   }
 
   async createReception(input: CreateReceptionInput) {
+    // Kiểm tra invariant đầu vào trước mọi truy vấn/tạo dữ liệu để caller nội bộ
+    // không thể tạo bệnh nhân mồ côi khi bỏ sót số thứ tự hàng đợi.
+    const { queueTicketId } = input;
+    if (!queueTicketId) {
+      throw new AppError(400, 'QUEUE_TICKET_REQUIRED', 'Thiếu số thứ tự hàng đợi');
+    }
+
     const doctor = await receptionRepository.findDoctor(input.doctorId);
     if (!doctor) {
       throw new AppError(400, 'MISSING_DOCTOR', 'Bác sĩ không hợp lệ hoặc không hoạt động');
     }
 
-    const service = await receptionRepository.findConsultationService(
-      input.consultationServiceId,
-    );
+    const service = await receptionRepository.findConsultationService(input.consultationServiceId);
     if (!service) {
       throw new AppError(
         400,
@@ -119,26 +118,6 @@ export class ReceptionService {
       isEmergencyBypass = created.isEmergencyBypass;
     } else {
       throw new AppError(400, 'VALIDATION_ERROR', 'Thiếu existingPatientId hoặc newPatient');
-    }
-
-    // Ticket: existing called OR createDirectTicket
-    let queueTicketId = input.queueTicketId;
-
-    if (input.createDirectTicket) {
-      // Walk-in: cấp số + chuyển ngay called (không cắt hàng waiting có sẵn).
-      const issued = await queueService.issueTicket({
-        idempotencyKey: randomUUID(),
-        source: 'reception_desk',
-      });
-      await queueRepository.updateStatus(issued.ticketId, {
-        status: 'called',
-        calledAt: toVietnamDbDateTime(),
-      });
-      queueTicketId = issued.ticketId;
-    }
-
-    if (!queueTicketId) {
-      throw new AppError(400, 'QUEUE_TICKET_REQUIRED', 'Thiếu số thứ tự hàng đợi');
     }
 
     try {
@@ -226,6 +205,10 @@ export class ReceptionService {
     }
   }
 
+  /**
+   * Kiểm tra phòng vệ cho caller nội bộ gọi service trực tiếp mà không đi qua Zod.
+   * Boundary HTTP vẫn là nơi validate chính; lớp này bảo vệ invariant khi tái sử dụng service.
+   */
   private assertNewPatient(np: NonNullable<CreateReceptionInput['newPatient']>): void {
     const phone = np.phoneNumber?.trim();
     if (phone) {
@@ -271,11 +254,7 @@ export class ReceptionService {
   }) {
     const reason = input.emergencyReason.trim();
     if (reason.length < 10) {
-      throw new AppError(
-        400,
-        'INVALID_EMERGENCY_REASON',
-        'Lý do cấp cứu tối thiểu 10 ký tự',
-      );
+      throw new AppError(400, 'INVALID_EMERGENCY_REASON', 'Lý do cấp cứu tối thiểu 10 ký tự');
     }
 
     let doctorId = input.doctorId;
@@ -288,22 +267,14 @@ export class ReceptionService {
       const doctors = await receptionRepository.listActiveDoctors();
       const first = doctors[0];
       if (!first) {
-        throw new AppError(
-          409,
-          'NO_ON_DUTY_DOCTOR',
-          'Không có bác sĩ sẵn sàng cho ca cấp cứu',
-        );
+        throw new AppError(409, 'NO_ON_DUTY_DOCTOR', 'Không có bác sĩ sẵn sàng cho ca cấp cứu');
       }
       doctorId = first.id;
     }
 
     const service = await receptionRepository.findConsultationService();
     if (!service) {
-      throw new AppError(
-        400,
-        'CONSULTATION_SERVICE_UNRESOLVED',
-        'Không tìm thấy dịch vụ khám',
-      );
+      throw new AppError(400, 'CONSULTATION_SERVICE_UNRESOLVED', 'Không tìm thấy dịch vụ khám');
     }
 
     const department = await receptionRepository.findDefaultDepartment();

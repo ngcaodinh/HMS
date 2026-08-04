@@ -23,9 +23,10 @@ export function sendSuccess<T>(
   statusOrOptions: number | SuccessOptions = 200,
   requestId?: string,
 ) {
-  const options = typeof statusOrOptions === 'number'
-    ? { status: statusOrOptions, meta: { requestId } }
-    : statusOrOptions;
+  const options =
+    typeof statusOrOptions === 'number'
+      ? { status: statusOrOptions, meta: { requestId } }
+      : statusOrOptions;
 
   return res.status(options.status ?? 200).json({
     data,
@@ -60,7 +61,7 @@ export function sendError(
   statusCode: number,
   code: string,
   message: string,
-  details?: Array<{ field: string; rule: string }>,
+  details?: Array<{ field: string; rule: string; message?: string }>,
   requestId?: string,
 ) {
   return res.status(statusCode).json({

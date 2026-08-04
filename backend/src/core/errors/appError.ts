@@ -4,13 +4,13 @@
 export class AppError extends Error {
   readonly statusCode: number;
   readonly code: string;
-  readonly details?: Array<{ field: string; rule: string }>;
+  readonly details?: Array<{ field: string; rule: string; message?: string }>;
 
   constructor(
     statusCode: number,
     code: string,
     message: string,
-    details?: Array<{ field: string; rule: string }>,
+    details?: Array<{ field: string; rule: string; message?: string }>,
   ) {
     super(message);
     this.name = 'AppError';
