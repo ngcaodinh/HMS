@@ -553,10 +553,29 @@ function VitalsForm({
     }));
   };
 
-  const visibleFieldErrors = useMemo(
-    () => (attemptedSave ? getAllVitalFieldErrors(form) : fieldErrors),
-    [attemptedSave, fieldErrors, form],
-  );
+  // Tính lỗi quan hệ từ form hiện tại để không phụ thuộc vào closure của sự kiện blur.
+  // Điều này bảo đảm lỗi xuất hiện ngay sau khi cả hai ô huyết áp đã có giá trị hợp lệ.
+  const liveBloodPressureError = useMemo(() => {
+    if (
+      getVitalFieldError('bpSystolic', form.bpSystolic) ||
+      getVitalFieldError('bpDiastolic', form.bpDiastolic)
+    ) {
+      return undefined;
+    }
+
+    return getBloodPressureRelationError(form.bpSystolic, form.bpDiastolic);
+  }, [form.bpDiastolic, form.bpSystolic]);
+
+  const visibleFieldErrors = useMemo(() => {
+    const errors = attemptedSave ? getAllVitalFieldErrors(form) : fieldErrors;
+    if (!liveBloodPressureError) return errors;
+
+    return {
+      ...errors,
+      bpSystolic: errors.bpSystolic ?? liveBloodPressureError,
+      bpDiastolic: errors.bpDiastolic ?? liveBloodPressureError,
+    };
+  }, [attemptedSave, fieldErrors, form, liveBloodPressureError]);
   const allergyNoteError = getAllergyNoteError(
     form.allergyEnabled,
     form.allergyNote,
