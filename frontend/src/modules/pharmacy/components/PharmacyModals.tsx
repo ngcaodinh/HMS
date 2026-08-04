@@ -25,8 +25,6 @@ interface PharmacyModalsProps {
   onConfirmXmlImport: () => void;
   /** Hàm xác nhận đăng xuất */
   onConfirmLogout: () => void;
-  /** Hàm xác nhận đồng bộ FEFO (tùy chọn) */
-  onConfirmFefoSync?: () => void;
   isDispensing?: boolean;
   isRejecting?: boolean;
   rejectServerError?: string;
@@ -62,7 +60,6 @@ export function validateRejectReason(reason: string): string | null {
  * @param onConfirmReject Callback gửi lý do từ chối đơn thuốc về bác sĩ
  * @param onConfirmXmlImport Callback nhập dữ liệu XML phiếu nhập kho
  * @param onConfirmLogout Callback thực hiện đăng xuất hệ thống
- * @param onConfirmFefoSync Callback thực hiện đồng bộ kho FEFO
  * @returns Component React hiển thị hộp thoại Modal phù hợp
  */
 export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
@@ -73,7 +70,6 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
   onConfirmReject,
   onConfirmXmlImport,
   onConfirmLogout,
-  onConfirmFefoSync,
   isDispensing = false,
   isRejecting = false,
   rejectServerError,
@@ -400,7 +396,8 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                   <line x1="12" y1="8" x2="12.01" y2="8" />
                 </svg>
                 <div>
-                  Hệ thống sẽ quét toàn bộ lô thuốc trong Kho Ngoại Trú A &amp; Kho Nội Trú B, cập nhật chỉ số Hạn dùng ngắn nhất (First Expired, First Out) cho 145 đầu thuốc.
+                  Chức năng đồng bộ FEFO chưa có API xử lý thật. Vui lòng đóng hộp thoại và tiếp tục
+                  theo dõi thứ tự lô từ dữ liệu tồn kho hiện tại.
                 </div>
               </div>
             </div>
@@ -410,20 +407,17 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                 type="button"
                 className={`${styles.btn} ${styles.btnGhost}`}
                 onClick={onCloseModal}
-                aria-label="Hủy bỏ"
+                aria-label="Đóng hộp thoại"
               >
-                Hủy bỏ
+                Đóng
               </button>
               <button
                 type="button"
                 className={`${styles.btn} ${styles.btnPrimary}`}
-                onClick={() => {
-                  onConfirmFefoSync?.();
-                  onCloseModal();
-                }}
-                aria-label="Xác nhận đồng bộ"
+                onClick={onCloseModal}
+                aria-label="Đóng hộp thoại đồng bộ FEFO"
               >
-                Xác nhận đồng bộ FEFO
+                Đã hiểu
               </button>
             </div>
           </div>

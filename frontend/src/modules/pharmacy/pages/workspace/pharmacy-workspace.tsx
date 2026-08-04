@@ -252,6 +252,7 @@ export function PharmacyWorkspace() {
     const prescriptionId = selectedPrescription?.backendPrescriptionId;
     if (activeScreen !== 'national-xml' || !prescriptionId || !selectedPrescription?.xmlExportedAt) {
       setXmlContent(null);
+      setIsLoadingXml(false);
       return undefined;
     }
 
@@ -389,10 +390,6 @@ export function PharmacyWorkspace() {
   /**
    * Xử lý đồng bộ chỉ số tồn kho FEFO
    */
-  const handleConfirmFefoSync = () => {
-    showToast('Tính năng đồng bộ FEFO đang được phát triển.', 'info');
-  };
-
   const handleReportDateChange = (from: string, to: string) => {
     setReportFrom(from);
     setReportTo(to);
@@ -632,7 +629,6 @@ export function PharmacyWorkspace() {
           setActiveModal(null);
         }}
         onConfirmDispense={handleConfirmDispense}
-        onConfirmFefoSync={handleConfirmFefoSync}
         onConfirmLogout={handleConfirmLogout}
         onConfirmReject={handleConfirmReject}
         onConfirmXmlImport={handleConfirmXmlImport}

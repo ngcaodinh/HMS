@@ -136,7 +136,6 @@ function renderModals(props: Partial<React.ComponentProps<typeof PharmacyModals>
     isRejecting: false,
     onCloseModal: () => undefined,
     onConfirmDispense: () => undefined,
-    onConfirmFefoSync: () => undefined,
     onConfirmLogout: () => undefined,
     onConfirmReject: () => undefined,
     onConfirmXmlImport: () => undefined,
@@ -492,6 +491,15 @@ describe('pharmacy prescription API helpers', () => {
     assert.equal(capturedResponseType, 'blob');
     assert.deepEqual(clicked, [{ download: 'RX-2026-0891.xml', href: 'blob:rx-xml' }]);
     assert.equal(revokedUrl, 'blob:rx-xml');
+
+    clicked.length = 0;
+    httpClient.get = (async () => ({
+      data: new Blob(['<xml />'], { type: 'application/xml' }),
+      headers: { 'content-disposition': 'attachment; filename="../RX-2026-0891.xml"' },
+    })) as typeof httpClient.get;
+    await downloadPrescriptionXmlFile('prescription-0891');
+
+    assert.deepEqual(clicked, [{ download: '.._RX-2026-0891.xml', href: 'blob:rx-xml' }]);
   });
 });
 

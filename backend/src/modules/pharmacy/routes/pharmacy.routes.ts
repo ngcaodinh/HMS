@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
 
-import { AppError } from '../../../core/errors/app-error';
 import { validateRequest } from '../../../core/http/validate-request';
 import { authorizeAndAudit } from '../../../middlewares/authorize-and-audit';
 import {
@@ -15,28 +14,18 @@ import {
   listInventoryQuerySchema,
   listStockMovementsQuerySchema,
 } from '../schemas/pharmacy.schemas';
+import { getInvalidStockMovementDateRangeError } from '../validators/stock-movement-date-range';
 
 export const pharmacyRouter = Router();
 
 /**
- * Chặn khoảng ngày đảo chiều trước khi query repository; lỗi này có mã riêng để frontend
- * hiển thị đúng tại bộ lọc thay vì biến thành lỗi truy vấn chung.
+ * Chặn khoảng ngày đảo chiều trước khi query repository; lỗi có mã riêng để frontend hiển thị
+ * đúng tại bộ lọc thay vì biến thành lỗi truy vấn chung.
  */
 function validateStockMovementDateRange(req: Request, _res: Response, next: NextFunction) {
-  const { from, to } = req.query;
-  if (typeof from !== 'string' || typeof to !== 'string') {
-    next();
-    return;
-  }
-
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-  if (!Number.isNaN(fromDate.getTime()) && !Number.isNaN(toDate.getTime()) && fromDate > toDate) {
-    next(AppError.badRequest(
-      'INVALID_DATE_RANGE',
-      'Khoảng thời gian không hợp lệ (từ ngày phải trước đến ngày).',
-      [{ field: 'from', rule: 'from must be before or equal to to' }],
-    ));
+  const error = getInvalidStockMovementDateRangeError(req.query.from, req.query.to);
+  if (error) {
+    next(error);
     return;
   }
 
