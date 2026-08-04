@@ -3,70 +3,70 @@ import { describe, it } from 'node:test';
 
 import {
   getAllergyNoteError,
+  getAllVitalFieldErrors,
   getBloodPressureRelationError,
   getMissingRequiredVitalFields,
   hasBlockingVitalFormErrors,
   getVisibleEmergencyIdentityErrors,
-  getVisibleVitalFieldErrors,
   getVitalFieldError,
+  parseVitalNumber,
   validateEmergencyIdentity,
 } from '../src/modules/nurse/pages/workspace/nurse-validation';
 
 describe('nurse vitals validation helpers', () => {
-  it('accepts every non-cross-field boundary that the backend accepts', () => {
+  it('matches the doctor form boundaries and accepts decimal values', () => {
     const boundaries = [
-      ['pulse', '1', '300'],
-      ['bpDiastolic', '1', '200'],
-      ['respiratoryRate', '1', '100'],
-      ['temperatureC', '25', '45'],
-      ['spo2', '0', '100'],
-      ['heightCm', '0.1', '300'],
-      ['weightKg', '0.1', '500'],
+      ['pulse', '30', '220'],
+      ['temperatureC', '34', '43'],
+      ['bpSystolic', '50', '280'],
+      ['bpDiastolic', '20', '180'],
+      ['respiratoryRate', '1', '80'],
+      ['spo2', '50', '100'],
+      ['heightCm', '40', '250'],
+      ['weightKg', '1', '300'],
     ] as const;
 
     for (const [field, min, max] of boundaries) {
       assert.equal(getVitalFieldError(field, min), undefined);
       assert.equal(getVitalFieldError(field, max), undefined);
     }
-    assert.equal(getVitalFieldError('bpSystolic', '300'), undefined);
+    assert.equal(getVitalFieldError('pulse', '72.5'), undefined);
+    assert.equal(getVitalFieldError('bpSystolic', '120,5'), undefined);
+    assert.equal(parseVitalNumber(' 120,5 '), 120.5);
   });
 
-  it('rejects values outside range, integer fields with decimals, and invalid numbers', () => {
+  it('rejects values outside the doctor form range and invalid numbers', () => {
     const invalidValues = [
-      ['pulse', '0'],
-      ['pulse', '301'],
-      ['bpSystolic', '0'],
-      ['bpSystolic', '301'],
-      ['bpDiastolic', '0'],
-      ['bpDiastolic', '201'],
+      ['pulse', '29'],
+      ['pulse', '221'],
+      ['temperatureC', '33.9'],
+      ['temperatureC', '43.1'],
+      ['bpSystolic', '49'],
+      ['bpSystolic', '281'],
+      ['bpDiastolic', '19'],
+      ['bpDiastolic', '181'],
       ['respiratoryRate', '0'],
-      ['respiratoryRate', '101'],
-      ['temperatureC', '24.9'],
-      ['temperatureC', '45.1'],
-      ['spo2', '-1'],
+      ['respiratoryRate', '81'],
+      ['spo2', '49'],
       ['spo2', '101'],
-      ['heightCm', '0'],
-      ['heightCm', '300.1'],
-      ['weightKg', '0'],
-      ['weightKg', '500.1'],
-      ['pulse', '72.5'],
-      ['bpSystolic', '120.5'],
-      ['bpDiastolic', '80.5'],
-      ['respiratoryRate', '16.5'],
-      ['spo2', '98.5'],
+      ['heightCm', '39.9'],
+      ['heightCm', '250.1'],
+      ['weightKg', '0.9'],
+      ['weightKg', '300.1'],
       ['pulse', 'not-a-number'],
     ] as const;
 
     for (const [field, value] of invalidValues) {
       assert.notEqual(getVitalFieldError(field, value), undefined, `${field}=${value}`);
     }
-    assert.equal(getVitalFieldError('pulse', ''), undefined);
+    assert.equal(getVitalFieldError('pulse', ''), 'Trường này không được để trống.');
+    assert.equal(getVitalFieldError('heightCm', ''), undefined);
   });
 
   it('rejects reversed blood pressure values and long allergy notes', () => {
     assert.equal(
       getBloodPressureRelationError('80', '120'),
-      'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương, vui lòng kiểm tra lại (có thể đã nhập ngược)',
+      'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương.',
     );
     assert.equal(
       getAllergyNoteError(true, 'A'.repeat(1001), false),
@@ -78,6 +78,22 @@ describe('nurse vitals validation helpers', () => {
     );
     assert.equal(getAllergyNoteError(true, 'A'.repeat(1000), false), undefined);
     assert.equal(getAllergyNoteError(false, 'A'.repeat(1001), false), undefined);
+  });
+
+  it('shows both blood-pressure errors only when both fields are valid numbers', () => {
+    const relationErrors = getAllVitalFieldErrors({
+      bpSystolic: '80',
+      bpDiastolic: '120',
+    });
+    assert.equal(relationErrors.bpSystolic, getBloodPressureRelationError('80', '120'));
+    assert.equal(relationErrors.bpDiastolic, getBloodPressureRelationError('80', '120'));
+
+    const fieldErrors = getAllVitalFieldErrors({
+      bpSystolic: '49',
+      bpDiastolic: '80',
+    });
+    assert.equal(fieldErrors.bpSystolic, getVitalFieldError('bpSystolic', '49'));
+    assert.equal(fieldErrors.bpDiastolic, undefined);
   });
 
   it('does not treat optional vital fields as required after a failed submit', () => {
@@ -94,79 +110,6 @@ describe('nurse vitals validation helpers', () => {
       'bpDiastolic',
       'spo2',
     ]);
-  });
-
-  it('does not show untouched errors, but shows required errors after the field is blurred', () => {
-    const emptyVitals = {
-      pulse: '',
-      temperatureC: '',
-      bpSystolic: '',
-      bpDiastolic: '',
-      respiratoryRate: '',
-      spo2: '',
-      heightCm: '',
-      weightKg: '',
-    };
-
-    assert.deepEqual(getVisibleVitalFieldErrors(emptyVitals, {}), {});
-    assert.equal(
-      getVisibleVitalFieldErrors(emptyVitals, { pulse: true }).pulse,
-      'Vui lòng nhập giá trị này',
-    );
-    assert.equal(getVisibleVitalFieldErrors(emptyVitals, { heightCm: true }).heightCm, undefined);
-  });
-
-  it('shows the blood-pressure relation error for both fields after either field is blurred', () => {
-    const vitals = {
-      pulse: '80',
-      temperatureC: '',
-      bpSystolic: '80',
-      bpDiastolic: '120',
-      respiratoryRate: '',
-      spo2: '98',
-      heightCm: '',
-      weightKg: '',
-    };
-
-    assert.deepEqual(getVisibleVitalFieldErrors(vitals, {}), {});
-    const errors = getVisibleVitalFieldErrors(vitals, { bpDiastolic: true });
-    assert.equal(errors.bpSystolic, getBloodPressureRelationError('80', '120'));
-    assert.equal(errors.bpDiastolic, getBloodPressureRelationError('80', '120'));
-  });
-
-  it('does not mask an out-of-range blood-pressure error with the cross-field error', () => {
-    const errors = getVisibleVitalFieldErrors(
-      {
-        bpSystolic: '0',
-        bpDiastolic: '80',
-      },
-      { bpSystolic: true, bpDiastolic: true },
-    );
-
-    assert.equal(errors.bpSystolic, getVitalFieldError('bpSystolic', '0'));
-    assert.equal(errors.bpDiastolic, undefined);
-  });
-
-  it('shows every remaining vital error after a submit attempt', () => {
-    const errors = getVisibleVitalFieldErrors(
-      {
-        pulse: '0',
-        temperatureC: '',
-        bpSystolic: '120',
-        bpDiastolic: '',
-        respiratoryRate: '',
-        spo2: '',
-        heightCm: '',
-        weightKg: '',
-      },
-      {},
-      true,
-    );
-
-    assert.equal(errors.pulse, getVitalFieldError('pulse', '0'));
-    assert.equal(errors.bpDiastolic, 'Vui lòng nhập giá trị này');
-    assert.equal(errors.spo2, 'Vui lòng nhập giá trị này');
-    assert.equal(errors.heightCm, undefined);
   });
 
   it('blocks saving until required vitals and enabled allergy details are complete', () => {

@@ -54,11 +54,13 @@ import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
 import {
   getAllergyNoteError,
   getApiErrorMessage,
+  getAllVitalFieldErrors,
+  getBloodPressureRelationError,
   hasBlockingVitalFormErrors,
   getVisibleEmergencyIdentityErrors,
-  getVisibleVitalFieldErrors,
+  getVitalFieldError,
+  parseVitalNumber,
   validateEmergencyIdentity,
-  VITAL_LIMITS,
 } from './nurse-validation';
 
 function cn(...classes: Array<string | false | undefined>) {
@@ -425,7 +427,6 @@ const emptyVitalsForm: VitalsFormState = {
 };
 
 type VitalInputFieldName = Exclude<keyof VitalsFormState, 'allergyEnabled' | 'allergyNote'>;
-type TouchedVitalFields = Partial<Record<VitalInputFieldName, boolean>>;
 
 function VitalInputField({
   label,
@@ -435,15 +436,21 @@ function VitalInputField({
   onBlur,
   error,
   step,
+  inputMode,
+  min,
+  max,
   required,
 }: {
   label: string;
   unit: string;
   value: string;
   onChange: (value: string) => void;
-  onBlur?: () => void;
+  onBlur?: (value: string) => void;
   error?: string;
   step?: string;
+  inputMode?: 'numeric' | 'decimal';
+  min?: number;
+  max?: number;
   required?: boolean;
 }) {
   return (
@@ -454,7 +461,10 @@ function VitalInputField({
       </span>
       <span className="flex">
         <input
-          type="number"
+          type="text"
+          inputMode={inputMode ?? (step ? 'decimal' : 'numeric')}
+          min={min}
+          max={max}
           step={step}
           className={cn(
             styles.input,
@@ -463,7 +473,7 @@ function VitalInputField({
           )}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
+          onBlur={(event) => onBlur?.(event.target.value)}
           aria-invalid={Boolean(error)}
         />
         <span className={styles.fieldUnit}>{unit}</span>
@@ -487,10 +497,7 @@ function VitalsForm({
   isSaving,
   bmiValue,
   attemptedSave,
-  touchedFields,
-  setTouchedFields,
-  allergyTouched,
-  setAllergyTouched,
+  setAttemptedSave,
 }: {
   selectedRecord: VitalsWorklistItemDto | null;
   activeTicket: QueueTicketDto | null;
@@ -501,33 +508,54 @@ function VitalsForm({
   isSaving: boolean;
   bmiValue: string;
   attemptedSave: boolean;
-  touchedFields: TouchedVitalFields;
-  setTouchedFields: React.Dispatch<React.SetStateAction<TouchedVitalFields>>;
-  allergyTouched: boolean;
-  setAllergyTouched: React.Dispatch<React.SetStateAction<boolean>>;
+  setAttemptedSave: React.Dispatch<React.SetStateAction<boolean>>;
 }) {
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<VitalInputFieldName, string>>>({});
+  const [allergyTouched, setAllergyTouched] = useState(false);
+
+  useEffect(() => {
+    setFieldErrors({});
+    setAllergyTouched(false);
+  }, [selectedRecord?.recordId]);
+
+  useEffect(() => {
+    if (attemptedSave) setFieldErrors(getAllVitalFieldErrors(form));
+  }, [attemptedSave, form]);
+
   const handleVitalChange = (field: VitalInputFieldName, value: string) => {
-    setTouchedFields((previous) => {
+    setAttemptedSave(false);
+    setFieldErrors((previous) => {
       if (field === 'bpSystolic' || field === 'bpDiastolic') {
-        return { ...previous, bpSystolic: false, bpDiastolic: false };
+        return { ...previous, bpSystolic: undefined, bpDiastolic: undefined };
       }
-      return { ...previous, [field]: false };
+      return { ...previous, [field]: undefined };
     });
     setForm((previous) => ({ ...previous, [field]: value }));
   };
 
-  const handleVitalBlur = (field: VitalInputFieldName) => {
-    setTouchedFields((previous) => {
-      if (field === 'bpSystolic' || field === 'bpDiastolic') {
-        return { ...previous, bpSystolic: true, bpDiastolic: true };
-      }
-      return { ...previous, [field]: true };
-    });
+  const handleVitalBlur = (field: VitalInputFieldName, value: string) => {
+    const nextForm = { ...form, [field]: value };
+    const isBloodPressureField = field === 'bpSystolic' || field === 'bpDiastolic';
+    const fieldError = getVitalFieldError(field, value);
+    const bloodPressureError = isBloodPressureField
+      ? !getVitalFieldError('bpSystolic', nextForm.bpSystolic) &&
+        !getVitalFieldError('bpDiastolic', nextForm.bpDiastolic)
+        ? getBloodPressureRelationError(nextForm.bpSystolic, nextForm.bpDiastolic)
+        : undefined
+      : undefined;
+
+    setFieldErrors((previous) => ({
+      ...previous,
+      [field]: fieldError,
+      ...(bloodPressureError
+        ? { bpSystolic: bloodPressureError, bpDiastolic: bloodPressureError }
+        : {}),
+    }));
   };
 
-  const fieldErrors = useMemo(
-    () => getVisibleVitalFieldErrors(form, touchedFields, attemptedSave),
-    [attemptedSave, form, touchedFields],
+  const visibleFieldErrors = useMemo(
+    () => (attemptedSave ? getAllVitalFieldErrors(form) : fieldErrors),
+    [attemptedSave, fieldErrors, form],
   );
   const allergyNoteError = getAllergyNoteError(
     form.allergyEnabled,
@@ -559,78 +587,95 @@ function VitalsForm({
             label="Mạch (lần/phút)"
             unit="bpm"
             required
+            min={30}
+            max={220}
             value={form.pulse}
-            error={fieldErrors.pulse}
+            error={visibleFieldErrors.pulse}
             onChange={(v) => handleVitalChange('pulse', v)}
-            onBlur={() => handleVitalBlur('pulse')}
+            onBlur={(v) => handleVitalBlur('pulse', v)}
           />
 
           <VitalInputField
             label="Nhiệt độ (°C)"
             unit="°C"
             step="0.1"
+            min={34}
+            max={43}
             value={form.temperatureC}
-            error={fieldErrors.temperatureC}
+            error={visibleFieldErrors.temperatureC}
             onChange={(v) => handleVitalChange('temperatureC', v)}
-            onBlur={() => handleVitalBlur('temperatureC')}
+            onBlur={(v) => handleVitalBlur('temperatureC', v)}
           />
 
           <VitalInputField
             label="Huyết áp tâm thu (mmHg)"
             unit="mmHg"
             required
+            min={50}
+            max={280}
             value={form.bpSystolic}
-            error={fieldErrors.bpSystolic}
+            error={visibleFieldErrors.bpSystolic}
             onChange={(v) => handleVitalChange('bpSystolic', v)}
-            onBlur={() => handleVitalBlur('bpSystolic')}
+            onBlur={(v) => handleVitalBlur('bpSystolic', v)}
           />
 
           <VitalInputField
             label="Huyết áp tâm trương (mmHg)"
             unit="mmHg"
             required
+            min={20}
+            max={180}
             value={form.bpDiastolic}
-            error={fieldErrors.bpDiastolic}
+            error={visibleFieldErrors.bpDiastolic}
             onChange={(v) => handleVitalChange('bpDiastolic', v)}
-            onBlur={() => handleVitalBlur('bpDiastolic')}
+            onBlur={(v) => handleVitalBlur('bpDiastolic', v)}
           />
 
           <VitalInputField
             label="Nhịp thở (lần/phút)"
             unit="lần/ph"
+            min={1}
+            max={80}
             value={form.respiratoryRate}
-            error={fieldErrors.respiratoryRate}
+            error={visibleFieldErrors.respiratoryRate}
             onChange={(v) => handleVitalChange('respiratoryRate', v)}
-            onBlur={() => handleVitalBlur('respiratoryRate')}
+            onBlur={(v) => handleVitalBlur('respiratoryRate', v)}
           />
 
           <VitalInputField
             label="SpO2 (%)"
             unit="%"
             required
+            min={50}
+            max={100}
             value={form.spo2}
-            error={fieldErrors.spo2}
+            error={visibleFieldErrors.spo2}
             onChange={(v) => handleVitalChange('spo2', v)}
-            onBlur={() => handleVitalBlur('spo2')}
+            onBlur={(v) => handleVitalBlur('spo2', v)}
           />
 
           <VitalInputField
             label="Chiều cao (cm)"
             unit="cm"
+            step="0.1"
+            min={40}
+            max={250}
             value={form.heightCm}
-            error={fieldErrors.heightCm}
+            error={visibleFieldErrors.heightCm}
             onChange={(v) => handleVitalChange('heightCm', v)}
-            onBlur={() => handleVitalBlur('heightCm')}
+            onBlur={(v) => handleVitalBlur('heightCm', v)}
           />
 
           <VitalInputField
             label="Cân nặng (kg)"
             unit="kg"
             step="0.1"
+            min={1}
+            max={300}
             value={form.weightKg}
-            error={fieldErrors.weightKg}
+            error={visibleFieldErrors.weightKg}
             onChange={(v) => handleVitalChange('weightKg', v)}
-            onBlur={() => handleVitalBlur('weightKg')}
+            onBlur={(v) => handleVitalBlur('weightKg', v)}
           />
 
           <label>
@@ -758,8 +803,6 @@ function VitalsScreen() {
   const [form, setForm] = useState<VitalsFormState>(emptyVitalsForm);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [attemptedSave, setAttemptedSave] = useState(false);
-  const [touchedVitalFields, setTouchedVitalFields] = useState<TouchedVitalFields>({});
-  const [allergyTouched, setAllergyTouched] = useState(false);
   const hydratedRef = useRef(false);
 
   useEffect(() => {
@@ -832,9 +875,11 @@ function VitalsScreen() {
   }, [form]);
 
   const bmiValue = useMemo(() => {
-    const h = Number(form.heightCm);
-    const w = Number(form.weightKg);
-    if (h > 0 && w > 0) {
+    const height = parseVitalNumber(form.heightCm);
+    const weight = parseVitalNumber(form.weightKg);
+    if (height && weight) {
+      const h = height;
+      const w = weight;
       const bmi = w / (h / 100) ** 2;
       return bmi.toFixed(1);
     }
@@ -844,8 +889,6 @@ function VitalsScreen() {
   const selectRecordAndResetForm = useCallback((item: VitalsWorklistItemDto | null) => {
     setSelectedRecord(item);
     setAttemptedSave(false);
-    setTouchedVitalFields({});
-    setAllergyTouched(false);
     if (item && item.allergies && item.allergies.trim()) {
       setForm({
         ...emptyVitalsForm,
@@ -940,8 +983,6 @@ function VitalsScreen() {
   const handleCancel = () => {
     setForm(emptyVitalsForm);
     setAttemptedSave(false);
-    setTouchedVitalFields({});
-    setAllergyTouched(false);
   };
 
   const handleSelectRecord = useCallback(
@@ -958,19 +999,33 @@ function VitalsScreen() {
       return;
     }
 
+    const pulse = parseVitalNumber(form.pulse);
+    const bloodPressureSystolic = parseVitalNumber(form.bpSystolic);
+    const bloodPressureDiastolic = parseVitalNumber(form.bpDiastolic);
+    const spo2 = parseVitalNumber(form.spo2);
+    if (
+      pulse === null ||
+      bloodPressureSystolic === null ||
+      bloodPressureDiastolic === null ||
+      spo2 === null
+    ) {
+      setAttemptedSave(true);
+      return;
+    }
+
     saveVitalSigns(
       {
         recordId: selectedRecord.recordId,
         ticketId: activeTicket.id,
         expectedRecordVersion: selectedRecord.version,
-        pulse: Number(form.pulse),
-        temperatureC: form.temperatureC ? Number(form.temperatureC) : undefined,
-        bloodPressureSystolic: Number(form.bpSystolic),
-        bloodPressureDiastolic: Number(form.bpDiastolic),
-        respiratoryRate: form.respiratoryRate ? Number(form.respiratoryRate) : undefined,
-        spo2: Number(form.spo2),
-        heightCm: form.heightCm ? Number(form.heightCm) : undefined,
-        weightKg: form.weightKg ? Number(form.weightKg) : undefined,
+        pulse,
+        temperatureC: parseVitalNumber(form.temperatureC) ?? undefined,
+        bloodPressureSystolic,
+        bloodPressureDiastolic,
+        respiratoryRate: parseVitalNumber(form.respiratoryRate) ?? undefined,
+        spo2,
+        heightCm: parseVitalNumber(form.heightCm) ?? undefined,
+        weightKg: parseVitalNumber(form.weightKg) ?? undefined,
         allergies: form.allergyEnabled ? form.allergyNote.trim() : '',
       },
       {
@@ -982,8 +1037,6 @@ function VitalsScreen() {
           setForm(emptyVitalsForm);
           setSelectedRecord(null);
           setAttemptedSave(false);
-          setTouchedVitalFields({});
-          setAllergyTouched(false);
         },
         onError: (error) => {
           setToast({
@@ -1088,10 +1141,7 @@ function VitalsScreen() {
           isSaving={isSaving}
           bmiValue={bmiValue}
           attemptedSave={attemptedSave}
-          touchedFields={touchedVitalFields}
-          setTouchedFields={setTouchedVitalFields}
-          allergyTouched={allergyTouched}
-          setAllergyTouched={setAllergyTouched}
+          setAttemptedSave={setAttemptedSave}
         />
       </div>
     </div>

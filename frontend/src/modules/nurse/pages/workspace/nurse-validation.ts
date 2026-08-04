@@ -3,48 +3,14 @@ import { ApiError } from '@/shared/api-client/error';
 export const VN_MOBILE_PHONE_REGEX = /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/;
 
 export const VITAL_LIMITS = {
-  pulse: {
-    min: 1,
-    max: 300,
-    label: 'mạch',
-    message: 'Mạch phải trong khoảng 1-300 lần/phút',
-    integer: true,
-  },
-  temperatureC: { min: 25, max: 45, label: 'nhiệt độ' },
-  bpSystolic: {
-    min: 1,
-    max: 300,
-    label: 'huyết áp tâm thu',
-    message: 'Huyết áp tâm thu phải trong khoảng 1-300 mmHg',
-    integer: true,
-  },
-  bpDiastolic: {
-    min: 1,
-    max: 200,
-    label: 'huyết áp tâm trương',
-    message: 'Huyết áp tâm trương phải trong khoảng 1-200 mmHg',
-    integer: true,
-  },
-  respiratoryRate: {
-    min: 1,
-    max: 100,
-    label: 'nhịp thở',
-    message: 'Nhịp thở phải trong khoảng 1-100 lần/phút',
-    integer: true,
-  },
-  spo2: { min: 0, max: 100, label: 'SpO2', integer: true },
-  heightCm: {
-    min: 0.1,
-    max: 300,
-    label: 'chiều cao',
-    message: 'Chiều cao phải lớn hơn 0 và không quá 300cm',
-  },
-  weightKg: {
-    min: 0.1,
-    max: 500,
-    label: 'cân nặng',
-    message: 'Cân nặng phải lớn hơn 0 và không quá 500kg',
-  },
+  pulse: { min: 30, max: 220, label: 'mạch' },
+  temperatureC: { min: 34, max: 43, label: 'nhiệt độ' },
+  bpSystolic: { min: 50, max: 280, label: 'huyết áp tâm thu' },
+  bpDiastolic: { min: 20, max: 180, label: 'huyết áp tâm trương' },
+  respiratoryRate: { min: 1, max: 80, label: 'nhịp thở' },
+  spo2: { min: 50, max: 100, label: 'SpO2' },
+  weightKg: { min: 1, max: 300, label: 'cân nặng' },
+  heightCm: { min: 40, max: 250, label: 'chiều cao' },
 } as const;
 
 export type VitalField = keyof typeof VITAL_LIMITS;
@@ -58,72 +24,64 @@ export function getMissingRequiredVitalFields(
   return REQUIRED_VITAL_FIELDS.filter((field) => !values[field]);
 }
 
-/** Kiểm tra một chỉ số sinh hiệu theo cùng boundary mà backend áp dụng. */
+/** Chuẩn hóa số nhập theo locale Việt Nam và trả null nếu giá trị không hợp lệ. */
+export function parseVitalNumber(rawValue: string): number | null {
+  const value = rawValue.trim().replace(',', '.');
+  if (!value) return null;
+
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+/** Kiểm tra một chỉ số sinh hiệu theo cùng rule lâm sàng với form doctor. */
 export function getVitalFieldError(key: VitalField, value: string): string | undefined {
   const normalizedValue = value.trim();
-  if (!normalizedValue) return undefined;
+  const isRequired = REQUIRED_VITAL_FIELDS.includes(key as (typeof REQUIRED_VITAL_FIELDS)[number]);
+  if (!normalizedValue) return isRequired ? 'Trường này không được để trống.' : undefined;
 
-  const limit = VITAL_LIMITS[key];
-  const numberValue = Number(normalizedValue);
-  const isInvalidInteger = 'integer' in limit && limit.integer && !Number.isInteger(numberValue);
-  if (
-    Number.isNaN(numberValue) ||
-    isInvalidInteger ||
-    numberValue < limit.min ||
-    numberValue > limit.max
-  ) {
-    return 'message' in limit
-      ? limit.message
-      : `Giá trị ${limit.label} không hợp lệ (${limit.min}-${limit.max})`;
-  }
+  const numberValue = parseVitalNumber(normalizedValue);
+  if (numberValue === null) return 'Vui lòng nhập một số hợp lệ.';
+  if (key === 'pulse' && (numberValue < 30 || numberValue > 220)) return 'Mạch thường 30–220 bpm.';
+  if (key === 'temperatureC' && (numberValue < 34 || numberValue > 43))
+    return 'Nhiệt độ hợp lệ khoảng 34–43 °C.';
+  if (key === 'bpSystolic' && (numberValue < 50 || numberValue > 280))
+    return 'Huyết áp tâm thu không hợp lệ.';
+  if (key === 'bpDiastolic' && (numberValue < 20 || numberValue > 180))
+    return 'Huyết áp tâm trương không hợp lệ.';
+  if (key === 'respiratoryRate' && (numberValue < 1 || numberValue > 80))
+    return 'Nhịp thở hợp lệ khoảng 1–80 lần/phút.';
+  if (key === 'spo2' && (numberValue < 50 || numberValue > 100))
+    return 'SpO2 trong khoảng 50–100%.';
+  if (key === 'weightKg' && (numberValue < 1 || numberValue > 300)) return 'Cân nặng không hợp lệ.';
+  if (key === 'heightCm' && (numberValue < 40 || numberValue > 250))
+    return 'Chiều cao không hợp lệ.';
 
   return undefined;
 }
 
 export type VitalFieldValues = Partial<Record<VitalField, string>>;
-export type VitalFieldTouched = Partial<Record<VitalField, boolean>>;
 export type VitalFieldErrors = Partial<Record<VitalField, string>>;
 
 /**
- * Chỉ hiển thị lỗi sinh hiệu sau khi người dùng rời khỏi field hoặc đã thử lưu.
+ * Kiểm tra toàn bộ form sinh hiệu khi người dùng thử lưu.
  *
- * Quy tắc liên trường của huyết áp được áp dụng cho cả tâm thu và tâm trương để
- * người dùng luôn biết cặp giá trị nào cần kiểm tra lại. Backend vẫn phải kiểm tra
- * lại payload vì dữ liệu từ trình duyệt không được xem là đáng tin cậy.
+ * Lỗi từng field được ưu tiên trước lỗi quan hệ huyết áp để không che mất lỗi
+ * định dạng hoặc lỗi nằm ngoài khoảng hợp lệ. Backend vẫn phải kiểm tra lại
+ * payload vì dữ liệu từ trình duyệt không được xem là đáng tin cậy.
  */
-export function getVisibleVitalFieldErrors(
-  values: VitalFieldValues,
-  touchedFields: VitalFieldTouched,
-  attemptedSave = false,
-): VitalFieldErrors {
+export function getAllVitalFieldErrors(values: VitalFieldValues): VitalFieldErrors {
   const errors: VitalFieldErrors = {};
 
   (Object.keys(VITAL_LIMITS) as VitalField[]).forEach((field) => {
-    if (!attemptedSave && !touchedFields[field]) return;
-
     const value = values[field] ?? '';
     const formatError = getVitalFieldError(field, value);
-    if (formatError) {
-      errors[field] = formatError;
-      return;
-    }
-
-    if (
-      REQUIRED_VITAL_FIELDS.includes(field as (typeof REQUIRED_VITAL_FIELDS)[number]) &&
-      !value.trim()
-    ) {
-      errors[field] = 'Vui lòng nhập giá trị này';
-    }
+    if (formatError) errors[field] = formatError;
   });
 
-  const shouldValidateBloodPressure =
-    attemptedSave || touchedFields.bpSystolic || touchedFields.bpDiastolic;
   const systolicValue = values.bpSystolic ?? '';
   const diastolicValue = values.bpDiastolic ?? '';
   const bloodPressureError =
-    shouldValidateBloodPressure &&
-    !getVitalFieldError('bpSystolic', systolicValue) &&
-    !getVitalFieldError('bpDiastolic', diastolicValue)
+    !errors.bpSystolic && !errors.bpDiastolic
       ? getBloodPressureRelationError(systolicValue, diastolicValue)
       : undefined;
 
@@ -135,22 +93,18 @@ export function getVisibleVitalFieldErrors(
   return errors;
 }
 
-/** Chặn huyết áp tâm thu nhỏ hơn hoặc bằng tâm trương để tránh nhập ngược. */
+/** Kiểm tra huyết áp tâm thu phải lớn hơn huyết áp tâm trương như form doctor. */
 export function getBloodPressureRelationError(
   systolic: string,
   diastolic: string,
 ): string | undefined {
-  const normalizedSystolic = systolic.trim();
-  const normalizedDiastolic = diastolic.trim();
-  if (!normalizedSystolic || !normalizedDiastolic) return undefined;
+  const systolicValue = parseVitalNumber(systolic);
+  const diastolicValue = parseVitalNumber(diastolic);
+  if (systolicValue === null || diastolicValue === null || systolicValue > diastolicValue) {
+    return undefined;
+  }
 
-  const systolicValue = Number(normalizedSystolic);
-  const diastolicValue = Number(normalizedDiastolic);
-  if (Number.isNaN(systolicValue) || Number.isNaN(diastolicValue)) return undefined;
-
-  return systolicValue > diastolicValue
-    ? undefined
-    : 'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương, vui lòng kiểm tra lại (có thể đã nhập ngược)';
+  return 'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương.';
 }
 
 /** Trả lỗi cho mô tả dị ứng khi nurse bật chế độ ghi nhận dị ứng. */
