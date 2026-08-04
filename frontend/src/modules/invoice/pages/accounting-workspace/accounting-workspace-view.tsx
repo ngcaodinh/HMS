@@ -1,24 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { getApiErrorMessage } from '@/shared/api-client/api-client';
+import { getApiErrorCode, getApiErrorMessage } from '@/shared/api-client/api-client';
 import { performLogout } from '@/shared/auth/logout';
 
 import { USE_REAL_BILLING } from '../../constants/billing.constants';
 import {
-  MOCK_ADVANCE_RECEIPTS,
   MOCK_INVOICE_DETAILS,
   MOCK_SHIFT_SUMMARY,
   MOCK_TRANSACTION_LOGS,
   PATIENTS_DB,
 } from '../../data/mock-accounting-data';
-import {
-  AccountingScreenId,
-  AdvanceReceipt,
-  Invoice,
-  PatientRecord,
-} from '../../types/invoice.types';
+import { AccountingScreenId, Invoice, PatientRecord } from '../../types/invoice.types';
 import { AccountingHeader } from '../../components/accounting-header';
 import { AccountingSidebar } from '../../components/accounting-sidebar';
 import { PatientLookupScreen } from '../../components/patient-lookup-screen';
@@ -35,9 +29,17 @@ import { LogoutModal } from '../../components/modals/logout-modal';
 import {
   cancelInvoice,
   getInvoice,
+  listInvoiceCandidates,
   listInvoices,
+  writeOffInvoice,
   type InvoiceApiDto,
 } from '../../services/invoice.api';
+import {
+  createPaymentAdvance,
+  createPaymentAdvanceRefund,
+  getPaymentAdvances,
+  type PaymentAdvanceSummaryDto,
+} from '../../services/payment-advance.api';
 import {
   createMomoPaymentRequest,
   settleCashPayment,
@@ -65,7 +67,9 @@ function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null)
         ? 'paid'
         : dto.status === 'cancelled'
           ? 'cancelled'
-          : 'pending_payment',
+          : dto.status === 'write_off'
+            ? 'write_off'
+            : 'pending_payment',
     items: dto.items.map((item, index) => ({
       id: item.invoiceItemId,
       code: `DV-${index + 1}`,
@@ -83,17 +87,14 @@ function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null)
     advanceDeduction: moneyToNumber(dto.advanceAppliedAmount),
     finalAmount: moneyToNumber(dto.amountDue),
     paymentMethod:
-      dto.paymentMethod === 'momo'
-        ? 'momo'
-        : dto.paymentMethod === 'cash'
-          ? 'cash'
-          : undefined,
+      dto.paymentMethod === 'momo' ? 'momo' : dto.paymentMethod === 'cash' ? 'cash' : undefined,
   };
 }
 
 function mapInvoiceToPatient(dto: InvoiceApiDto): PatientRecord {
   return {
     id: dto.patient?.patientId ?? dto.recordId,
+    recordId: dto.recordId,
     code: dto.patient?.patientCode ?? '—',
     fullName: dto.patient?.fullName ?? 'Bệnh nhân',
     dob: '—',
@@ -101,7 +102,7 @@ function mapInvoiceToPatient(dto: InvoiceApiDto): PatientRecord {
     bhytCardNumber: '—',
     bhytBenefitRate: 0.8,
     bhytCategory: 'Theo hóa đơn',
-    department: 'Da liễu',
+    department: dto.patient?.department ?? 'Chưa phân khoa',
     admissionDate: '—',
     status: dto.status === 'paid' ? 'settled' : 'pending_payment',
     depositAmount: 0,
@@ -109,21 +110,72 @@ function mapInvoiceToPatient(dto: InvoiceApiDto): PatientRecord {
     bhytTotalPays: moneyToNumber(dto.healthInsuranceDiscountAmount),
     patientCoPayAmount: moneyToNumber(dto.amountDue),
     remainingAmount: dto.status === 'paid' ? 0 : moneyToNumber(dto.amountDue),
+    healthInsuranceExpiryDate: null,
+    treatmentType: dto.patient?.treatmentType,
+    bedId: dto.patient?.bedId,
+  };
+}
+
+function mapCandidateToPatient(
+  candidate: Awaited<ReturnType<typeof listInvoiceCandidates>>['items'][number],
+): PatientRecord {
+  const serviceItems = candidate.serviceOrders.map((serviceOrder) => ({
+    id: serviceOrder.id,
+    code: serviceOrder.code,
+    name: serviceOrder.name,
+    category: 'khambenh' as const,
+    quantity: 1,
+    unitPrice: moneyToNumber(serviceOrder.fee),
+    totalPrice: moneyToNumber(serviceOrder.fee),
+    bhytCoverRate: 0,
+    bhytPays: 0,
+    patientPays: moneyToNumber(serviceOrder.fee),
+  }));
+  const totalServicesAmount = serviceItems.reduce((total, item) => total + item.totalPrice, 0);
+
+  return {
+    id: candidate.patient.patientId,
+    recordId: candidate.recordId,
+    code: candidate.patient.patientCode,
+    fullName: candidate.patient.fullName,
+    dob: new Date(candidate.patient.dateOfBirth).toLocaleDateString('vi-VN'),
+    gender: candidate.patient.gender === 'female' ? 'Nữ' : 'Nam',
+    bhytCardNumber: candidate.patient.healthInsuranceCode ?? '—',
+    bhytBenefitRate: candidate.patient.healthInsuranceCode ? 0.8 : 0,
+    bhytCategory: 'Theo hồ sơ',
+    department: candidate.department ?? 'Chưa phân khoa',
+    admissionDate: new Date(candidate.createdAt).toLocaleString('vi-VN'),
+    status: 'pending_payment',
+    depositAmount: 0,
+    totalServicesAmount,
+    bhytTotalPays: 0,
+    patientCoPayAmount: 0,
+    remainingAmount: 0,
+    phoneNumber: candidate.patient.phoneNumber,
+    identityCardNumber: candidate.patient.identityCardNumber,
+    healthInsuranceExpiryDate: candidate.patient.healthInsuranceExpiryDate,
+    treatmentType: candidate.treatmentType,
+    bedId: candidate.bedId,
+    isEmergency: candidate.isEmergency,
+    serviceItems,
   };
 }
 
 export function AccountingWorkspaceView() {
   const [activeScreen, setActiveScreen] = useState<AccountingScreenId>('s1');
   const [patients, setPatients] = useState<PatientRecord[]>(PATIENTS_DB);
-  const [advanceReceipts] = useState<AdvanceReceipt[]>(MOCK_ADVANCE_RECEIPTS);
   const [selectedPatient, setSelectedPatient] = useState<PatientRecord>(PATIENTS_DB[0]);
   const [currentInvoice, setCurrentInvoice] = useState<Invoice>(MOCK_INVOICE_DETAILS);
   const [apiInvoiceId, setApiInvoiceId] = useState<string | null>(null);
   const [apiInvoiceVersion, setApiInvoiceVersion] = useState(1);
   const [pendingInvoices, setPendingInvoices] = useState<InvoiceApiDto[]>([]);
+  const [advanceSummary, setAdvanceSummary] = useState<PaymentAdvanceSummaryDto | null>(null);
+  const [isAdvanceLoading, setIsAdvanceLoading] = useState(false);
   const [momoPayUrl, setMomoPayUrl] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isRedirectingMomo, setIsRedirectingMomo] = useState(false);
+  const pendingLoadSequenceRef = useRef(0);
+  const advanceLoadSequenceRef = useRef(0);
 
   const [isCashOpen, setIsCashOpen] = useState(false);
   const [isMomoOpen, setIsMomoOpen] = useState(false);
@@ -142,17 +194,59 @@ export function AccountingWorkspaceView() {
     if (!USE_REAL_BILLING) {
       return;
     }
+    const requestSequence = ++pendingLoadSequenceRef.current;
     try {
-      const result = await listInvoices({ status: 'pending', pageSize: 50 });
-      setPendingInvoices(result.items);
-      const mapped = result.items.map(mapInvoiceToPatient);
-      if (mapped.length > 0) {
-        setPatients(mapped);
+      const [result, candidates] = await Promise.all([
+        listInvoices({ status: 'pending', pageSize: 50 }),
+        listInvoiceCandidates({ pageSize: 50 }),
+      ]);
+      if (requestSequence !== pendingLoadSequenceRef.current) {
+        return;
       }
+      setPendingInvoices(result.items);
+      setPatients([
+        ...result.items.map(mapInvoiceToPatient),
+        ...candidates.items.map(mapCandidateToPatient),
+      ]);
     } catch (error) {
       showToast(getApiErrorMessage(error, 'Không tải được danh sách hóa đơn chờ thu'));
     }
   }, [showToast]);
+
+  const loadAdvanceSummary = useCallback(
+    async (recordId: string) => {
+      const requestSequence = ++advanceLoadSequenceRef.current;
+      setIsAdvanceLoading(true);
+      try {
+        const summary = await getPaymentAdvances(recordId);
+        if (requestSequence !== advanceLoadSequenceRef.current) {
+          return;
+        }
+        setAdvanceSummary(summary);
+      } catch (error) {
+        if (requestSequence !== advanceLoadSequenceRef.current) {
+          return;
+        }
+        setAdvanceSummary(null);
+        showToast(getApiErrorMessage(error, 'Không tải được lịch sử tạm ứng'));
+      } finally {
+        if (requestSequence === advanceLoadSequenceRef.current) {
+          setIsAdvanceLoading(false);
+        }
+      }
+    },
+    [showToast],
+  );
+
+  useEffect(() => {
+    if (!USE_REAL_BILLING || activeScreen !== 's4' || !selectedPatient.recordId) {
+      advanceLoadSequenceRef.current += 1;
+      setAdvanceSummary(null);
+      setIsAdvanceLoading(false);
+      return;
+    }
+    void loadAdvanceSummary(selectedPatient.recordId);
+  }, [activeScreen, loadAdvanceSummary, selectedPatient.recordId]);
 
   const openInvoiceFromApi = useCallback(
     async (invoiceId: string) => {
@@ -187,8 +281,7 @@ export function AccountingWorkspaceView() {
     const invoiceIdFromUrl = params.get('invoiceId');
     const storedId = sessionStorage.getItem(SS_INVOICE);
     // Resume khi Momo redirect về, hoặc URL mang invoiceId sau thanh toán.
-    const resumeId =
-      momoReturn || invoiceIdFromUrl ? invoiceIdFromUrl || storedId : null;
+    const resumeId = momoReturn || invoiceIdFromUrl ? invoiceIdFromUrl || storedId : null;
 
     if (!resumeId) {
       return;
@@ -252,8 +345,7 @@ export function AccountingWorkspaceView() {
     // Real mode: mở HĐ pending tương ứng patient
     if (USE_REAL_BILLING) {
       const match = pendingInvoices.find(
-        (inv) =>
-          inv.patient?.patientCode === patient.code || inv.patient?.patientId === patient.id,
+        (inv) => inv.patient?.patientCode === patient.code || inv.patient?.patientId === patient.id,
       );
       if (match) {
         void openInvoiceFromApi(match.invoiceId);
@@ -263,13 +355,10 @@ export function AccountingWorkspaceView() {
     setActiveScreen('s2');
   };
 
-  const handleSelectPatientForAdvance = (patient: PatientRecord) => {
-    setSelectedPatient(patient);
-    setActiveScreen('s4');
-  };
-
-  const handleProceedToPayment = (inv: Invoice) => {
-    setCurrentInvoice(inv);
+  const handleProceedToPayment = (dto: InvoiceApiDto) => {
+    setApiInvoiceId(dto.invoiceId);
+    setApiInvoiceVersion(dto.version);
+    setCurrentInvoice(mapApiInvoiceToView(dto, selectedPatient));
     setActiveScreen('s3');
   };
 
@@ -293,15 +382,25 @@ export function AccountingWorkspaceView() {
   };
 
   const handleCashConfirm = async () => {
-    if (!USE_REAL_BILLING || !apiInvoiceId) {
+    if (!USE_REAL_BILLING) {
+      if (!apiInvoiceId) {
+        setIsCashOpen(false);
+        applyPaidUi();
+        return;
+      }
       setIsCashOpen(false);
       applyPaidUi();
       showToast(`Đã thu tiền (mock) cho BN ${selectedPatient.fullName}.`);
       return;
     }
     try {
-      const result = await settleCashPayment(apiInvoiceId);
-      const refreshed = await getInvoice(apiInvoiceId);
+      if (!apiInvoiceId) {
+        showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.');
+        return;
+      }
+      const invoiceId = apiInvoiceId;
+      const result = await settleCashPayment(invoiceId);
+      const refreshed = await getInvoice(invoiceId);
       setApiInvoiceVersion(refreshed.version);
       setCurrentInvoice(mapApiInvoiceToView(refreshed, selectedPatient));
       setIsCashOpen(false);
@@ -349,7 +448,13 @@ export function AccountingWorkspaceView() {
   };
 
   const handleCancelInvoice = async (reason: string) => {
-    if (USE_REAL_BILLING && apiInvoiceId) {
+    if (USE_REAL_BILLING) {
+      if (!apiInvoiceId) {
+        showToast(
+          'Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn trước khi hủy.',
+        );
+        return;
+      }
       try {
         await cancelInvoice(apiInvoiceId, {
           expectedVersion: apiInvoiceVersion,
@@ -358,6 +463,14 @@ export function AccountingWorkspaceView() {
         showToast(`Đã hủy hóa đơn. Lý do: ${reason}`);
         void loadPendingFromApi();
       } catch (error) {
+        if (
+          getApiErrorCode(error) === 'VERSION_CONFLICT' ||
+          getApiErrorCode(error) === 'INVOICE_NOT_PENDING'
+        ) {
+          void openInvoiceFromApi(apiInvoiceId);
+          showToast('Hóa đơn đã thay đổi; hệ thống đã tải lại dữ liệu mới nhất.');
+          return;
+        }
         showToast(getApiErrorMessage(error, 'Hủy hóa đơn thất bại'));
         return;
       }
@@ -369,19 +482,52 @@ export function AccountingWorkspaceView() {
     setActiveScreen('s1');
   };
 
-  const handleWriteoff = (reason: string) => {
-    setIsWriteoffOpen(false);
-    showToast(
-      `Đã duyệt Write-off cấp cứu cho hóa đơn ${currentInvoice.invoiceNumber}. Lý do: ${reason}`,
-    );
-    setActiveScreen('s1');
+  const handleWriteoff = async (reason: string) => {
+    if (!apiInvoiceId) {
+      showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.');
+      return;
+    }
+    try {
+      const updated = await writeOffInvoice(apiInvoiceId, {
+        expectedVersion: apiInvoiceVersion,
+        writeOffReason: reason,
+      });
+      setApiInvoiceVersion(updated.version);
+      setCurrentInvoice(mapApiInvoiceToView(updated, selectedPatient));
+      setIsWriteoffOpen(false);
+      setApiInvoiceId(null);
+      void loadPendingFromApi();
+      setActiveScreen('s1');
+      showToast('Đã ghi nhận write-off cấp cứu trên hệ thống.');
+      return;
+    } catch (error) {
+      if (getApiErrorCode(error) === 'INVOICE_NOT_PENDING') {
+        void openInvoiceFromApi(apiInvoiceId);
+      }
+      showToast(getApiErrorMessage(error, 'Ghi nhận write-off thất bại'));
+      return;
+    }
   };
 
-  const handleRefundSuccess = (reason: string) => {
-    setIsRefundOpen(false);
-    showToast(
-      `Đã hoàn trả 800.000 đ tiền tạm ứng dư cho BN ${selectedPatient.fullName}. Lý do: ${reason}`,
-    );
+  const handleRefundSuccess = async (reason: string) => {
+    const recordId = selectedPatient.recordId;
+    const amount = advanceSummary ? moneyToNumber(advanceSummary.balance) : 0;
+    if (!recordId || amount <= 0) {
+      showToast('Không có số dư tạm ứng để hoàn trả.');
+      return;
+    }
+    setIsBusy(true);
+    try {
+      await createPaymentAdvanceRefund(recordId, { amountVnd: amount, reason });
+      await loadAdvanceSummary(recordId);
+      setIsRefundOpen(false);
+      showToast(`Đã hoàn ${amount.toLocaleString('vi-VN')} đ cho BN ${selectedPatient.fullName}.`);
+    } catch (error) {
+      showToast(getApiErrorMessage(error, 'Hoàn tạm ứng thất bại'));
+    } finally {
+      setIsBusy(false);
+    }
+    return;
   };
 
   const handleConfirmLogout = () => {
@@ -429,15 +575,15 @@ export function AccountingWorkspaceView() {
             <PatientLookupScreen
               patients={patients}
               onSelectPatientForInvoice={handleSelectPatientForInvoice}
-              onSelectPatientForAdvance={handleSelectPatientForAdvance}
+              onRefresh={() => void loadPendingFromApi()}
             />
           )}
 
           {activeScreen === 's2' && (
             <InvoiceCreationScreen
               patient={selectedPatient}
-              invoice={currentInvoice}
               onProceedToPayment={handleProceedToPayment}
+              onOpenExistingInvoice={(invoiceId) => void openInvoiceFromApi(invoiceId)}
               onBack={() => setActiveScreen('s1')}
             />
           )}
@@ -462,8 +608,26 @@ export function AccountingWorkspaceView() {
           {activeScreen === 's4' && (
             <AdvanceManagementScreen
               patients={patients}
-              receipts={advanceReceipts}
-              onOpenAdvanceModal={() => showToast('Tạm ứng API — phase sau.')}
+              summary={advanceSummary}
+              isLoading={isAdvanceLoading}
+              isSubmitting={isBusy}
+              onPatientChange={(patient) => setSelectedPatient(patient)}
+              onCreateDeposit={async (input) => {
+                setIsBusy(true);
+                try {
+                  await createPaymentAdvance(input.recordId, {
+                    amountVnd: input.amountVnd,
+                    method: input.method,
+                    ...(input.reason ? { reason: input.reason } : {}),
+                  });
+                  await loadAdvanceSummary(input.recordId);
+                  showToast('Đã lưu giao dịch tạm ứng trên hệ thống.');
+                } catch (error) {
+                  showToast(getApiErrorMessage(error, 'Thu tạm ứng thất bại'));
+                } finally {
+                  setIsBusy(false);
+                }
+              }}
               onOpenRefundModal={() => setIsRefundOpen(true)}
             />
           )}
@@ -524,22 +688,16 @@ export function AccountingWorkspaceView() {
         isOpen={isWriteoffOpen}
         invoiceNumber={currentInvoice.invoiceNumber}
         onClose={() => setIsWriteoffOpen(false)}
-        onConfirmWriteoff={(reason) => {
-          setIsWriteoffOpen(false);
-          showToast(`Write-off demo: ${reason}`);
-        }}
+        onConfirmWriteoff={(reason) => void handleWriteoff(reason)}
       />
 
       <RefundModal
         isOpen={isRefundOpen}
-        amount={800000}
+        amount={advanceSummary ? moneyToNumber(advanceSummary.balance) : 0}
         patientName={selectedPatient.fullName}
         patientCode={selectedPatient.code}
         onClose={() => setIsRefundOpen(false)}
-        onConfirmRefund={() => {
-          setIsRefundOpen(false);
-          showToast('Hoàn tạm ứng (mock)');
-        }}
+        onConfirmRefund={(reason) => void handleRefundSuccess(reason)}
       />
 
       <LogoutModal

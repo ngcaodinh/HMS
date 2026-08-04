@@ -14,6 +14,7 @@ import {
 } from '../modules/medical-records/routes/medical-record.routes';
 import { patientRouter } from '../modules/patients/routes/patient.routes';
 import { paymentRouter } from '../modules/payments/routes/payment.routes';
+import { paymentAdvanceRouter } from '../modules/payment-advances/routes/payment-advance.routes';
 import { pharmacyRouter } from '../modules/pharmacy/routes/pharmacy.routes';
 import {
   medicineRouter,
@@ -37,6 +38,7 @@ apiV1Router.use(patientRouter);
 apiV1Router.use(receptionRouter);
 apiV1Router.use(invoiceRouter);
 apiV1Router.use(paymentRouter);
+apiV1Router.use(paymentAdvanceRouter);
 apiV1Router.use('/beds', bedRoutes);
 apiV1Router.use('/director-dashboard', directorDashboardRouter);
 apiV1Router.use(inpatientRoutes);

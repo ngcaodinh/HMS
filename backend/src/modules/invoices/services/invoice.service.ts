@@ -24,10 +24,7 @@ import { prisma } from '../../../core/prisma/prisma';
 import { HI_RULE_SOURCE_DRAFT } from '../constants/invoice.constants';
 import { invoiceRepository } from '../repositories/invoice.repository';
 import type { InvoiceDto } from '../types/invoice.types';
-import {
-  benefitLevelToRateString,
-  toMoneyString,
-} from '../utils/money';
+import { benefitLevelToRateString, toMoneyString } from '../utils/money';
 
 type BenefitLevel = 'NO_COVERAGE' | 'RATE_80' | 'RATE_95' | 'RATE_100';
 type RouteType = 'right_route' | 'referral' | 'emergency' | 'wrong_route';
@@ -46,7 +43,8 @@ function toInvoiceDto(
     recordId: invoice.recordId,
     status: invoice.status,
     healthInsuranceEligibility: {
-      cardStatus: invoice.healthInsuranceBenefitLevel === 'NO_COVERAGE' ? 'none_or_expired' : 'valid',
+      cardStatus:
+        invoice.healthInsuranceBenefitLevel === 'NO_COVERAGE' ? 'none_or_expired' : 'valid',
       effectiveBenefitLevel: invoice.healthInsuranceBenefitLevel,
       effectiveBenefitRate: rate,
       healthInsuranceRouteType: invoice.healthInsuranceRouteType,
@@ -102,6 +100,9 @@ function toInvoiceDto(
           patientCode: invoice.medicalRecord.patient.patientCode,
           fullName: invoice.medicalRecord.patient.fullName,
           recordCode: invoice.medicalRecord.recordCode,
+          treatmentType: invoice.medicalRecord.treatmentType,
+          bedId: invoice.medicalRecord.bedId,
+          department: invoice.medicalRecord.department?.name ?? null,
         }
       : undefined,
   };
@@ -128,19 +129,20 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
 
     const existingPending = await invoiceRepository.findPendingByRecordId(input.recordId);
     if (existingPending) {
-      throw new AppError(
-        400,
-        'INVOICE_ALREADY_EXISTS',
-        'Hồ sơ đã có hóa đơn đang chờ thanh toán',
-      );
+      throw new AppError(400, 'INVOICE_ALREADY_EXISTS', 'Hồ sơ đã có hóa đơn đang chờ thanh toán', [
+        {
+          field: 'invoiceId',
+          rule: 'pending_invoice_exists',
+          message: existingPending.id,
+        },
+      ]);
     }
 
     // Ép NO_COVERAGE nếu không có thẻ / hết hạn
     let benefitLevel = input.healthInsuranceBenefitLevel;
     const expiry = record.patient.healthInsuranceExpiryDate;
     const hasCard = Boolean(record.patient.healthInsuranceCode);
-    const expired =
-      expiry !== null && expiry !== undefined && expiry.getTime() < Date.now();
+    const expired = expiry !== null && expiry !== undefined && expiry.getTime() < Date.now();
     if (!hasCard || expired) {
       benefitLevel = 'NO_COVERAGE';
     }
@@ -150,11 +152,7 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
 
     const orders = await invoiceRepository.findServiceOrdersForRecord(input.recordId);
     if (orders.length === 0) {
-      throw new AppError(
-        400,
-        'INCOMPLETE_COST_DATA',
-        'Chưa có dịch vụ/chi phí để lập hóa đơn',
-      );
+      throw new AppError(400, 'INCOMPLETE_COST_DATA', 'Chưa có dịch vụ/chi phí để lập hóa đơn');
     }
 
     const zero = new Prisma.Decimal(0);
@@ -267,6 +265,49 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
     };
   }
 
+  async listInvoiceCandidates(params: { page: number; pageSize: number }) {
+    const skip = (params.page - 1) * params.pageSize;
+    const { items, total } = await invoiceRepository.listInvoiceCandidates({
+      skip,
+      take: params.pageSize,
+    });
+
+    return {
+      data: items.map((item) => ({
+        recordId: item.id,
+        recordCode: item.recordCode,
+        treatmentType: item.treatmentType,
+        bedId: item.bedId,
+        isEmergency: item.isEmergency,
+        createdAt: item.createdAt.toISOString(),
+        department: item.department?.name ?? null,
+        patient: {
+          patientId: item.patient.id,
+          patientCode: item.patient.patientCode,
+          fullName: item.patient.fullName,
+          dateOfBirth: item.patient.dateOfBirth.toISOString(),
+          gender: item.patient.gender,
+          phoneNumber: item.patient.phoneNumber,
+          identityCardNumber: item.patient.identityCardNumber,
+          healthInsuranceCode: item.patient.healthInsuranceCode,
+          healthInsuranceExpiryDate: item.patient.healthInsuranceExpiryDate?.toISOString() ?? null,
+        },
+        serviceOrders: item.serviceOrders.map((serviceOrder) => ({
+          id: serviceOrder.id,
+          code: serviceOrder.serviceCatalog.code,
+          name: serviceOrder.serviceCatalog.name,
+          fee: toMoneyString(serviceOrder.fee),
+        })),
+      })),
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalItems: total,
+        totalPages: Math.max(1, Math.ceil(total / params.pageSize)),
+      },
+    };
+  }
+
   async cancelInvoice(input: {
     invoiceId: string;
     expectedVersion: number;
@@ -300,6 +341,68 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
   }
 
   /**
+   * Xử lý write-off chỉ cho hóa đơn pending của hồ sơ cấp cứu đặc biệt.
+   * Ghi approval, cập nhật hóa đơn và audit theo cùng optimistic-lock version.
+   */
+  async writeOffInvoice(input: {
+    invoiceId: string;
+    expectedVersion: number;
+    writeOffReason: string;
+    actorUserId?: string;
+  }): Promise<InvoiceDto> {
+    if (!input.actorUserId) {
+      throw new AppError(401, 'UNAUTHENTICATED', 'Yêu cầu đăng nhập để duyệt write-off');
+    }
+
+    const invoice = await invoiceRepository.findById(input.invoiceId);
+    if (!invoice) {
+      throw new AppError(404, 'INVOICE_NOT_FOUND', 'Không tìm thấy hóa đơn');
+    }
+    if (invoice.status !== 'pending') {
+      throw new AppError(
+        409,
+        'INVOICE_NOT_PENDING',
+        'Chỉ write-off được hóa đơn đang chờ thanh toán',
+      );
+    }
+    if (!invoice.medicalRecord?.isEmergency) {
+      throw new AppError(
+        400,
+        'WRITE_OFF_NOT_ALLOWED_NON_EMERGENCY',
+        'Chỉ áp dụng miễn giảm thất thu cho ca cấp cứu đặc biệt.',
+      );
+    }
+
+    const approvedAt = toVietnamDbDateTime();
+    const updated = await invoiceRepository.writeOffEmergency({
+      invoiceId: input.invoiceId,
+      expectedVersion: input.expectedVersion,
+      writeOffReason: input.writeOffReason,
+      approvedByUserId: input.actorUserId,
+      approvedAt,
+    });
+
+    if (!updated) {
+      throw new AppError(
+        409,
+        'INVOICE_NOT_PENDING',
+        'Hóa đơn vừa được cập nhật. Vui lòng tải lại dữ liệu trước khi duyệt.',
+      );
+    }
+
+    await invoiceRepository.closeRecordIfOpen(invoice.recordId);
+    await auditPort.record({
+      action: 'invoice.write_off',
+      resource: 'Invoice',
+      resourceId: input.invoiceId,
+      userId: input.actorUserId,
+      metadata: { emergency: true, approvedInvoiceVersion: input.expectedVersion },
+    });
+
+    return toInvoiceDto(updated);
+  }
+
+  /**
    * BillingSettlementPort — cash/Momo settle.
    */
   async confirm(input: ConfirmSettlementInput): Promise<ConfirmSettlementResult> {
@@ -319,7 +422,7 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
           });
           return {
             invoiceId: invoice.id,
-            paymentMethod: (invoice.paymentMethod ?? input.method) as 'cash' | 'momo',
+            paymentMethod: invoice.paymentMethod ?? input.method,
             status: 'paid',
             receiptNumber: invoice.receiptNumber ?? '',
             paidAt: formatVietnamDbDateTime(backfill) ?? getVietnamNowIso(),
@@ -329,7 +432,7 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
         }
         return {
           invoiceId: invoice.id,
-          paymentMethod: (invoice.paymentMethod ?? input.method) as 'cash' | 'momo',
+          paymentMethod: invoice.paymentMethod ?? input.method,
           status: 'paid',
           receiptNumber: invoice.receiptNumber ?? '',
           paidAt: formatVietnamDbDateTime(invoice.paidAt) ?? getVietnamNowIso(),
@@ -341,9 +444,7 @@ export class InvoiceService implements BillingSettlementPort, BillingPaymentInte
     }
 
     // Thời điểm giao dịch wall-clock VN (luôn có giá trị, không để null).
-    const paidAt = toVietnamDbDateTime(
-      input.paidAt ? new Date(input.paidAt) : new Date(),
-    );
+    const paidAt = toVietnamDbDateTime(input.paidAt ? new Date(input.paidAt) : new Date());
     const receiptNumber = await invoiceRepository.nextReceiptNumber(
       input.method === 'cash' ? 'PT' : 'MM',
     );

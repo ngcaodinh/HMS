@@ -7,7 +7,7 @@ import {
   MedicalRecordStatus,
 } from '@prisma/client';
 import type { ReleaseReason, DischargeCondition, Prisma } from '@prisma/client';
-import { AppError } from '../../core/utils/AppError';
+import { AppError } from '../../core/errors/appError';
 import { RealtimePublisher } from '../../ports/RealtimePublisher';
 import { AuditPort } from '../../ports/AuditPort';
 import { BillingSettlementPort } from '../../ports/BillingSettlementPort';
@@ -160,7 +160,11 @@ export class InpatientController {
       }
 
       if (record.treatmentType !== TreatmentType.inpatient) {
-        throw new AppError(400, 'INVALID_TREATMENT_TYPE', 'Chỉ được xếp giường cho bệnh nhân nội trú');
+        throw new AppError(
+          400,
+          'INVALID_TREATMENT_TYPE',
+          'Chỉ được xếp giường cho bệnh nhân nội trú',
+        );
       }
 
       const bed = await tx.bed.findUnique({ where: { id: body.bedId } });
@@ -199,7 +203,10 @@ export class InpatientController {
       return { newAssignment, updatedRecord };
     });
 
-    AuditPort.logActivity('BED_ASSIGNED', assignedBy, result.newAssignment.id, { recordId, bedId: body.bedId });
+    AuditPort.logActivity('BED_ASSIGNED', assignedBy, result.newAssignment.id, {
+      recordId,
+      bedId: body.bedId,
+    });
     RealtimePublisher.publishEvent('inpatient', 'bed_assigned', { recordId, bedId: body.bedId });
 
     return sendSuccess(
@@ -213,7 +220,7 @@ export class InpatientController {
         bedStatus: 'occupied',
         recordVersion: result.updatedRecord.version,
       },
-      201
+      201,
     );
   }
 
@@ -230,7 +237,11 @@ export class InpatientController {
       });
 
       if (!activeAssignment) {
-        throw new AppError(400, 'OPEN_BED_ASSIGNMENT_NOT_FOUND', 'Không tìm thấy xếp giường đang hoạt động');
+        throw new AppError(
+          400,
+          'OPEN_BED_ASSIGNMENT_NOT_FOUND',
+          'Không tìm thấy xếp giường đang hoạt động',
+        );
       }
 
       if (activeAssignment.record.version !== body.expectedRecordVersion) {
@@ -311,7 +322,10 @@ export class InpatientController {
       newBedId: body.targetBedId,
       action: body.action,
     });
-    RealtimePublisher.publishEvent('inpatient', 'bed_changed', { recordId, bedId: body.targetBedId });
+    RealtimePublisher.publishEvent('inpatient', 'bed_changed', {
+      recordId,
+      bedId: body.targetBedId,
+    });
 
     return sendSuccess(
       res,
@@ -331,7 +345,7 @@ export class InpatientController {
           : null,
         recordVersion: result.updatedRecord.version,
       },
-      201
+      201,
     );
   }
 
@@ -390,7 +404,7 @@ export class InpatientController {
         followUpDate: toVNISOString(summary.followUpDate),
         signedAt: toVNISOString(summary.signedAt),
       },
-      201
+      201,
     );
   }
 
@@ -412,7 +426,11 @@ export class InpatientController {
       where: { recordId, releasedAt: null },
     });
     if (!assignment) {
-      throw new AppError(409, 'BED_RELEASE_CONFLICT', 'Không tìm thấy giường đang nằm để giải phóng');
+      throw new AppError(
+        409,
+        'BED_RELEASE_CONFLICT',
+        'Không tìm thấy giường đang nằm để giải phóng',
+      );
     }
 
     const summary = await prisma.dischargeSummary.findUnique({
@@ -422,7 +440,7 @@ export class InpatientController {
       throw new AppError(
         400,
         'DISCHARGE_SUMMARY_REQUIRED',
-        'Cần có giấy ra viện đã ký trước khi làm thủ tục xuất viện'
+        'Cần có giấy ra viện đã ký trước khi làm thủ tục xuất viện',
       );
     }
 
@@ -461,8 +479,13 @@ export class InpatientController {
       return { releasedAssignment, updatedRecord };
     });
 
-    AuditPort.logActivity('PATIENT_DISCHARGED', releasedBy, result.releasedAssignment.id, { recordId });
-    RealtimePublisher.publishEvent('inpatient', 'patient_discharged', { assignmentId: assignment.id, recordId });
+    AuditPort.logActivity('PATIENT_DISCHARGED', releasedBy, result.releasedAssignment.id, {
+      recordId,
+    });
+    RealtimePublisher.publishEvent('inpatient', 'patient_discharged', {
+      assignmentId: assignment.id,
+      recordId,
+    });
 
     return sendSuccess(res, {
       recordId,
@@ -494,7 +517,11 @@ export class InpatientController {
       effectiveDepartmentId = req.user?.departmentId;
     }
     if (!recordId && !bedId && !effectiveDepartmentId) {
-      throw new AppError(400, 'ORDER_SCOPE_REQUIRED', 'Cần ít nhất một trong recordId, bedId hoặc departmentId');
+      throw new AppError(
+        400,
+        'ORDER_SCOPE_REQUIRED',
+        'Cần ít nhất một trong recordId, bedId hoặc departmentId',
+      );
     }
     const departmentScopeIds = await resolveEquivalentDepartmentIds(effectiveDepartmentId);
 
@@ -573,7 +600,10 @@ export class InpatientController {
       },
     });
 
-    AuditPort.logActivity('ORDER_CREATED', orderedBy, order.id, { recordId, orderType: body.orderType });
+    AuditPort.logActivity('ORDER_CREATED', orderedBy, order.id, {
+      recordId,
+      orderType: body.orderType,
+    });
     RealtimePublisher.publishEvent('inpatient', 'order_created', { orderId: order.id });
 
     return sendSuccess(
@@ -585,7 +615,7 @@ export class InpatientController {
         status: 'active',
         orderedAt: toVNISOString(order.orderedAt),
       },
-      201
+      201,
     );
   }
 
@@ -603,7 +633,7 @@ export class InpatientController {
       throw new AppError(
         409,
         'INVALID_TREATMENT_ORDER_TRANSITION',
-        'Chỉ có thể hoàn thành y lệnh đang ở trạng thái active'
+        'Chỉ có thể hoàn thành y lệnh đang ở trạng thái active',
       );
     }
 
@@ -660,7 +690,10 @@ export class InpatientController {
     });
 
     AuditPort.logActivity('ORDER_STATUS_UPDATED', userId, updated.id, { status: body.status });
-    RealtimePublisher.publishEvent('inpatient', 'order_updated', { orderId: updated.id, status: body.status });
+    RealtimePublisher.publishEvent('inpatient', 'order_updated', {
+      orderId: updated.id,
+      status: body.status,
+    });
 
     return sendSuccess(res, updated);
   }
@@ -676,11 +709,14 @@ export class InpatientController {
       throw new AppError(404, 'ORDER_NOT_FOUND', 'Y lệnh không tồn tại');
     }
 
-    if (order.status === TreatmentOrderStatus.done || order.status === TreatmentOrderStatus.cancelled) {
+    if (
+      order.status === TreatmentOrderStatus.done ||
+      order.status === TreatmentOrderStatus.cancelled
+    ) {
       throw new AppError(
         409,
         'INVALID_TREATMENT_ORDER_TRANSITION',
-        'Không thể hủy y lệnh đã hoàn thành hoặc đã hủy'
+        'Không thể hủy y lệnh đã hoàn thành hoặc đã hủy',
       );
     }
 
@@ -694,7 +730,9 @@ export class InpatientController {
       },
     });
 
-    AuditPort.logActivity('ORDER_CANCELLED', userId, updated.id, { cancelReason: body.cancelReason });
+    AuditPort.logActivity('ORDER_CANCELLED', userId, updated.id, {
+      cancelReason: body.cancelReason,
+    });
     RealtimePublisher.publishEvent('inpatient', 'order_cancelled', { orderId: updated.id });
 
     return sendSuccess(res, {
@@ -856,9 +894,16 @@ export class InpatientController {
     });
 
     AuditPort.logActivity('QUEUE_TICKET_CALLED', userId, result.id, { number: result.number });
-    RealtimePublisher.publishEvent('inpatient', 'queue_ticket_called', { ticketId: result.id, number: result.number });
+    RealtimePublisher.publishEvent('inpatient', 'queue_ticket_called', {
+      ticketId: result.id,
+      number: result.number,
+    });
 
-    return sendSuccess(res, { ticketId: result.id, number: result.number, calledAt: toVNISOString(result.calledAt) });
+    return sendSuccess(res, {
+      ticketId: result.id,
+      number: result.number,
+      calledAt: toVNISOString(result.calledAt),
+    });
   }
 
   // 13. POST /api/v1/inpatient/queue-tickets/:id/recall
@@ -870,7 +915,11 @@ export class InpatientController {
       UPDATE queue_tickets SET calledAt = NOW(3) WHERE id = ${id} AND status = 'called'
     `;
     if (affected === 0) {
-      throw new AppError(409, 'TICKET_NOT_CALLED', 'Số này không ở trạng thái đang gọi, không thể gọi lại');
+      throw new AppError(
+        409,
+        'TICKET_NOT_CALLED',
+        'Số này không ở trạng thái đang gọi, không thể gọi lại',
+      );
     }
 
     const [ticket] = await prisma.$queryRaw<Array<{ id: string; number: number; calledAt: Date }>>`
@@ -882,9 +931,16 @@ export class InpatientController {
     }
 
     AuditPort.logActivity('QUEUE_TICKET_RECALLED', userId, id, { number: ticket.number });
-    RealtimePublisher.publishEvent('inpatient', 'queue_ticket_recalled', { ticketId: id, number: ticket.number });
+    RealtimePublisher.publishEvent('inpatient', 'queue_ticket_recalled', {
+      ticketId: id,
+      number: ticket.number,
+    });
 
-    return sendSuccess(res, { ticketId: ticket.id, number: ticket.number, calledAt: toVNISOString(ticket.calledAt) });
+    return sendSuccess(res, {
+      ticketId: ticket.id,
+      number: ticket.number,
+      calledAt: toVNISOString(ticket.calledAt),
+    });
   }
 
   // 14. POST /api/v1/medical-records/:recordId/vital-signs
@@ -907,7 +963,11 @@ export class InpatientController {
         SELECT id, status FROM queue_tickets WHERE id = ${body.ticketId}
       `;
       if (!ticket || ticket.status !== 'called') {
-        throw new AppError(409, 'TICKET_NOT_CALLED', 'Số thứ tự không ở trạng thái đang gọi, không thể lưu kết quả');
+        throw new AppError(
+          409,
+          'TICKET_NOT_CALLED',
+          'Số thứ tự không ở trạng thái đang gọi, không thể lưu kết quả',
+        );
       }
 
       const logId = crypto.randomUUID();
@@ -943,8 +1003,14 @@ export class InpatientController {
       return updatedRecord;
     });
 
-    AuditPort.logActivity('VITAL_SIGNS_RECORDED', userId, recordId, { recordId, ticketId: body.ticketId });
-    RealtimePublisher.publishEvent('inpatient', 'vital_signs_recorded', { recordId, ticketId: body.ticketId });
+    AuditPort.logActivity('VITAL_SIGNS_RECORDED', userId, recordId, {
+      recordId,
+      ticketId: body.ticketId,
+    });
+    RealtimePublisher.publishEvent('inpatient', 'vital_signs_recorded', {
+      recordId,
+      ticketId: body.ticketId,
+    });
 
     return sendSuccess(
       res,
@@ -954,7 +1020,7 @@ export class InpatientController {
         recordVersion: result.version,
         vitalConfirmedAt: toVNISOString(result.vitalConfirmedAt),
       },
-      201
+      201,
     );
   }
 
@@ -1012,7 +1078,7 @@ export class InpatientController {
       throw new AppError(
         400,
         'PATIENT_NOT_EMERGENCY_BYPASS',
-        'Bệnh nhân này không ở trạng thái chờ chuẩn hóa danh tính cấp cứu'
+        'Bệnh nhân này không ở trạng thái chờ chuẩn hóa danh tính cấp cứu',
       );
     }
 
@@ -1027,6 +1093,7 @@ export class InpatientController {
         address: body.address,
         healthInsuranceCode: body.healthInsuranceCode,
         guardianFullName: body.guardianFullName,
+        guardianPhoneNumber: body.guardianPhoneNumber,
         isEmergencyBypass: false,
         privacyNoticeAccepted: true,
         privacyNoticeAcceptedAt: new Date(),
@@ -1046,6 +1113,8 @@ export class InpatientController {
       gender: updated.gender,
       phoneNumber: updated.phoneNumber,
       identityCardNumber: updated.identityCardNumber,
+      guardianFullName: updated.guardianFullName,
+      guardianPhoneNumber: updated.guardianPhoneNumber,
       isEmergencyBypass: updated.isEmergencyBypass,
     });
   }

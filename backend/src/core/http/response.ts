@@ -61,7 +61,7 @@ export function sendError(
   statusCode: number,
   code: string,
   message: string,
-  details?: Array<{ field: string; rule: string; message?: string }>,
+  details?: Array<{ field?: string; rule: string; message?: string }>,
   requestId?: string,
 ) {
   return res.status(statusCode).json({

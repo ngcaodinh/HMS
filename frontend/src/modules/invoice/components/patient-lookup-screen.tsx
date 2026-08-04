@@ -6,12 +6,13 @@ import { PatientRecord } from '../types/invoice.types';
 interface PatientLookupScreenProps {
   patients: PatientRecord[];
   onSelectPatientForInvoice: (patient: PatientRecord) => void;
-  onSelectPatientForAdvance: (patient: PatientRecord) => void;
+  onRefresh?: () => void;
 }
 
 export function PatientLookupScreen({
   patients,
   onSelectPatientForInvoice,
+  onRefresh,
 }: PatientLookupScreenProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
@@ -70,7 +71,7 @@ export function PatientLookupScreen({
           </select>
           <button
             type="button"
-            onClick={() => {}}
+            onClick={onRefresh}
             className="min-h-[36px] px-3 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#707882] rounded-md text-[12.5px] font-medium hover:bg-[#eaeef2] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,6 +108,7 @@ export function PatientLookupScreen({
               </svg>
               <input
                 type="text"
+                maxLength={100}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Tìm theo Họ tên, SĐT, CCCD, Mã BN..."
