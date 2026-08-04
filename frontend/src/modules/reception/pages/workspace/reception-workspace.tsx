@@ -17,10 +17,10 @@ import type { QueueTicketDto } from '@/modules/queue/types';
 import {
   classifyPatientSearchQuery,
   emptyNewPatientForm,
-  IDENTITY_CARD_REGEX,
+  getReceptionFieldErrors,
   isInsuranceExpired,
   MAX_QUEUE_CALL_ATTEMPTS,
-  VN_MOBILE_PHONE_REGEX,
+  type ReceptionFieldErrors,
 } from '@/modules/reception/constants/reception.constants';
 import {
   createEmergencyAdmission,
@@ -34,7 +34,6 @@ import type {
   NewPatientForm,
   PatientSearchResult,
 } from '@/modules/reception/types/reception.types';
-
 import { LogoutButton } from '@/shared/auth/logout-button';
 import { RoleIcon } from '@/shared/components/role-icon';
 import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
@@ -49,6 +48,7 @@ type IconProps = {
 };
 
 type FieldProps = {
+  id?: string;
   label: string;
   placeholder?: string;
   required?: boolean;
@@ -60,6 +60,8 @@ type FieldProps = {
   max?: string;
   maxLength?: number;
   onChange?: (value: string) => void;
+  onBlur?: () => void;
+  error?: string;
 };
 
 const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -71,23 +73,6 @@ function getLegalDateString(reference: Date = new Date()): string {
     month: '2-digit',
     day: '2-digit',
   }).format(reference);
-}
-
-/** Kiểm tra chuỗi ngày có tồn tại trên lịch trước khi gửi dữ liệu tiếp nhận. */
-function isRealDateString(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) {
-    return false;
-  }
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  return (
-    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
-  );
 }
 
 function formatTicketNumber(ticketNumber: number) {
@@ -202,7 +187,9 @@ function Sidebar({
     <SharedSidebar
       footer={
         <>
-          <div className={cn(styles.userAvatar, 'transition-transform duration-200 hover:scale-105')}>
+          <div
+            className={cn(styles.userAvatar, 'transition-transform duration-200 hover:scale-105')}
+          >
             <RoleIcon role="receptionist" />
           </div>
           <div className="min-w-0">
@@ -698,6 +685,7 @@ function QueueTicketPanel({
 }
 
 function Field({
+  id,
   label,
   placeholder,
   required = false,
@@ -709,24 +697,37 @@ function Field({
   max,
   maxLength,
   onChange,
+  onBlur,
+  error,
 }: FieldProps) {
+  const errorId = id ? `${id}-error` : undefined;
+
   return (
     <label className="block">
       <span className={styles.fieldLabel}>
         {label} {required && <span className={styles.required}>*</span>}
       </span>
       <input
+        aria-describedby={error ? errorId : undefined}
+        aria-invalid={error ? true : undefined}
         className={styles.input}
         disabled={disabled}
+        id={id}
         inputMode={inputMode}
         min={min}
         max={max}
         maxLength={maxLength}
+        onBlur={onBlur}
         onChange={(event) => onChange?.(event.target.value)}
         placeholder={placeholder}
         type={type}
         value={value}
       />
+      {error ? (
+        <span className="mt-1 block text-[11px] font-medium leading-4 text-[#ba1a1a]" id={errorId}>
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -737,6 +738,27 @@ type PatientReceptionFormProps = {
   onReceptionSuccess: (message: string) => void;
   onReceptionError: (message: string) => void;
 };
+
+type ReceptionFieldKey =
+  | 'dateOfBirth'
+  | 'doctorId'
+  | 'fullName'
+  | 'healthInsuranceCode'
+  | 'identityCardNumber'
+  | 'phoneNumber'
+  | 'phoneNumberUnavailableReason'
+  | 'privacyNoticeAccepted';
+
+const receptionFieldKeys: ReadonlySet<string> = new Set<ReceptionFieldKey>([
+  'dateOfBirth',
+  'doctorId',
+  'fullName',
+  'healthInsuranceCode',
+  'identityCardNumber',
+  'phoneNumber',
+  'phoneNumberUnavailableReason',
+  'privacyNoticeAccepted',
+]);
 
 /**
  * Form tiếp nhận — bind ticket called + search/create patient + POST /receptions.
@@ -763,6 +785,36 @@ function PatientReceptionForm({
   const [isSearching, setIsSearching] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [noPhone, setNoPhone] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Set<ReceptionFieldKey>>(new Set());
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+
+  const legalDate = getLegalDateString();
+  const fieldErrors = useMemo<ReceptionFieldErrors>(
+    () =>
+      getReceptionFieldErrors({
+        doctorId,
+        existingPatientId,
+        form,
+        hasActiveTicket: canComplete,
+        legalDate,
+        noPhone,
+      }),
+    [canComplete, doctorId, existingPatientId, form, legalDate, noPhone],
+  );
+
+  const getFieldError = (field: ReceptionFieldKey): string | undefined =>
+    hasSubmitted || touchedFields.has(field) ? fieldErrors[field] : undefined;
+
+  const touchField = (field: ReceptionFieldKey) => {
+    setTouchedFields((previous) => {
+      if (previous.has(field)) {
+        return previous;
+      }
+      const next = new Set(previous);
+      next.add(field);
+      return next;
+    });
+  };
 
   useEffect(() => {
     void listReceptionDoctors()
@@ -780,6 +832,10 @@ function PatientReceptionForm({
   const updateForm = <K extends keyof NewPatientForm>(key: K, value: NewPatientForm[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setExistingPatientId(null);
+    setFormError(null);
+    if (receptionFieldKeys.has(String(key))) {
+      touchField(key as ReceptionFieldKey);
+    }
   };
 
   const resetFormFields = () => {
@@ -790,6 +846,8 @@ function PatientReceptionForm({
     setExistingPatientId(null);
     setNoPhone(false);
     setFormError(null);
+    setTouchedFields(new Set());
+    setHasSubmitted(false);
   };
 
   const resetForm = () => {
@@ -850,54 +908,12 @@ function PatientReceptionForm({
     setFormError(null);
   };
 
-  const validateBeforeSubmit = (): string | null => {
-    if (!activeTicket || !canComplete) {
-      return 'Cần gọi số theo thứ tự trước khi tiếp nhận';
-    }
-    if (!doctorId) {
-      return 'Vui lòng chọn bác sĩ khám';
-    }
-    if (existingPatientId) {
-      return null;
-    }
-    if (!form.fullName.trim()) {
-      return 'Họ và tên là bắt buộc';
-    }
-    if (form.fullName.trim().replace(/\s+/g, ' ').length > 255) {
-      return 'Họ và tên tối đa 255 ký tự';
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dateOfBirth)) {
-      return 'Ngày sinh phải dạng YYYY-MM-DD';
-    }
-    if (!isRealDateString(form.dateOfBirth) || form.dateOfBirth < '1900-01-01') {
-      return 'Ngày sinh không hợp lệ';
-    }
-    if (form.dateOfBirth > getLegalDateString()) {
-      return 'Ngày sinh không được ở tương lai';
-    }
-    if (!form.privacyNoticeAccepted) {
-      return 'Cần xác nhận thông báo bảo vệ dữ liệu cá nhân';
-    }
-    const phone = form.phoneNumber.trim();
-    if (phone) {
-      if (!VN_MOBILE_PHONE_REGEX.test(phone)) {
-        return 'Số điện thoại phải 10 số đầu di động Việt Nam';
-      }
-    } else if (!noPhone || form.phoneNumberUnavailableReason.trim().length < 3) {
-      return 'Nhập SĐT hoặc tích không có SĐT và ghi lý do';
-    }
-    const cccd = form.identityCardNumber.trim();
-    if (cccd && !IDENTITY_CARD_REGEX.test(cccd)) {
-      return 'CCCD phải đủ 12 chữ số';
-    }
-    return null;
-  };
-
   const handleSubmit = async () => {
-    const validationError = validateBeforeSubmit();
+    setHasSubmitted(true);
+    const validationError = fieldErrors.form ?? Object.values(fieldErrors).find(Boolean);
     if (validationError) {
-      setFormError(validationError);
-      onReceptionError(validationError);
+      // Lỗi dữ liệu người dùng phải nằm ngay cạnh trường sai; chỉ lỗi hệ thống mới mở popup.
+      setFormError(fieldErrors.form ?? null);
       return;
     }
     if (!activeTicket) {
@@ -984,7 +1000,11 @@ function PatientReceptionForm({
         ) : null}
 
         {formError ? (
-          <div className="mb-3 rounded-lg border border-[#ffcdd2] bg-[#fff5f5] px-3 py-2 text-[12px] font-medium text-[#c62828]">
+          <div
+            aria-live="polite"
+            className="mb-3 rounded-lg border border-[#ffcdd2] bg-[#fff5f5] px-3 py-2 text-[12px] font-medium text-[#c62828]"
+            role="alert"
+          >
             {formError}
           </div>
         ) : null}
@@ -1046,19 +1066,25 @@ function PatientReceptionForm({
             <div className="sm:col-span-2">
               <Field
                 disabled={fieldsDisabled || Boolean(existingPatientId)}
+                error={getFieldError('fullName')}
+                id="fullName"
                 label="Họ và tên"
                 maxLength={255}
                 onChange={(value) => updateForm('fullName', value)}
+                onBlur={() => touchField('fullName')}
                 required
                 value={form.fullName}
               />
             </div>
             <Field
               disabled={fieldsDisabled || Boolean(existingPatientId)}
+              error={getFieldError('dateOfBirth')}
+              id="dateOfBirth"
               label="Ngày sinh"
               max={getLegalDateString()}
               min="1900-01-01"
               onChange={(value) => updateForm('dateOfBirth', value)}
+              onBlur={() => touchField('dateOfBirth')}
               placeholder="YYYY-MM-DD"
               required
               type="date"
@@ -1095,21 +1121,27 @@ function PatientReceptionForm({
             </div>
             <Field
               disabled={fieldsDisabled || Boolean(existingPatientId)}
+              error={getFieldError('identityCardNumber')}
+              id="identityCardNumber"
               label="Số CCCD"
               inputMode="numeric"
               maxLength={12}
               onChange={(value) =>
                 updateForm('identityCardNumber', value.replace(/\D/g, '').slice(0, 12))
               }
+              onBlur={() => touchField('identityCardNumber')}
               placeholder="12 chữ số"
               value={form.identityCardNumber}
             />
             <Field
               disabled={fieldsDisabled || noPhone || Boolean(existingPatientId)}
+              error={getFieldError('phoneNumber')}
+              id="phoneNumber"
               label="Số điện thoại"
               inputMode="numeric"
               maxLength={10}
               onChange={(value) => updateForm('phoneNumber', value.replace(/\D/g, '').slice(0, 10))}
+              onBlur={() => touchField('phoneNumber')}
               placeholder="09x xxxx xxxx"
               value={form.phoneNumber}
             />
@@ -1120,6 +1152,9 @@ function PatientReceptionForm({
                   disabled={fieldsDisabled || Boolean(existingPatientId)}
                   onChange={(event) => {
                     setNoPhone(event.target.checked);
+                    touchField(
+                      event.target.checked ? 'phoneNumberUnavailableReason' : 'phoneNumber',
+                    );
                     if (event.target.checked) {
                       updateForm('phoneNumber', '');
                     }
@@ -1131,9 +1166,12 @@ function PatientReceptionForm({
               {noPhone ? (
                 <Field
                   disabled={fieldsDisabled || Boolean(existingPatientId)}
+                  error={getFieldError('phoneNumberUnavailableReason')}
+                  id="phoneNumberUnavailableReason"
                   label="Lý do không có SĐT"
                   maxLength={255}
                   onChange={(value) => updateForm('phoneNumberUnavailableReason', value)}
+                  onBlur={() => touchField('phoneNumberUnavailableReason')}
                   required
                   value={form.phoneNumberUnavailableReason}
                 />
@@ -1156,9 +1194,12 @@ function PatientReceptionForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <Field
               disabled={fieldsDisabled || Boolean(existingPatientId)}
+              error={getFieldError('healthInsuranceCode')}
+              id="healthInsuranceCode"
               label="Mã số thẻ BHYT"
               maxLength={20}
               onChange={(value) => updateForm('healthInsuranceCode', value)}
+              onBlur={() => touchField('healthInsuranceCode')}
               placeholder="XX XXXXXXXXX XXXX"
               value={form.healthInsuranceCode}
             />
@@ -1186,9 +1227,17 @@ function PatientReceptionForm({
                 Bác sĩ khám <span className={styles.required}>*</span>
               </span>
               <select
+                aria-describedby={getFieldError('doctorId') ? 'doctorId-error' : undefined}
+                aria-invalid={getFieldError('doctorId') ? true : undefined}
                 className={styles.input}
                 disabled={fieldsDisabled}
-                onChange={(event) => setDoctorId(event.target.value)}
+                id="doctorId"
+                onBlur={() => touchField('doctorId')}
+                onChange={(event) => {
+                  setDoctorId(event.target.value);
+                  setFormError(null);
+                  touchField('doctorId');
+                }}
                 value={doctorId}
               >
                 <option value="">— Chọn bác sĩ —</option>
@@ -1198,6 +1247,14 @@ function PatientReceptionForm({
                   </option>
                 ))}
               </select>
+              {getFieldError('doctorId') ? (
+                <span
+                  className="mt-1 block text-[11px] font-medium leading-4 text-[#ba1a1a]"
+                  id="doctorId-error"
+                >
+                  {getFieldError('doctorId')}
+                </span>
+              ) : null}
             </label>
             <Field
               disabled={fieldsDisabled}
@@ -1220,14 +1277,30 @@ function PatientReceptionForm({
               {form.privacyNoticeAccepted ? <CheckIcon className="h-3 w-3" /> : null}
             </span>
             <input
+              aria-describedby={
+                getFieldError('privacyNoticeAccepted') ? 'privacyNoticeAccepted-error' : undefined
+              }
+              aria-invalid={getFieldError('privacyNoticeAccepted') ? true : undefined}
               checked={form.privacyNoticeAccepted}
               className="sr-only"
               disabled={fieldsDisabled || Boolean(existingPatientId)}
-              onChange={(event) => updateForm('privacyNoticeAccepted', event.target.checked)}
+              id="privacyNoticeAccepted"
+              onChange={(event) => {
+                updateForm('privacyNoticeAccepted', event.target.checked);
+                touchField('privacyNoticeAccepted');
+              }}
               type="checkbox"
             />
             <span>Xác nhận bệnh nhân đã đồng ý với thông báo bảo vệ dữ liệu cá nhân.</span>
           </label>
+          {getFieldError('privacyNoticeAccepted') ? (
+            <p
+              className="mt-1 text-[11px] font-medium leading-4 text-[#ba1a1a]"
+              id="privacyNoticeAccepted-error"
+            >
+              {getFieldError('privacyNoticeAccepted')}
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -1468,7 +1541,7 @@ export function ReceptionWorkspacePage() {
           {mode === 'emergency' && <EmergencyWorkspace onToast={showToast} />}
         </div>
       </section>
-      <AppToast message={toastMessage} tone={toastTone} />
+      <AppToast centered message={toastMessage} tone={toastTone} />
     </main>
   );
 }
