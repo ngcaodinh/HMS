@@ -4,13 +4,24 @@ import { useState } from 'react';
 import { ShiftSummary, TransactionLog } from '../types/invoice.types';
 
 interface ShiftReportScreenProps {
-  summary: ShiftSummary;
+  summary: ShiftSummary | null;
   logs: TransactionLog[];
   onExportReport: () => void;
 }
 
-export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenProps) {
+function formatVnd(value: number | undefined): string {
+  return value === undefined ? '—' : `${value.toLocaleString('vi-VN')} đ`;
+}
+
+function formatLogDate(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('vi-VN');
+}
+
+/** Hiển thị báo cáo ca từ dữ liệu server; khi chưa có API sẽ hiển thị trạng thái rỗng minh bạch. */
+export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReportScreenProps) {
   const [filterType, setFilterType] = useState<string>('all');
+  const hasReportData = summary !== null || logs.length > 0;
 
   const filteredLogs = logs.filter((l) => {
     if (filterType === 'all') return true;
@@ -29,25 +40,26 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
             Báo cáo tài chính ca trực
           </h2>
           <p className="text-[13px] text-[#707882] mt-0.5">
-            Ca trực từ 07:00 · 20/07/2026 · Kế toán phụ trách:{' '}
-            <strong className="text-[#171c1f]">Nguyễn Văn A</strong>
+            {summary
+              ? `Ca ${summary.shiftCode} · ${summary.startTime} - ${summary.endTime} · Kế toán phụ trách: `
+              : 'Chưa có dữ liệu ca trực từ hệ thống'}
+            {summary ? <strong className="text-[#171c1f]">{summary.cashierName}</strong> : null}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <input
             type="date"
-            defaultValue="2026-07-20"
             className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
           />
           <input
             type="date"
-            defaultValue="2026-07-20"
             className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
           />
           <button
             type="button"
             onClick={onExportReport}
-            className="px-3.5 py-1.5 bg-[#1a7a4a] text-white rounded-md text-[12.5px] font-bold hover:bg-[#145c38] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 min-h-[36px] shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+            disabled={!hasReportData}
+            className="px-3.5 py-1.5 bg-[#1a7a4a] text-white rounded-md text-[12.5px] font-bold hover:bg-[#145c38] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 min-h-[36px] shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] disabled:cursor-not-allowed disabled:bg-[#bfc7d2] disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -57,7 +69,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
               />
             </svg>
-            Xuất báo cáo ca trực
+            {hasReportData ? 'Xuất báo cáo ca trực' : 'Chưa có dữ liệu để xuất'}
           </button>
         </div>
       </div>
@@ -69,11 +81,12 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
             Tổng doanh thu thực tế
           </div>
           <div className="text-[24px] font-bold font-mono text-[#006096] leading-tight mb-1">
-            8.650.000 đ
+            {formatVnd(summary?.netRevenue)}
           </div>
           <div className="text-[11.5px] text-[#707882]">
-            Tiền mặt: 6.150.000 đ<br />
-            Momo: 2.500.000 đ
+            Tiền mặt: {formatVnd(summary?.cashTotal)}
+            <br />
+            Chuyển khoản: {formatVnd(summary?.transferTotal)}
           </div>
         </div>
 
@@ -81,10 +94,10 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Quỹ BHYT chi trả
           </div>
-          <div className="text-[24px] font-bold font-mono text-[#006096] leading-tight mb-1">
-            3.220.000 đ
+          <div className="text-[24px] font-bold font-mono text-[#006096] leading-tight mb-1">—</div>
+          <div className="text-[11.5px] text-[#707882]">
+            Chưa có dữ liệu quỹ BHYT từ API ca trực
           </div>
-          <div className="text-[11.5px] text-[#707882]">Giảm trừ cho 5 bệnh nhân</div>
         </div>
 
         <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card p-4 relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,96,150,0.14)] border-t-4 border-t-[#007abc]">
@@ -92,19 +105,21 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
             Tổng tiền tạm ứng
           </div>
           <div className="text-[24px] font-bold font-mono text-[#006096] leading-tight mb-1">
-            5.000.000 đ
+            {formatVnd(summary?.advanceCollectedTotal)}
           </div>
-          <div className="text-[11.5px] text-[#707882]">1 bệnh nhân nội trú · 2 đợt</div>
+          <div className="text-[11.5px] text-[#707882]">
+            Hoàn ứng: {formatVnd(summary?.advanceRefundedTotal)}
+          </div>
         </div>
 
         <div className="bg-white rounded-xl border border-[#bfc7d2] shadow-hms-card p-4 relative overflow-hidden transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(0,96,150,0.14)] border-t-4 border-t-[#ba1a1a]">
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Miễn giảm thất thu
           </div>
-          <div className="text-[24px] font-bold font-mono text-[#ba1a1a] leading-tight mb-1">
-            890.000 đ
+          <div className="text-[24px] font-bold font-mono text-[#ba1a1a] leading-tight mb-1">—</div>
+          <div className="text-[11.5px] text-[#707882]">
+            Chưa có dữ liệu write-off từ API ca trực
           </div>
-          <div className="text-[11.5px] text-[#707882]">1 ca cấp cứu Write-off</div>
         </div>
       </div>
 
@@ -128,7 +143,7 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
             Nhật ký giao dịch chi tiết
           </div>
           <span className="px-2.5 py-0.5 rounded-full bg-[#cee5ff] text-[#006096] font-bold text-[11px]">
-            7 giao dịch trong ca
+            {summary?.totalTransactionsCount ?? logs.length} giao dịch trong ca
           </span>
         </div>
 
@@ -171,44 +186,50 @@ export function ShiftReportScreen({ logs, onExportReport }: ShiftReportScreenPro
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f0f4f8]">
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-[#f0f4f8]/70 transition-colors duration-150">
-                  <td className="px-4 py-3 font-mono font-bold text-[#006096]">
-                    RCP-2026-0{log.id}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-mono font-bold text-[12.5px] text-[#171c1f]">
-                      {log.patientCode}
-                    </div>
-                    <div className="text-[11.5px] text-[#707882]">{log.patientName}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#cee5ff] text-[#006096] font-semibold text-[11px]">
-                      {log.type === 'invoice_payment' && 'Thanh toán HĐ'}
-                      {log.type === 'advance_deposit' && 'Thu tạm ứng'}
-                      {log.type === 'advance_refund' && 'Hoàn ứng'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#cee5ff] text-[#006096] font-semibold text-[11px] uppercase">
-                      {log.method}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-[#1a7a4a]">
-                    + {log.amount.toLocaleString('vi-VN')} đ
-                  </td>
-                  <td className="px-4 py-3 text-[12px] text-[#707882]">
-                    <span className="font-mono">{log.time}</span>
-                    <br />
-                    20/07/2026
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#ffdad6] text-[#ba1a1a] font-bold text-[10.5px]">
-                      Thành công
-                    </span>
+              {filteredLogs.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-12 text-center text-sm text-[#707882]" colSpan={7}>
+                    Chưa có giao dịch thực tế trong khoảng thời gian đã chọn.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-[#f0f4f8]/70 transition-colors duration-150">
+                    <td className="px-4 py-3 font-mono font-bold text-[#006096]">{log.id}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-mono font-bold text-[12.5px] text-[#171c1f]">
+                        {log.patientCode}
+                      </div>
+                      <div className="text-[11.5px] text-[#707882]">{log.patientName}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#cee5ff] text-[#006096] font-semibold text-[11px]">
+                        {log.type === 'invoice_payment' && 'Thanh toán HĐ'}
+                        {log.type === 'advance_deposit' && 'Thu tạm ứng'}
+                        {log.type === 'advance_refund' && 'Hoàn ứng'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#cee5ff] text-[#006096] font-semibold text-[11px] uppercase">
+                        {log.method}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-[#1a7a4a]">
+                      + {log.amount.toLocaleString('vi-VN')} đ
+                    </td>
+                    <td className="px-4 py-3 text-[12px] text-[#707882]">
+                      <span className="font-mono">{log.time}</span>
+                      <br />
+                      {formatLogDate(log.time)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="px-2.5 py-0.5 rounded-full bg-[#ffdad6] text-[#ba1a1a] font-bold text-[10.5px]">
+                        Thành công
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

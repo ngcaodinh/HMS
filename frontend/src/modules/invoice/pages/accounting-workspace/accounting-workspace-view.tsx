@@ -4,14 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { getApiErrorCode, getApiErrorMessage } from '@/shared/api-client/api-client';
 import { performLogout } from '@/shared/auth/logout';
+import { AppToast } from '@/shared/components/app-toast';
 
-import { USE_REAL_BILLING } from '../../constants/billing.constants';
-import {
-  MOCK_INVOICE_DETAILS,
-  MOCK_SHIFT_SUMMARY,
-  MOCK_TRANSACTION_LOGS,
-  PATIENTS_DB,
-} from '../../data/mock-accounting-data';
 import { AccountingScreenId, Invoice, PatientRecord } from '../../types/invoice.types';
 import { AccountingHeader } from '../../components/accounting-header';
 import { AccountingSidebar } from '../../components/accounting-sidebar';
@@ -163,12 +157,14 @@ function mapCandidateToPatient(
 
 export function AccountingWorkspaceView() {
   const [activeScreen, setActiveScreen] = useState<AccountingScreenId>('s1');
-  const [patients, setPatients] = useState<PatientRecord[]>(PATIENTS_DB);
-  const [selectedPatient, setSelectedPatient] = useState<PatientRecord>(PATIENTS_DB[0]);
-  const [currentInvoice, setCurrentInvoice] = useState<Invoice>(MOCK_INVOICE_DETAILS);
+  const [patients, setPatients] = useState<PatientRecord[]>([]);
+  const [selectedPatient, setSelectedPatient] = useState<PatientRecord | null>(null);
+  const [currentInvoice, setCurrentInvoice] = useState<Invoice | null>(null);
   const [apiInvoiceId, setApiInvoiceId] = useState<string | null>(null);
   const [apiInvoiceVersion, setApiInvoiceVersion] = useState(1);
   const [pendingInvoices, setPendingInvoices] = useState<InvoiceApiDto[]>([]);
+  const [isPatientsLoading, setIsPatientsLoading] = useState(true);
+  const [patientsError, setPatientsError] = useState<string | null>(null);
   const [advanceSummary, setAdvanceSummary] = useState<PaymentAdvanceSummaryDto | null>(null);
   const [isAdvanceLoading, setIsAdvanceLoading] = useState(false);
   const [momoPayUrl, setMomoPayUrl] = useState<string | null>(null);
@@ -183,18 +179,38 @@ export function AccountingWorkspaceView() {
   const [isWriteoffOpen, setIsWriteoffOpen] = useState(false);
   const [isRefundOpen, setIsRefundOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [notification, setNotification] = useState<{
+    message: string;
+    tone: 'success' | 'error';
+  } | null>(null);
+  const notificationTimerRef = useRef<number | null>(null);
 
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
-    window.setTimeout(() => setToastMessage(null), 4500);
+  /** Hiển thị thông báo dùng chung của HMS và tự đóng sau một khoảng thời gian ngắn. */
+  const showToast = useCallback((msg: string, tone: 'success' | 'error' = 'success') => {
+    if (notificationTimerRef.current !== null) {
+      window.clearTimeout(notificationTimerRef.current);
+    }
+    setNotification({ message: msg, tone });
+    notificationTimerRef.current = window.setTimeout(() => {
+      setNotification(null);
+      notificationTimerRef.current = null;
+    }, 4500);
   }, []);
 
+  useEffect(
+    () => () => {
+      if (notificationTimerRef.current !== null) {
+        window.clearTimeout(notificationTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  /** Nạp danh sách hồ sơ và hóa đơn từ backend; lỗi được phản hồi rõ ràng thay vì hiển thị dữ liệu dựng sẵn. */
   const loadPendingFromApi = useCallback(async () => {
-    if (!USE_REAL_BILLING) {
-      return;
-    }
     const requestSequence = ++pendingLoadSequenceRef.current;
+    setIsPatientsLoading(true);
+    setPatientsError(null);
     try {
       const [result, candidates] = await Promise.all([
         listInvoices({ status: 'pending', pageSize: 50 }),
@@ -208,8 +224,17 @@ export function AccountingWorkspaceView() {
         ...result.items.map(mapInvoiceToPatient),
         ...candidates.items.map(mapCandidateToPatient),
       ]);
+      setPatientsError(null);
     } catch (error) {
-      showToast(getApiErrorMessage(error, 'Không tải được danh sách hóa đơn chờ thu'));
+      const message = getApiErrorMessage(error, 'Không tải được danh sách hồ sơ kế toán');
+      setPendingInvoices([]);
+      setPatients([]);
+      setPatientsError(message);
+      showToast(message, 'error');
+    } finally {
+      if (requestSequence === pendingLoadSequenceRef.current) {
+        setIsPatientsLoading(false);
+      }
     }
   }, [showToast]);
 
@@ -228,7 +253,7 @@ export function AccountingWorkspaceView() {
           return;
         }
         setAdvanceSummary(null);
-        showToast(getApiErrorMessage(error, 'Không tải được lịch sử tạm ứng'));
+        showToast(getApiErrorMessage(error, 'Không tải được lịch sử tạm ứng'), 'error');
       } finally {
         if (requestSequence === advanceLoadSequenceRef.current) {
           setIsAdvanceLoading(false);
@@ -239,14 +264,14 @@ export function AccountingWorkspaceView() {
   );
 
   useEffect(() => {
-    if (!USE_REAL_BILLING || activeScreen !== 's4' || !selectedPatient.recordId) {
+    if (activeScreen !== 's4' || !selectedPatient?.recordId) {
       advanceLoadSequenceRef.current += 1;
       setAdvanceSummary(null);
       setIsAdvanceLoading(false);
       return;
     }
     void loadAdvanceSummary(selectedPatient.recordId);
-  }, [activeScreen, loadAdvanceSummary, selectedPatient.recordId]);
+  }, [activeScreen, loadAdvanceSummary, selectedPatient?.recordId]);
 
   const openInvoiceFromApi = useCallback(
     async (invoiceId: string) => {
@@ -260,7 +285,7 @@ export function AccountingWorkspaceView() {
         setCurrentInvoice(mapApiInvoiceToView(dto, patient));
         setActiveScreen('s3');
       } catch (error) {
-        showToast(getApiErrorMessage(error, 'Không mở được hóa đơn'));
+        showToast(getApiErrorMessage(error, 'Không mở được hóa đơn'), 'error');
       } finally {
         setIsBusy(false);
       }
@@ -270,10 +295,6 @@ export function AccountingWorkspaceView() {
 
   // Load pending + xử lý return từ trang Momo (redirectUrl)
   useEffect(() => {
-    if (!USE_REAL_BILLING) {
-      return;
-    }
-
     void loadPendingFromApi();
 
     const params = new URLSearchParams(window.location.search);
@@ -305,7 +326,7 @@ export function AccountingWorkspaceView() {
       sessionStorage.removeItem(SS_ORDER);
       window.history.replaceState({}, '', '/accounting');
       if (dto.status === 'paid') {
-        showToast('Thanh toán Momo thành công — hóa đơn đã được lưu paid');
+        showToast('Thanh toán Momo thành công — hóa đơn đã được lưu trên hệ thống');
         void loadPendingFromApi();
       }
     };
@@ -328,7 +349,7 @@ export function AccountingWorkspaceView() {
         }, 2500);
       } else if (!cancelled) {
         await finishPaid(resumeId);
-        showToast('Chưa nhận IPN Momo — kiểm tra tunnel IPN hoặc bấm tải lại HĐ');
+        showToast('Chưa nhận IPN Momo — kiểm tra tunnel IPN hoặc bấm tải lại hóa đơn', 'error');
       }
     };
 
@@ -342,20 +363,22 @@ export function AccountingWorkspaceView() {
 
   const handleSelectPatientForInvoice = (patient: PatientRecord) => {
     setSelectedPatient(patient);
-    // Real mode: mở HĐ pending tương ứng patient
-    if (USE_REAL_BILLING) {
-      const match = pendingInvoices.find(
-        (inv) => inv.patient?.patientCode === patient.code || inv.patient?.patientId === patient.id,
-      );
-      if (match) {
-        void openInvoiceFromApi(match.invoiceId);
-        return;
-      }
+    // Mở hóa đơn pending tương ứng nếu hồ sơ đã có hóa đơn trên hệ thống.
+    const match = pendingInvoices.find(
+      (inv) => inv.patient?.patientCode === patient.code || inv.patient?.patientId === patient.id,
+    );
+    if (match) {
+      void openInvoiceFromApi(match.invoiceId);
+      return;
     }
     setActiveScreen('s2');
   };
 
   const handleProceedToPayment = (dto: InvoiceApiDto) => {
+    if (!selectedPatient) {
+      showToast('Không xác định được hồ sơ bệnh nhân để mở thanh toán.', 'error');
+      return;
+    }
     setApiInvoiceId(dto.invoiceId);
     setApiInvoiceVersion(dto.version);
     setCurrentInvoice(mapApiInvoiceToView(dto, selectedPatient));
@@ -363,41 +386,41 @@ export function AccountingWorkspaceView() {
   };
 
   const applyPaidUi = () => {
+    if (!selectedPatient || !currentInvoice) {
+      return;
+    }
     setPatients((prev) =>
       prev.map((p) =>
         p.code === selectedPatient.code ? { ...p, status: 'settled', remainingAmount: 0 } : p,
       ),
     );
-    setSelectedPatient((prev) => ({
-      ...prev,
-      status: 'settled',
-      remainingAmount: 0,
-    }));
-    setCurrentInvoice((prev) => ({
-      ...prev,
-      status: 'paid',
-    }));
+    setSelectedPatient((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'settled',
+            remainingAmount: 0,
+          }
+        : null,
+    );
+    setCurrentInvoice((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: 'paid',
+          }
+        : null,
+    );
     setActiveScreen('s3');
     void loadPendingFromApi();
   };
 
   const handleCashConfirm = async () => {
-    if (!USE_REAL_BILLING) {
-      if (!apiInvoiceId) {
-        setIsCashOpen(false);
-        applyPaidUi();
-        return;
-      }
-      setIsCashOpen(false);
-      applyPaidUi();
-      showToast(`Đã thu tiền (mock) cho BN ${selectedPatient.fullName}.`);
+    if (!selectedPatient || !apiInvoiceId) {
+      showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.', 'error');
       return;
     }
     try {
-      if (!apiInvoiceId) {
-        showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.');
-        return;
-      }
       const invoiceId = apiInvoiceId;
       const result = await settleCashPayment(invoiceId);
       const refreshed = await getInvoice(invoiceId);
@@ -407,7 +430,7 @@ export function AccountingWorkspaceView() {
       applyPaidUi();
       showToast(`Thu tiền mặt OK · Phiếu ${result.receiptNumber}`);
     } catch (error) {
-      showToast(getApiErrorMessage(error, 'Thu tiền mặt thất bại'));
+      showToast(getApiErrorMessage(error, 'Thu tiền mặt thất bại'), 'error');
     }
   };
 
@@ -416,8 +439,8 @@ export function AccountingWorkspaceView() {
    * requestType payWithMethod: quét QR + ví MoMo + ATM + Visa/Mastercard trên trang Momo.
    */
   const handleOpenMomo = async () => {
-    if (!USE_REAL_BILLING || !apiInvoiceId) {
-      showToast('Cần hóa đơn API thật để thanh toán Momo Sandbox');
+    if (!apiInvoiceId) {
+      showToast('Cần hóa đơn đã lưu trên hệ thống để thanh toán Momo.', 'error');
       return;
     }
     setIsBusy(true);
@@ -441,6 +464,7 @@ export function AccountingWorkspaceView() {
           error,
           'Tạo thanh toán Momo thất bại — kiểm tra USE_MOMO_MOCK=false và credential sandbox',
         ),
+        'error',
       );
     } finally {
       setIsBusy(false);
@@ -448,34 +472,31 @@ export function AccountingWorkspaceView() {
   };
 
   const handleCancelInvoice = async (reason: string) => {
-    if (USE_REAL_BILLING) {
-      if (!apiInvoiceId) {
-        showToast(
-          'Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn trước khi hủy.',
-        );
+    if (!apiInvoiceId) {
+      showToast(
+        'Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn trước khi hủy.',
+        'error',
+      );
+      return;
+    }
+    try {
+      await cancelInvoice(apiInvoiceId, {
+        expectedVersion: apiInvoiceVersion,
+        cancelReason: reason,
+      });
+      showToast(`Đã hủy hóa đơn. Lý do: ${reason}`);
+      void loadPendingFromApi();
+    } catch (error) {
+      if (
+        getApiErrorCode(error) === 'VERSION_CONFLICT' ||
+        getApiErrorCode(error) === 'INVOICE_NOT_PENDING'
+      ) {
+        void openInvoiceFromApi(apiInvoiceId);
+        showToast('Hóa đơn đã thay đổi; hệ thống đã tải lại dữ liệu mới nhất.', 'error');
         return;
       }
-      try {
-        await cancelInvoice(apiInvoiceId, {
-          expectedVersion: apiInvoiceVersion,
-          cancelReason: reason,
-        });
-        showToast(`Đã hủy hóa đơn. Lý do: ${reason}`);
-        void loadPendingFromApi();
-      } catch (error) {
-        if (
-          getApiErrorCode(error) === 'VERSION_CONFLICT' ||
-          getApiErrorCode(error) === 'INVOICE_NOT_PENDING'
-        ) {
-          void openInvoiceFromApi(apiInvoiceId);
-          showToast('Hóa đơn đã thay đổi; hệ thống đã tải lại dữ liệu mới nhất.');
-          return;
-        }
-        showToast(getApiErrorMessage(error, 'Hủy hóa đơn thất bại'));
-        return;
-      }
-    } else {
-      showToast(`Đã hủy hóa đơn ${currentInvoice.invoiceNumber}. Lý do: ${reason}`);
+      showToast(getApiErrorMessage(error, 'Hủy hóa đơn thất bại'), 'error');
+      return;
     }
     setIsCancelOpen(false);
     setApiInvoiceId(null);
@@ -484,7 +505,7 @@ export function AccountingWorkspaceView() {
 
   const handleWriteoff = async (reason: string) => {
     if (!apiInvoiceId) {
-      showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.');
+      showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.', 'error');
       return;
     }
     try {
@@ -504,12 +525,16 @@ export function AccountingWorkspaceView() {
       if (getApiErrorCode(error) === 'INVOICE_NOT_PENDING') {
         void openInvoiceFromApi(apiInvoiceId);
       }
-      showToast(getApiErrorMessage(error, 'Ghi nhận write-off thất bại'));
+      showToast(getApiErrorMessage(error, 'Ghi nhận write-off thất bại'), 'error');
       return;
     }
   };
 
   const handleRefundSuccess = async (reason: string) => {
+    if (!selectedPatient) {
+      showToast('Chưa chọn hồ sơ bệnh nhân để hoàn tạm ứng.', 'error');
+      return;
+    }
     const recordId = selectedPatient.recordId;
     const amount = advanceSummary ? moneyToNumber(advanceSummary.balance) : 0;
     if (!recordId || amount <= 0) {
@@ -523,7 +548,7 @@ export function AccountingWorkspaceView() {
       setIsRefundOpen(false);
       showToast(`Đã hoàn ${amount.toLocaleString('vi-VN')} đ cho BN ${selectedPatient.fullName}.`);
     } catch (error) {
-      showToast(getApiErrorMessage(error, 'Hoàn tạm ứng thất bại'));
+      showToast(getApiErrorMessage(error, 'Hoàn tạm ứng thất bại'), 'error');
     } finally {
       setIsBusy(false);
     }
@@ -536,7 +561,7 @@ export function AccountingWorkspaceView() {
   };
 
   const handleExportReport = () => {
-    showToast('Đã xuất báo cáo tổng hợp tài chính ca trực (File BKT_20260720.xlsx).');
+    showToast('Chưa có API báo cáo ca trực để xuất dữ liệu.', 'error');
   };
 
   return (
@@ -548,14 +573,7 @@ export function AccountingWorkspaceView() {
       />
 
       <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <AccountingHeader
-          activeScreen={activeScreen}
-          patientCount={
-            USE_REAL_BILLING
-              ? pendingInvoices.length
-              : patients.filter((p) => p.status === 'pending_payment').length
-          }
-        />
+        <AccountingHeader activeScreen={activeScreen} patientCount={patients.length} />
 
         <main className="flex-1 overflow-y-auto p-6 bg-[#f6fafe]">
           {isRedirectingMomo ? (
@@ -574,12 +592,14 @@ export function AccountingWorkspaceView() {
           {activeScreen === 's1' && (
             <PatientLookupScreen
               patients={patients}
+              isLoading={isPatientsLoading}
+              errorMessage={patientsError}
               onSelectPatientForInvoice={handleSelectPatientForInvoice}
               onRefresh={() => void loadPendingFromApi()}
             />
           )}
 
-          {activeScreen === 's2' && (
+          {activeScreen === 's2' && selectedPatient && (
             <InvoiceCreationScreen
               patient={selectedPatient}
               onProceedToPayment={handleProceedToPayment}
@@ -588,7 +608,7 @@ export function AccountingWorkspaceView() {
             />
           )}
 
-          {activeScreen === 's3' && (
+          {activeScreen === 's3' && selectedPatient && currentInvoice && (
             <PaymentStatementScreen
               patient={selectedPatient}
               invoice={currentInvoice}
@@ -623,7 +643,7 @@ export function AccountingWorkspaceView() {
                   await loadAdvanceSummary(input.recordId);
                   showToast('Đã lưu giao dịch tạm ứng trên hệ thống.');
                 } catch (error) {
-                  showToast(getApiErrorMessage(error, 'Thu tạm ứng thất bại'));
+                  showToast(getApiErrorMessage(error, 'Thu tạm ứng thất bại'), 'error');
                 } finally {
                   setIsBusy(false);
                 }
@@ -633,69 +653,69 @@ export function AccountingWorkspaceView() {
           )}
 
           {activeScreen === 's5' && (
-            <ShiftReportScreen
-              summary={MOCK_SHIFT_SUMMARY}
-              logs={MOCK_TRANSACTION_LOGS}
-              onExportReport={() => showToast('Xuất báo cáo (mock).')}
-            />
+            <ShiftReportScreen summary={null} logs={[]} onExportReport={handleExportReport} />
           )}
         </main>
       </div>
 
-      <CashPaymentModal
-        isOpen={isCashOpen}
-        amount={currentInvoice.finalAmount}
-        invoiceNumber={currentInvoice.invoiceNumber}
-        patientName={selectedPatient.fullName}
-        onClose={() => setIsCashOpen(false)}
-        onConfirmSuccess={handleCashConfirm}
-      />
+      {currentInvoice && selectedPatient ? (
+        <>
+          <CashPaymentModal
+            isOpen={isCashOpen}
+            amount={currentInvoice.finalAmount}
+            invoiceNumber={currentInvoice.invoiceNumber}
+            patientName={selectedPatient.fullName}
+            onClose={() => setIsCashOpen(false)}
+            onConfirmSuccess={handleCashConfirm}
+          />
 
-      {/* Fallback hiếm khi redirect bị chặn — vẫn có link payUrl */}
-      <MomoQrModal
-        isOpen={isMomoOpen}
-        amount={currentInvoice.finalAmount}
-        invoiceNumber={currentInvoice.invoiceNumber}
-        patientName={selectedPatient.fullName}
-        payUrl={momoPayUrl}
-        qrPayload={momoPayUrl}
-        statusText="Mở trang Momo để chọn QR / ATM / Visa / Mastercard"
-        onClose={() => setIsMomoOpen(false)}
-        onConfirmSuccess={async () => {
-          if (apiInvoiceId) {
-            await syncMomoPayment(apiInvoiceId);
-            const dto = await getInvoice(apiInvoiceId);
-            setCurrentInvoice(mapApiInvoiceToView(dto, selectedPatient));
-            if (dto.status === 'paid') {
-              applyPaidUi();
-              showToast('Đã đồng bộ thanh toán Momo');
-            }
-          }
-          setIsMomoOpen(false);
-        }}
-      />
+          {/* Fallback hiếm khi redirect bị chặn — vẫn có link payUrl */}
+          <MomoQrModal
+            isOpen={isMomoOpen}
+            amount={currentInvoice.finalAmount}
+            invoiceNumber={currentInvoice.invoiceNumber}
+            patientName={selectedPatient.fullName}
+            payUrl={momoPayUrl}
+            qrPayload={momoPayUrl}
+            statusText="Mở trang Momo để chọn QR / ATM / Visa / Mastercard"
+            onClose={() => setIsMomoOpen(false)}
+            onConfirmSuccess={async () => {
+              if (apiInvoiceId) {
+                await syncMomoPayment(apiInvoiceId);
+                const dto = await getInvoice(apiInvoiceId);
+                setCurrentInvoice(mapApiInvoiceToView(dto, selectedPatient));
+                if (dto.status === 'paid') {
+                  applyPaidUi();
+                  showToast('Đã đồng bộ thanh toán Momo');
+                }
+              }
+              setIsMomoOpen(false);
+            }}
+          />
 
-      <CancelInvoiceModal
-        isOpen={isCancelOpen}
-        invoiceNumber={currentInvoice.invoiceNumber}
-        onClose={() => setIsCancelOpen(false)}
-        onConfirmCancel={(reason) => {
-          void handleCancelInvoice(reason);
-        }}
-      />
+          <CancelInvoiceModal
+            isOpen={isCancelOpen}
+            invoiceNumber={currentInvoice.invoiceNumber}
+            onClose={() => setIsCancelOpen(false)}
+            onConfirmCancel={(reason) => {
+              void handleCancelInvoice(reason);
+            }}
+          />
 
-      <WriteoffModal
-        isOpen={isWriteoffOpen}
-        invoiceNumber={currentInvoice.invoiceNumber}
-        onClose={() => setIsWriteoffOpen(false)}
-        onConfirmWriteoff={(reason) => void handleWriteoff(reason)}
-      />
+          <WriteoffModal
+            isOpen={isWriteoffOpen}
+            invoiceNumber={currentInvoice.invoiceNumber}
+            onClose={() => setIsWriteoffOpen(false)}
+            onConfirmWriteoff={(reason) => void handleWriteoff(reason)}
+          />
+        </>
+      ) : null}
 
       <RefundModal
         isOpen={isRefundOpen}
         amount={advanceSummary ? moneyToNumber(advanceSummary.balance) : 0}
-        patientName={selectedPatient.fullName}
-        patientCode={selectedPatient.code}
+        patientName={selectedPatient?.fullName ?? ''}
+        patientCode={selectedPatient?.code ?? ''}
         onClose={() => setIsRefundOpen(false)}
         onConfirmRefund={(reason) => void handleRefundSuccess(reason)}
       />
@@ -706,11 +726,7 @@ export function AccountingWorkspaceView() {
         onConfirmLogout={handleConfirmLogout}
       />
 
-      {toastMessage ? (
-        <div className="fixed bottom-6 right-6 z-[60] max-w-md rounded-xl bg-[#001d32] px-4 py-3 text-sm font-medium text-white shadow-[0_8px_24px_rgba(0,0,0,0.25)] ring-1 ring-white/10 animate-modalIn">
-          {toastMessage}
-        </div>
-      ) : null}
+      <AppToast centered message={notification?.message ?? null} tone={notification?.tone} />
     </div>
   );
 }
