@@ -2847,6 +2847,7 @@ function EmergencyScreen() {
                   onChange={(v) => setForm((prev) => ({ ...prev, fullName: v.toUpperCase() }))}
                   placeholder="NHẬP HỌ TÊN (TỰ CHUYỂN HOA CÓ DẤU)"
                   error={errors.fullName}
+                  maxLength={255}
                 />
                 <Field
                   label="Ngày sinh"

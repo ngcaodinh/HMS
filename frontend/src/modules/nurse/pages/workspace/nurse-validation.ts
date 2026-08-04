@@ -1,27 +1,36 @@
 export const VN_MOBILE_PHONE_REGEX = /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/;
 
 export const VITAL_LIMITS = {
-  pulse: { min: 1, max: 300, label: 'mạch', message: 'Mạch phải trong khoảng 1-300 lần/phút' },
+  pulse: {
+    min: 1,
+    max: 300,
+    label: 'mạch',
+    message: 'Mạch phải trong khoảng 1-300 lần/phút',
+    integer: true,
+  },
   temperatureC: { min: 25, max: 45, label: 'nhiệt độ' },
   bpSystolic: {
     min: 1,
     max: 300,
     label: 'huyết áp tâm thu',
     message: 'Huyết áp tâm thu phải trong khoảng 1-300 mmHg',
+    integer: true,
   },
   bpDiastolic: {
     min: 1,
     max: 200,
     label: 'huyết áp tâm trương',
     message: 'Huyết áp tâm trương phải trong khoảng 1-200 mmHg',
+    integer: true,
   },
   respiratoryRate: {
     min: 1,
     max: 100,
     label: 'nhịp thở',
     message: 'Nhịp thở phải trong khoảng 1-100 lần/phút',
+    integer: true,
   },
-  spo2: { min: 0, max: 100, label: 'SpO2' },
+  spo2: { min: 0, max: 100, label: 'SpO2', integer: true },
   heightCm: {
     min: 0.1,
     max: 300,
@@ -44,7 +53,13 @@ export function getVitalFieldError(key: VitalField, value: string): string | und
 
   const limit = VITAL_LIMITS[key];
   const numberValue = Number(value);
-  if (Number.isNaN(numberValue) || numberValue < limit.min || numberValue > limit.max) {
+  const isInvalidInteger = 'integer' in limit && limit.integer && !Number.isInteger(numberValue);
+  if (
+    Number.isNaN(numberValue) ||
+    isInvalidInteger ||
+    numberValue < limit.min ||
+    numberValue > limit.max
+  ) {
     return 'message' in limit
       ? limit.message
       : `Giá trị ${limit.label} không hợp lệ (${limit.min}-${limit.max})`;
@@ -100,6 +115,7 @@ export function validateEmergencyIdentity(input: EmergencyIdentityInput): Record
   const errors: Record<string, string> = {};
 
   if (input.fullName.trim().length < 3) errors.fullName = 'Họ và tên tối thiểu 3 ký tự';
+  if (input.fullName.trim().length > 255) errors.fullName = 'Họ và tên tối đa 255 ký tự';
 
   if (!input.dateOfBirth) {
     errors.dateOfBirth = 'Vui lòng nhập ngày sinh';
