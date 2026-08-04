@@ -1,10 +1,30 @@
 import type { NextFunction, Request, Response } from 'express';
+import { Prisma } from '@prisma/client';
 import { ZodError } from 'zod';
 
 import { AppError } from '../core/errors/appError';
-import { AppError as HttpStatusAppError } from '../core/errors/app-error';
 import { sendError } from '../core/http/response';
 import { logger } from '../core/logger/logger';
+
+const UNIQUE_FIELD_MESSAGES: Record<string, string> = {
+  identityCardNumber: 'Số CCCD đã tồn tại trên hệ thống',
+  specimenCode: 'Mã mẫu bệnh phẩm đã tồn tại trên hệ thống',
+};
+
+/** Lấy danh sách field bị trùng từ metadata Prisma mà không đưa metadata nội bộ ra response. */
+function getUniqueFields(error: Prisma.PrismaClientKnownRequestError): string[] {
+  const target = error.meta?.target;
+  if (Array.isArray(target))
+    return target.filter((field): field is string => typeof field === 'string');
+  if (typeof target === 'string') return [target];
+  return [];
+}
+
+/** Chọn message conflict an toàn theo field, fallback cho constraint chưa có mapping riêng. */
+function getUniqueConstraintMessage(fields: string[]): string {
+  const mappedMessage = fields.map((field) => UNIQUE_FIELD_MESSAGES[field]).find(Boolean);
+  return mappedMessage ?? 'Dữ liệu đã tồn tại trên hệ thống';
+}
 
 /**
  * Error-handling middleware Express (cuối chuỗi).
@@ -24,8 +44,11 @@ export function errorHandler(
     return;
   }
 
-  if (error instanceof HttpStatusAppError) {
-    sendError(res, error.httpStatus, error.code, error.message, error.details, requestId);
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    const fields = getUniqueFields(error);
+    const message = getUniqueConstraintMessage(fields);
+    const details = fields.map((field) => ({ field, rule: 'unique', message }));
+    sendError(res, 409, 'CONFLICT_ERROR', message, details, requestId);
     return;
   }
 

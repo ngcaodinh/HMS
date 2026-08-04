@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { PrismaClient, BedStatus } from '@prisma/client';
-import { AppError } from '../../core/utils/AppError';
+import { AppError } from '../../core/errors/appError';
 import { RealtimePublisher } from '../../ports/RealtimePublisher';
 import { AuditPort } from '../../ports/AuditPort';
 import { sendSuccess } from '../../core/http/response-envelope';
@@ -20,21 +20,18 @@ export class BedController {
               include: {
                 patient: true,
                 dischargeSummary: {
-                  select: { signedAt: true }
-                }
-              }
-            }
-          }
-        }
+                  select: { signedAt: true },
+                },
+              },
+            },
+          },
+        },
       },
-      orderBy: [
-        { room: { name: 'asc' } },
-        { number: 'asc' }
-      ]
+      orderBy: [{ room: { name: 'asc' } }, { number: 'asc' }],
     });
 
     // Format response to match frontend UI expectations
-    const formattedBeds = beds.map(bed => {
+    const formattedBeds = beds.map((bed) => {
       const activeAssignment = bed.bedAssignments[0];
       let patient = null;
       let diagnosis = null;
@@ -51,7 +48,10 @@ export class BedController {
         const gender = record.patient.gender === 'male' ? 'Nam' : 'Nữ';
         meta = `${gender}, ${age}t • BA: ${record.recordCode} • Vào: ${entryDate}`;
         allergy = record.patient.allergies !== null && record.patient.allergies.trim() !== '';
-        if (record.dischargeSummary?.signedAt && record.dischargeSummary.signedAt >= activeAssignment.assignedAt) {
+        if (
+          record.dischargeSummary?.signedAt &&
+          record.dischargeSummary.signedAt >= activeAssignment.assignedAt
+        ) {
           status = 'discharge';
         }
       }
@@ -87,7 +87,7 @@ export class BedController {
     const updatedBed = await prisma.$transaction(async (tx) => {
       const bed = await tx.bed.findUnique({
         where: { id },
-        include: { bedAssignments: { where: { releasedAt: null } } }
+        include: { bedAssignments: { where: { releasedAt: null } } },
       });
 
       if (!bed) throw new AppError(404, 'BED_NOT_FOUND', 'Giường không tồn tại');
@@ -98,11 +98,13 @@ export class BedController {
 
       return tx.bed.update({
         where: { id },
-        data: { status }
+        data: { status },
       });
     });
 
-    AuditPort.logActivity('BED_MAINTENANCE_TOGGLED', req.user?.id || 'unknown', updatedBed.id, { status });
+    AuditPort.logActivity('BED_MAINTENANCE_TOGGLED', req.user?.id || 'unknown', updatedBed.id, {
+      status,
+    });
     RealtimePublisher.publishEvent('beds', 'status_changed', { bedId: updatedBed.id, status });
 
     return sendSuccess(res, updatedBed);
