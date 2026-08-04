@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   extractApiData,
   extractApiListData,
+  mapTreatmentOrderDto,
   type SpecimenDto,
 } from '../src/modules/nurse/hooks/useLane6';
 
@@ -41,7 +42,10 @@ describe('nurse lane 6 API response helpers', () => {
       },
     ];
 
-    assert.deepEqual(extractApiListData({ data: specimens, meta: { requestId: 'req-1' } }), specimens);
+    assert.deepEqual(
+      extractApiListData({ data: specimens, meta: { requestId: 'req-1' } }),
+      specimens,
+    );
     assert.equal(extractApiListData(specimens), specimens);
     assert.deepEqual(extractApiListData({ data: { items: orders } }), orders);
   });
@@ -77,5 +81,39 @@ describe('nurse lane 6 API response helpers', () => {
 
     assert.deepEqual(extractApiData({ data: vitalsQueue }), vitalsQueue);
     assert.equal(extractApiData(vitalsQueue).worklist.length, 1);
+  });
+
+  it('maps a valid treatment order and rejects malformed API records', () => {
+    assert.deepEqual(
+      mapTreatmentOrderDto({
+        treatmentOrderId: 'order-1',
+        orderType: 'medication',
+        content: 'Uống thuốc sau ăn',
+        note: null,
+        status: 'active',
+        orderedAt: '2026-08-04T10:00:00.000Z',
+        patientName: 'Nguyen Van A',
+        roomLabel: '101-A',
+        hasAllergyWarning: true,
+      }),
+      {
+        id: 'order-1',
+        treatmentOrderId: 'order-1',
+        title: 'MEDICATION',
+        instruction: 'Uống thuốc sau ăn',
+        note: '',
+        patient: 'Nguyen Van A',
+        patientName: 'Nguyen Van A',
+        room: '101-A',
+        roomLabel: '101-A',
+        status: 'active',
+        time: '2026-08-04T10:00:00.000Z',
+        tone: 'purple',
+        orderType: 'medication',
+        hasAllergyWarning: true,
+      },
+    );
+    assert.equal(mapTreatmentOrderDto({ treatmentOrderId: 'order-2', status: 'unknown' }), null);
+    assert.equal(mapTreatmentOrderDto({ status: 'active' }), null);
   });
 });

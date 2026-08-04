@@ -59,6 +59,68 @@ export interface OrderDto {
   hasAllergyWarning: boolean;
 }
 
+type TreatmentOrderWireDto = {
+  treatmentOrderId?: string;
+  id?: string;
+  orderType?: string;
+  content?: string;
+  note?: string | null;
+  status?: OrderDto['status'];
+  orderedAt?: string;
+  patientName?: string;
+  roomLabel?: string;
+  hasAllergyWarning?: boolean;
+};
+
+const ORDER_STATUSES = new Set<OrderDto['status']>([
+  'pending',
+  'done',
+  'blocked',
+  'delayed',
+  'active',
+  'cancelled',
+]);
+
+/** Kiểm tra tối thiểu payload y lệnh trước khi đưa dữ liệu từ API vào UI nurse. */
+function isTreatmentOrderWireDto(value: unknown): value is TreatmentOrderWireDto {
+  if (!value || typeof value !== 'object') return false;
+
+  const order = value as Record<string, unknown>;
+  const hasId = typeof order.treatmentOrderId === 'string' || typeof order.id === 'string';
+  const hasStatus =
+    typeof order.status === 'string' && ORDER_STATUSES.has(order.status as OrderDto['status']);
+
+  return hasId && hasStatus;
+}
+
+/** Chuẩn hóa payload y lệnh backend thành model hiển thị dùng chung cho các component nurse. */
+export function mapTreatmentOrderDto(value: unknown): OrderDto | null {
+  if (!isTreatmentOrderWireDto(value)) return null;
+
+  const orderId = value.treatmentOrderId ?? value.id;
+  if (!orderId || !value.status) return null;
+
+  const tone: OrderDto['tone'] =
+    value.status === 'cancelled' ? 'danger' : value.status === 'done' ? 'blue' : 'purple';
+
+  return {
+    id: orderId,
+    treatmentOrderId: orderId,
+    title: value.orderType ? value.orderType.toUpperCase() : 'Y LỆNH',
+    instruction: value.content ?? '',
+    note: value.note ?? '',
+    patient: value.patientName ?? '',
+    patientName: value.patientName ?? '',
+    room: value.roomLabel ?? '',
+    roomLabel: value.roomLabel ?? '',
+    status: value.status,
+    time: value.orderedAt ?? '',
+    tone,
+    orderType: value.orderType ?? '',
+    hasAllergyWarning: value.hasAllergyWarning === true,
+  };
+}
+
 export interface AdmissionBoardDto {
   recordId: string;
   recordCode: string;
@@ -121,30 +183,12 @@ export const useOrders = (params?: {
       if (params?.bedId) queryParams.append('bedId', params.bedId);
       if (params?.departmentId) queryParams.append('departmentId', params.departmentId);
       const queryString = queryParams.toString();
-      const res = await httpClient.get<unknown, { data: ApiEnvelope<any[]> | any[] }>(
+      const res = await httpClient.get<unknown, { data: ApiEnvelope<unknown[]> | unknown[] }>(
         queryString ? `/treatment-orders?${queryString}` : '/treatment-orders',
       );
-      const orders = extractApiListData<any>(res.data);
-      return orders.map((o: any) => {
-        const tone: 'danger' | 'purple' | 'blue' | 'green' =
-          o.status === 'cancelled' ? 'danger' : o.status === 'done' ? 'blue' : 'purple';
-        return {
-          id: o.treatmentOrderId || o.id,
-          treatmentOrderId: o.treatmentOrderId || o.id,
-          title: o.orderType ? String(o.orderType).toUpperCase() : 'Y LỆNH',
-          instruction: o.content || '',
-          note: o.note || '',
-          patient: o.patientName || '',
-          patientName: o.patientName || '',
-          room: o.roomLabel || '',
-          roomLabel: o.roomLabel || '',
-          status: o.status,
-          time: o.orderedAt || '',
-          tone,
-          orderType: o.orderType || '',
-          hasAllergyWarning: !!o.hasAllergyWarning,
-        };
-      });
+      return extractApiListData<unknown>(res.data)
+        .map(mapTreatmentOrderDto)
+        .filter((order): order is OrderDto => order !== null);
     },
     refetchInterval: 15000,
   });
@@ -545,7 +589,7 @@ export const useStandardizeEmergencyIdentity = () => {
       dateOfBirth: string;
       gender: 'male' | 'female';
       phoneNumber: string;
-      identityCardNumber: string;
+      identityCardNumber?: string;
       address?: string;
       healthInsuranceCode?: string;
       guardianFullName?: string;

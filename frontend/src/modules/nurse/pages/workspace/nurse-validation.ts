@@ -1,3 +1,5 @@
+import { ApiError } from '@/shared/api-client/error';
+
 export const VN_MOBILE_PHONE_REGEX = /^(03[2-9]|05[2689]|07[06-9]|08[1-689]|09[0-9])[0-9]{7}$/;
 
 export const VITAL_LIMITS = {
@@ -46,6 +48,15 @@ export const VITAL_LIMITS = {
 } as const;
 
 export type VitalField = keyof typeof VITAL_LIMITS;
+
+export const REQUIRED_VITAL_FIELDS = ['pulse', 'bpSystolic', 'bpDiastolic', 'spo2'] as const;
+
+/** Trả về các field bắt buộc còn thiếu, không coi các chỉ số tùy chọn là lỗi. */
+export function getMissingRequiredVitalFields(
+  values: Partial<Record<(typeof REQUIRED_VITAL_FIELDS)[number], string>>,
+): string[] {
+  return REQUIRED_VITAL_FIELDS.filter((field) => !values[field]);
+}
 
 /** Kiểm tra một chỉ số sinh hiệu theo cùng boundary mà backend áp dụng. */
 export function getVitalFieldError(key: VitalField, value: string): string | undefined {
@@ -164,4 +175,3 @@ export function validateEmergencyIdentity(input: EmergencyIdentityInput): Record
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   return error instanceof ApiError && error.message ? error.message : fallback;
 }
-import { ApiError } from '@/shared/api-client/error';

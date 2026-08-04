@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   getAllergyNoteError,
   getBloodPressureRelationError,
+  getMissingRequiredVitalFields,
   getVitalFieldError,
   validateEmergencyIdentity,
 } from '../src/modules/nurse/pages/workspace/nurse-validation';
@@ -74,6 +75,22 @@ describe('nurse vitals validation helpers', () => {
     );
     assert.equal(getAllergyNoteError(true, 'A'.repeat(1000), false), undefined);
     assert.equal(getAllergyNoteError(false, 'A'.repeat(1001), false), undefined);
+  });
+
+  it('does not treat optional vital fields as required after a failed submit', () => {
+    assert.deepEqual(
+      getMissingRequiredVitalFields({
+        pulse: '80',
+        bpSystolic: '120',
+        bpDiastolic: '80',
+        spo2: '98',
+      }),
+      [],
+    );
+    assert.deepEqual(getMissingRequiredVitalFields({ pulse: '80', bpSystolic: '120' }), [
+      'bpDiastolic',
+      'spo2',
+    ]);
   });
 });
 

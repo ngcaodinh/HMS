@@ -55,6 +55,7 @@ import {
   getAllergyNoteError,
   getBloodPressureRelationError,
   getApiErrorMessage,
+  getMissingRequiredVitalFields,
   getVitalFieldError,
   validateEmergencyIdentity,
   VITAL_LIMITS,
@@ -498,13 +499,7 @@ function VitalsForm({
   attemptedSave: boolean;
 }) {
   const missingOnSubmit = useMemo(() => {
-    const set = new Set<string>();
-    if (attemptedSave) {
-      ALL_VITAL_FIELDS.forEach((key) => {
-        if (!form[key]) set.add(key);
-      });
-    }
-    return set;
+    return new Set(attemptedSave ? getMissingRequiredVitalFields(form) : []);
   }, [attemptedSave, form]);
 
   const reminderFieldError = (key: (typeof ALL_VITAL_FIELDS)[number]): string | undefined =>
@@ -959,7 +954,7 @@ function VitalsScreen() {
 
   const handleSave = useCallback(() => {
     if (!activeTicket || !selectedRecord || isSaving) return;
-    const missingRequired = !form.pulse || !form.bpSystolic || !form.bpDiastolic || !form.spo2;
+    const missingRequired = getMissingRequiredVitalFields(form).length > 0;
     const allergyNoteError = getAllergyNoteError(form.allergyEnabled, form.allergyNote, true);
     const bloodPressureRelationError = getBloodPressureRelationError(
       form.bpSystolic,
@@ -1065,6 +1060,8 @@ function VitalsScreen() {
     <div className="space-y-6">
       {toast && (
         <div
+          aria-live="polite"
+          role={toast.type === 'error' ? 'alert' : 'status'}
           className={cn(
             'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
             toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]',
@@ -1992,7 +1989,8 @@ function BedsScreen() {
     <div className="space-y-6">
       {toast && (
         <div
-          role="status"
+          aria-live="polite"
+          role="alert"
           className="fixed right-6 top-6 z-50 rounded-lg bg-red-100 px-4 py-3 text-sm font-bold text-[#ba1a1a] shadow-lg"
         >
           {toast.message}
@@ -2689,7 +2687,7 @@ function EmergencyScreen() {
         dateOfBirth: form.dateOfBirth,
         gender: form.gender,
         phoneNumber: form.phoneNumber,
-        identityCardNumber: form.identityCardNumber,
+        identityCardNumber: form.identityCardNumber.trim() || undefined,
         address: form.address.trim() || undefined,
         healthInsuranceCode: form.healthInsuranceCode.trim() || undefined,
         guardianFullName: form.guardianFullName.trim() || undefined,
@@ -2730,6 +2728,8 @@ function EmergencyScreen() {
     <div className="space-y-6">
       {toast && (
         <div
+          aria-live="polite"
+          role={toast.type === 'error' ? 'alert' : 'status'}
           className={cn(
             'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
             toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]',
@@ -2917,12 +2917,14 @@ function EmergencyScreen() {
                   value={form.address}
                   onChange={(v) => setForm((prev) => ({ ...prev, address: v }))}
                   placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                  maxLength={500}
                 />
                 <Field
                   label="Mã thẻ BHYT (nếu có)"
                   value={form.healthInsuranceCode}
                   onChange={(v) => setForm((prev) => ({ ...prev, healthInsuranceCode: v }))}
                   placeholder="DN3501234567890"
+                  maxLength={20}
                 />
                 <Field
                   label="Họ tên người bảo hộ / liên hệ"
@@ -2943,6 +2945,7 @@ function EmergencyScreen() {
                   }
                   placeholder="0912345678"
                   error={errors.guardianPhoneNumber}
+                  maxLength={10}
                 />
               </div>
               <label className="flex items-start gap-3 rounded-sm border border-gray-200 bg-gray-50 p-3 text-xs leading-4 text-gray-600">

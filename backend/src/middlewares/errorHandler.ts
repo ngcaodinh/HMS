@@ -9,15 +9,21 @@ import { logger } from '../core/logger/logger';
 const UNIQUE_FIELD_MESSAGES: Record<string, string> = {
   identityCardNumber: 'Số CCCD đã tồn tại trên hệ thống',
   specimenCode: 'Mã mẫu bệnh phẩm đã tồn tại trên hệ thống',
+  date: 'Ngày và số thứ tự hàng đợi đã tồn tại trên hệ thống',
+  number: 'Ngày và số thứ tự hàng đợi đã tồn tại trên hệ thống',
 };
 
 /** Lấy danh sách field bị trùng từ metadata Prisma mà không đưa metadata nội bộ ra response. */
 function getUniqueFields(error: Prisma.PrismaClientKnownRequestError): string[] {
   const target = error.meta?.target;
-  if (Array.isArray(target))
-    return target.filter((field): field is string => typeof field === 'string');
-  if (typeof target === 'string') return [target];
-  return [];
+  const fields = Array.isArray(target)
+    ? target.filter((field): field is string => typeof field === 'string')
+    : typeof target === 'string'
+      ? [target]
+      : [];
+
+  // Chỉ đưa ra các field đã có message nghiệp vụ; không làm lộ tên cột nội bộ từ Prisma.
+  return fields.filter((field) => field in UNIQUE_FIELD_MESSAGES);
 }
 
 /** Chọn message conflict an toàn theo field, fallback cho constraint chưa có mapping riêng. */

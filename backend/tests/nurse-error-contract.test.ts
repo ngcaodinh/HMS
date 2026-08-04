@@ -71,4 +71,53 @@ describe('nurse error response contract', () => {
       'request-nurse-2',
     );
   });
+
+  it('maps specimen conflicts without exposing unmapped database fields', () => {
+    const specimenError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: '5.20.0',
+      meta: { target: ['specimenCode'] },
+    });
+
+    errorHandler(specimenError, { requestId: 'request-nurse-3' } as never, {} as never, vi.fn());
+
+    expect(mocks.sendError).toHaveBeenCalledWith(
+      expect.anything(),
+      409,
+      'CONFLICT_ERROR',
+      'Mã mẫu bệnh phẩm đã tồn tại trên hệ thống',
+      [
+        {
+          field: 'specimenCode',
+          rule: 'unique',
+          message: 'Mã mẫu bệnh phẩm đã tồn tại trên hệ thống',
+        },
+      ],
+      'request-nurse-3',
+    );
+  });
+
+  it('uses a generic conflict without returning unknown Prisma target fields', () => {
+    const unknownFieldError = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+      code: 'P2002',
+      clientVersion: '5.20.0',
+      meta: { target: ['internalSecretColumn'] },
+    });
+
+    errorHandler(
+      unknownFieldError,
+      { requestId: 'request-nurse-4' } as never,
+      {} as never,
+      vi.fn(),
+    );
+
+    expect(mocks.sendError).toHaveBeenCalledWith(
+      expect.anything(),
+      409,
+      'CONFLICT_ERROR',
+      'Dữ liệu đã tồn tại trên hệ thống',
+      [],
+      'request-nurse-4',
+    );
+  });
 });
