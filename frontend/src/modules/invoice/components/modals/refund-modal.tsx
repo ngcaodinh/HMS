@@ -20,7 +20,7 @@ export function RefundModal({
   onConfirmRefund,
 }: RefundModalProps) {
   const [reason, setReason] = useState<string>(
-    'Hoàn trả tiền tạm ứng dư sau khi bệnh nhân xuất viện ngày 20/07/2026',
+    'Hoàn trả tiền tạm ứng dư sau khi bệnh nhân xuất viện.',
   );
 
   if (!isOpen) return null;

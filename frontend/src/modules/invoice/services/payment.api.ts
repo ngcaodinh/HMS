@@ -47,11 +47,9 @@ export async function settleCashPayment(invoiceId: string): Promise<CashPaymentR
 }
 
 /**
- * Tạo yêu cầu Momo (mock/sandbox).
+ * Tạo yêu cầu thanh toán MoMo qua backend.
  */
-export async function createMomoPaymentRequest(
-  invoiceId: string,
-): Promise<MomoPaymentRequest> {
+export async function createMomoPaymentRequest(invoiceId: string): Promise<MomoPaymentRequest> {
   const response = await apiClient.post<ApiSuccess<MomoPaymentRequest>>(
     `/invoices/${invoiceId}/momo-payment-requests`,
     {},
@@ -76,27 +74,4 @@ export async function syncMomoPayment(invoiceId: string): Promise<PaymentStatus>
     {},
   );
   return response.data.data;
-}
-
-/**
- * Dev only: giả lập IPN khi USE_MOMO_MOCK (không dùng sandbox).
- */
-export async function simulateMomoIpnSuccess(params: {
-  momoOrderId: string;
-  amount: string;
-  requestId?: string;
-}): Promise<void> {
-  const amountInt = Math.floor(Number(params.amount));
-  await apiClient.post('/webhooks/momo', {
-    orderId: params.momoOrderId,
-    transId: `DEV-TX-${Date.now()}`,
-    resultCode: 0,
-    amount: amountInt,
-    signature: 'mock',
-    partnerCode: 'MOMO',
-    requestId: params.requestId ?? 'mock-req',
-    orderInfo: 'dev',
-    extraData: '',
-    message: 'Success',
-  });
 }

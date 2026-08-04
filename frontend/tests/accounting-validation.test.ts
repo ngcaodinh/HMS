@@ -131,3 +131,18 @@ test('advance screen validates formatted VND input and limits free-text reason l
   assert.equal(file.includes('5.000.000'), false);
   assert.equal(file.includes('800.000'), false);
 });
+
+test('accounting payment statement renders invoice data instead of fixed mock fees', () => {
+  const file = readFileSync(
+    join(process.cwd(), 'src/modules/invoice/components/payment-statement-screen.tsx'),
+    'utf8',
+  );
+
+  assert.match(file, /invoice\.items\.map/);
+  assert.match(file, /invoice\.subtotal/);
+  assert.match(file, /invoice\.bhytDiscount/);
+  assert.match(file, /invoice\.finalAmount/);
+  for (const hardCodedValue of ['1.290.000', '860.000', '430.000', '20/07/2026']) {
+    assert.equal(file.includes(hardCodedValue), false);
+  }
+});

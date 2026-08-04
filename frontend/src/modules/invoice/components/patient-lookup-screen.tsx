@@ -18,6 +18,12 @@ export function PatientLookupScreen({
   onSelectPatientForInvoice,
   onRefresh,
 }: PatientLookupScreenProps) {
+  const currentDate = new Date().toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    weekday: 'long',
+    year: 'numeric',
+  });
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [activeFilterStatus, setActiveFilterStatus] = useState<string>('all');
@@ -59,7 +65,7 @@ export function PatientLookupScreen({
             Tra cứu hồ sơ &amp; Hóa đơn viện phí
           </h2>
           <p className="text-[13px] text-[#707882] mt-0.5">
-            Hiển thị tất cả hồ sơ tài chính phát sinh trong ngày — Thứ Hai, 20/07/2026
+            Hiển thị tất cả hồ sơ tài chính phát sinh trong ngày — {currentDate}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
