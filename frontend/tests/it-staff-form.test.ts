@@ -52,10 +52,7 @@ describe('getManageableRoleOptions', () => {
         'it_tech',
       ],
     );
-    assert.equal(
-      roleOptions.find((option) => option.value === 'director')?.isDisabled,
-      false,
-    );
+    assert.equal(roleOptions.find((option) => option.value === 'director')?.isDisabled, false);
     assert.equal(canAssignRoleCode(roleOptions, 'director'), true);
     assert.equal(canAssignRoleCode(roleOptions, 'admin'), false);
     assert.equal(canAssignRoleCode(roleOptions, 'it_tech'), false);
@@ -78,10 +75,7 @@ describe('getManageableRoleOptions', () => {
         'it_tech',
       ],
     );
-    assert.equal(
-      roleOptions.find((option) => option.value === 'director')?.isDisabled,
-      true,
-    );
+    assert.equal(roleOptions.find((option) => option.value === 'director')?.isDisabled, true);
     assert.equal(canAssignRoleCode(roleOptions, 'director'), false);
     assert.equal(canAssignRoleCode(roleOptions, 'doctor'), true);
   });
@@ -89,7 +83,10 @@ describe('getManageableRoleOptions', () => {
   it('allows admins to assign director accounts from the IT staff form', () => {
     const roleOptions = getManageableRoleOptions({ roleCodes: ['admin'] });
 
-    assert.equal(roleOptions.every((option) => !option.isDisabled), true);
+    assert.equal(
+      roleOptions.every((option) => !option.isDisabled),
+      true,
+    );
     assert.equal(canAssignRoleCode(roleOptions, 'director'), true);
   });
 });
@@ -176,7 +173,27 @@ describe('createStaffFormSchema', () => {
 
     assert.equal(result.success, false);
     if (!result.success) {
-      assert.equal(getCreateStaffValidationFieldErrors(result.error).dateOfBirth?.[0], 'Ngày sinh không hợp lệ');
+      assert.equal(
+        getCreateStaffValidationFieldErrors(result.error).dateOfBirth?.[0],
+        'Ngày sinh không hợp lệ',
+      );
+    }
+  });
+
+  it('accepts the valid 087 mobile prefix and rejects staff younger than 18', () => {
+    const phoneResult = createStaffFormSchema.safeParse({
+      ...validFormValues,
+      phoneNumber: '087 123 4567',
+    });
+    const ageResult = createStaffFormSchema.safeParse({
+      ...validFormValues,
+      dateOfBirth: '2020-01-01',
+    });
+
+    assert.equal(phoneResult.success, true);
+    assert.equal(ageResult.success, false);
+    if (!ageResult.success) {
+      assert.equal(ageResult.error.issues.at(-1)?.message, 'Nhân viên phải đủ 18 tuổi');
     }
   });
 });

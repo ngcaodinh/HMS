@@ -578,6 +578,7 @@ describe('IdentityService staff policy', () => {
       ifUnmodifiedSince: target.updatedAt.toISOString(),
       input: {
         isActive: false,
+        reason: 'Khóa tài khoản theo yêu cầu hỗ trợ đã xác minh',
       },
       requestId: 'req-2',
       userId: target.id,
@@ -608,6 +609,58 @@ describe('IdentityService staff policy', () => {
     ).rejects.toMatchObject({
       code: 'STAFF_MODIFIED_SINCE_READ',
       status: 409,
+    });
+  });
+
+  it('blocks self-lock even when another active admin exists', async () => {
+    const actor = createUser({
+      id: '99999999-9999-4999-8999-999999999999',
+      roleCodes: ['admin'],
+      username: 'admin.actor',
+    });
+    const secondAdmin = createUser({
+      id: '88888888-8888-4888-8888-888888888888',
+      roleCodes: ['admin'],
+      username: 'admin.second',
+    });
+    const service = createService([actor, secondAdmin]);
+
+    await expect(
+      service.updateStaffAccount({
+        actor: toPrincipal(actor),
+        ifUnmodifiedSince: actor.updatedAt.toISOString(),
+        input: {
+          isActive: false,
+          reason: 'Tạm khóa để kiểm tra quyền truy cập',
+        },
+        requestId: 'req-self-lock',
+        userId: actor.id,
+      }),
+    ).rejects.toMatchObject({
+      code: 'SELF_LOCK_FORBIDDEN',
+      status: 422,
+    });
+  });
+
+  it('requires an audit reason when the account status changes', async () => {
+    const target = createUser({
+      id: '22222222-2222-4222-8222-222222222222',
+      roleCodes: ['doctor'],
+      username: 'doctor.one',
+    });
+    const service = createService([createUser(), target]);
+
+    await expect(
+      service.updateStaffAccount({
+        actor: createPrincipal(),
+        ifUnmodifiedSince: target.updatedAt.toISOString(),
+        input: { isActive: false },
+        requestId: 'req-status-without-reason',
+        userId: target.id,
+      }),
+    ).rejects.toMatchObject({
+      code: 'STAFF_STATUS_REASON_REQUIRED',
+      status: 400,
     });
   });
 
@@ -709,6 +762,7 @@ describe('IdentityService staff policy', () => {
         ifUnmodifiedSince: admin.updatedAt.toISOString(),
         input: {
           isActive: false,
+          reason: 'Khóa tài khoản admin cuối cùng để kiểm tra',
         },
         requestId: 'req-lock-last-admin',
         userId: admin.id,
