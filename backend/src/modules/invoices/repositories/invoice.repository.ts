@@ -43,6 +43,9 @@ export class InvoiceRepository {
             status: true,
             isEmergency: true,
             patientId: true,
+            treatmentType: true,
+            bedId: true,
+            department: { select: { name: true } },
             patient: {
               select: {
                 id: true,
@@ -87,6 +90,9 @@ export class InvoiceRepository {
               status: true,
               isEmergency: true,
               patientId: true,
+              treatmentType: true,
+              bedId: true,
+              department: { select: { name: true } },
               patient: {
                 select: {
                   id: true,
@@ -101,6 +107,62 @@ export class InvoiceRepository {
         },
       }),
       prisma.invoice.count({ where }),
+    ]);
+
+    return { items, total };
+  }
+
+  /**
+   * Lấy hồ sơ có dịch vụ chưa hủy và chưa có hóa đơn pending để kế toán lập hóa đơn mới.
+   * Chỉ trả các trường cần cho màn kế toán, không đẩy toàn bộ bệnh án ra client.
+   */
+  async listInvoiceCandidates(params: { skip: number; take: number }) {
+    const where: Prisma.MedicalRecordWhereInput = {
+      deletedAt: null,
+      status: { not: 'closed' },
+      serviceOrders: { some: { status: { not: 'cancelled' } } },
+      invoices: { none: { status: 'pending' } },
+    };
+
+    const [items, total] = await prisma.$transaction([
+      prisma.medicalRecord.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: params.skip,
+        take: params.take,
+        select: {
+          id: true,
+          recordCode: true,
+          treatmentType: true,
+          bedId: true,
+          isEmergency: true,
+          createdAt: true,
+          department: { select: { name: true } },
+          patient: {
+            select: {
+              id: true,
+              patientCode: true,
+              fullName: true,
+              dateOfBirth: true,
+              gender: true,
+              phoneNumber: true,
+              identityCardNumber: true,
+              healthInsuranceCode: true,
+              healthInsuranceExpiryDate: true,
+            },
+          },
+          serviceOrders: {
+            where: { status: { not: 'cancelled' } },
+            orderBy: { createdAt: 'asc' },
+            select: {
+              id: true,
+              fee: true,
+              serviceCatalog: { select: { code: true, name: true } },
+            },
+          },
+        },
+      }),
+      prisma.medicalRecord.count({ where }),
     ]);
 
     return { items, total };
@@ -126,7 +188,7 @@ export class InvoiceRepository {
     return prisma.$transaction(async (tx) => {
       // Wall-clock VN (cùng pattern queue) — Workbench hiển thị đúng giờ VN, không lệch UTC.
       const nowVn = toVietnamDbDateTime();
-      const invoice = await tx.invoice.create({
+      await tx.invoice.create({
         data: {
           id: invoiceId,
           recordId: params.recordId,
@@ -192,6 +254,9 @@ export class InvoiceRepository {
               status: true,
               isEmergency: true,
               patientId: true,
+              treatmentType: true,
+              bedId: true,
+              department: { select: { name: true } },
               patient: {
                 select: {
                   id: true,
@@ -319,6 +384,84 @@ export class InvoiceRepository {
     });
 
     return this.findById(params.invoiceId);
+  }
+
+  /**
+   * Chuyển hóa đơn pending sang write-off và lưu phê duyệt trong cùng transaction.
+   * Điều kiện version giúp tránh ghi đè thao tác thanh toán/hủy vừa phát sinh.
+   */
+  async writeOffEmergency(params: {
+    invoiceId: string;
+    expectedVersion: number;
+    writeOffReason: string;
+    approvedByUserId: string;
+    approvedAt: Date;
+  }) {
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.invoice.updateMany({
+        where: {
+          id: params.invoiceId,
+          status: 'pending',
+          version: params.expectedVersion,
+          medicalRecord: { isEmergency: true },
+        },
+        data: {
+          status: 'write_off',
+          writeOffReason: params.writeOffReason,
+          writeOffAt: params.approvedAt,
+          version: { increment: 1 },
+          updatedAt: params.approvedAt,
+        },
+      });
+
+      if (updated.count !== 1) return null;
+
+      await tx.emergencyWriteOffApproval.create({
+        data: {
+          id: randomUUID(),
+          invoiceId: params.invoiceId,
+          recordId: (
+            await tx.invoice.findUniqueOrThrow({
+              where: { id: params.invoiceId },
+              select: { recordId: true },
+            })
+          ).recordId,
+          approvedInvoiceVersion: params.expectedVersion,
+          approvedByUserId: params.approvedByUserId,
+          writeOffReason: params.writeOffReason,
+          approvedAt: params.approvedAt,
+        },
+      });
+
+      return tx.invoice.findUniqueOrThrow({
+        where: { id: params.invoiceId },
+        include: {
+          items: { orderBy: { sortOrder: 'asc' } },
+          claim: true,
+          medicalRecord: {
+            select: {
+              id: true,
+              recordCode: true,
+              status: true,
+              isEmergency: true,
+              patientId: true,
+              treatmentType: true,
+              bedId: true,
+              department: { select: { name: true } },
+              patient: {
+                select: {
+                  id: true,
+                  patientCode: true,
+                  fullName: true,
+                  healthInsuranceCode: true,
+                  healthInsuranceExpiryDate: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    });
   }
 
   async nextReceiptNumber(prefix: string): Promise<string> {

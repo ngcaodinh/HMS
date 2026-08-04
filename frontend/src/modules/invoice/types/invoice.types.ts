@@ -17,6 +17,7 @@ export interface ServiceItem {
 
 export interface PatientRecord {
   id: string;
+  recordId?: string;
   code: string; // e.g. BN-2026-0089
   fullName: string;
   dob: string;
@@ -32,6 +33,13 @@ export interface PatientRecord {
   bhytTotalPays: number;
   patientCoPayAmount: number;
   remainingAmount: number;
+  phoneNumber?: string | null;
+  identityCardNumber?: string | null;
+  healthInsuranceExpiryDate?: string | null;
+  treatmentType?: 'outpatient' | 'inpatient' | null;
+  bedId?: string | null;
+  isEmergency?: boolean;
+  serviceItems?: ServiceItem[];
 }
 
 export interface Invoice {
@@ -40,7 +48,7 @@ export interface Invoice {
   patientId: string;
   patientName: string;
   createdAt: string;
-  status: 'draft' | 'pending_payment' | 'paid' | 'cancelled';
+  status: 'draft' | 'pending_payment' | 'paid' | 'cancelled' | 'write_off';
   items: ServiceItem[];
   subtotal: number;
   bhytDiscount: number;

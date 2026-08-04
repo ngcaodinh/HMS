@@ -22,7 +22,11 @@ declare global {
 export function attachDevPrincipal(req: Request, _res: Response, next: NextFunction): void {
   const authHeader = req.header('authorization');
 
-  if (authHeader?.startsWith('Bearer ') || config.app.env === 'development' || config.app.env === 'test') {
+  if (
+    authHeader?.startsWith('Bearer ') ||
+    config.app.env === 'development' ||
+    config.app.env === 'test'
+  ) {
     req.principal = {
       id: '11111111-1111-4111-8111-111111111111',
       userId: '11111111-1111-4111-8111-111111111111',
@@ -47,6 +51,7 @@ export function attachDevPrincipal(req: Request, _res: Response, next: NextFunct
         'payment.momo.create',
         'payment.read',
         'payment_advance.write',
+        'payment_advance.read',
       ],
       departmentId: 'dept-reception',
       isActive: true,

@@ -17,6 +17,14 @@ export const createInvoiceBodySchema = z
         path: ['healthInsuranceRouteType'],
       });
     }
+
+    if (data.healthInsuranceBenefitLevel === 'NO_COVERAGE' && data.healthInsuranceRouteType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Không được gửi tuyến BHYT khi không hưởng BHYT',
+        path: ['healthInsuranceRouteType'],
+      });
+    }
   });
 
 export const invoiceIdParamSchema = z.object({
@@ -32,5 +40,15 @@ export const listInvoicesQuerySchema = z.object({
 
 export const cancelInvoiceBodySchema = z.object({
   expectedVersion: z.number().int().positive(),
-  cancelReason: z.string().min(1).max(500),
+  cancelReason: z.string().trim().min(10, 'Lý do hủy phải tối thiểu 10 ký tự.').max(500),
+});
+
+export const listInvoiceCandidatesQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const writeOffInvoiceBodySchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  writeOffReason: z.string().trim().min(10, 'Lý do miễn giảm phải tối thiểu 10 ký tự.').max(500),
 });
