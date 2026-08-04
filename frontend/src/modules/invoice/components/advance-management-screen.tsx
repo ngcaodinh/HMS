@@ -26,7 +26,7 @@ export function AdvanceManagementScreen({
   const currentPatient = patients.find((p) => p.code === selectedPatientCode) || patients[1];
 
   return (
-    <div className="screen active space-y-4 font-sans select-none" id="s4">
+    <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s4">
       {/* Screen Header matching lines 1267-1284 */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
@@ -41,7 +41,7 @@ export function AdvanceManagementScreen({
           <select
             value={selectedPatientCode}
             onChange={(e) => setSelectedPatientCode(e.target.value)}
-            className="w-full h-10 px-3 border border-[#bfc7d2] rounded-md bg-white text-[13px] font-semibold text-[#171c1f] outline-none focus:border-[#006096]"
+            className="w-full h-10 px-3 border border-[#bfc7d2] rounded-md bg-white text-[13px] font-semibold text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 cursor-pointer"
           >
             {patients.map((p) => (
               <option key={p.id} value={p.code}>
@@ -53,7 +53,7 @@ export function AdvanceManagementScreen({
       </div>
 
       {/* Patient Mini Info Card matching lines 1287-1296 */}
-      <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+      <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px]">
           <div>
             <span className="block text-[11px] font-semibold uppercase text-[#707882] mb-0.5">
@@ -87,7 +87,7 @@ export function AdvanceManagementScreen({
         <button
           type="button"
           onClick={() => setActiveTab('deposit')}
-          className={`px-5 py-3 text-[13.5px] font-semibold transition-all border-b-2 -mb-[2px] flex items-center gap-2 ${
+          className={`px-5 py-3 text-[13.5px] font-semibold transition-all duration-200 ease-out border-b-2 -mb-[2px] flex items-center gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1 ${
             activeTab === 'deposit'
               ? 'border-[#006096] text-[#006096]'
               : 'border-transparent text-[#707882] hover:text-[#006096]'
@@ -107,7 +107,7 @@ export function AdvanceManagementScreen({
         <button
           type="button"
           onClick={() => setActiveTab('refund')}
-          className={`px-5 py-3 text-[13.5px] font-semibold transition-all border-b-2 -mb-[2px] flex items-center gap-2 ${
+          className={`px-5 py-3 text-[13.5px] font-semibold transition-all duration-200 ease-out border-b-2 -mb-[2px] flex items-center gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1 ${
             activeTab === 'refund'
               ? 'border-[#006096] text-[#006096]'
               : 'border-transparent text-[#707882] hover:text-[#006096]'
@@ -127,7 +127,7 @@ export function AdvanceManagementScreen({
 
       {/* Tab 1: Thu tạm ứng matching lines 1311-1360 */}
       {activeTab === 'deposit' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white rounded-b-xl border border-[#bfc7d2] p-6 shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white rounded-b-xl border border-[#bfc7d2] p-6 shadow-hms-card">
           {/* Form */}
           <div className="space-y-4">
             <div className="text-[14px] font-bold text-[#171c1f] flex items-center gap-2 border-b border-[#e4e9ed] pb-3">
@@ -152,7 +152,7 @@ export function AdvanceManagementScreen({
                 value={advanceInput}
                 onChange={(e) => setAdvanceInput(e.target.value)}
                 placeholder="Nhập số tiền, VD: 2000000"
-                className="w-full h-10 px-3 border border-[#bfc7d2] rounded-md font-mono font-bold text-[#171c1f] text-[13.5px] outline-none focus:border-[#006096]"
+                className="w-full h-10 px-3 border border-[#bfc7d2] rounded-md font-mono font-bold text-[#171c1f] text-[13.5px] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
               />
             </div>
 
@@ -165,14 +165,14 @@ export function AdvanceManagementScreen({
                 value={advanceReason}
                 onChange={(e) => setAdvanceReason(e.target.value)}
                 placeholder="Tạm ứng điều trị nội trú..."
-                className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none focus:border-[#006096]"
+                className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
               />
             </div>
 
             <button
               type="button"
               onClick={onOpenAdvanceModal}
-              className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-sm hover:bg-[#004a75] transition-colors flex items-center justify-center gap-2 shadow-sm min-h-[44px]"
+              className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-sm hover:bg-[#004a75] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-2 shadow-[0_2px_8px_rgba(0,96,150,0.24)] hover:shadow-[0_4px_14px_rgba(0,96,150,0.3)] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -250,7 +250,7 @@ export function AdvanceManagementScreen({
 
       {/* Tab 2: Refund matching lines 1363-1393 */}
       {activeTab === 'refund' && (
-        <div className="bg-white rounded-b-xl border border-[#bfc7d2] p-6 shadow-[0_1px_2px_rgba(0,0,0,0.05)] space-y-5">
+        <div className="bg-white rounded-b-xl border border-[#bfc7d2] p-6 shadow-hms-card space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-[#ffdad6] p-4 rounded-xl text-center border border-[#f5c6c6]">
               <h4 className="text-[11.5px] font-bold uppercase text-[#ba1a1a]">
@@ -284,14 +284,14 @@ export function AdvanceManagementScreen({
               <textarea
                 rows={3}
                 defaultValue="Hoàn trả tiền tạm ứng dư sau khi bệnh nhân xuất viện ngày 20/07/2026"
-                className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none focus:border-[#006096]"
+                className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
               />
             </div>
 
             <button
               type="button"
               onClick={onOpenRefundModal}
-              className="w-full py-3 bg-[#1a7a4a] text-white rounded-md font-bold text-sm hover:bg-[#145c38] transition-colors flex items-center justify-center gap-2 shadow-sm min-h-[44px]"
+              className="w-full py-3 bg-[#1a7a4a] text-white rounded-md font-bold text-sm hover:bg-[#145c38] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-2 shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-2"
             >
               Xác nhận hoàn trả &amp; In phiếu
             </button>

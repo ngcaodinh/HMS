@@ -55,7 +55,7 @@ function LabResultDetailView({ labTestId }: { labTestId: string }) {
               </tr>
             )}
             {entries.map(([key, value]) => (
-              <tr key={key}>
+              <tr className={styles.tableRow} key={key}>
                 <td className={styles.td}>{prettifyFieldName(key)}</td>
                 <td className={styles.td}>{String(value)}</td>
               </tr>
@@ -154,8 +154,8 @@ function TestListItem({
   return (
     <button
       className={cn(
-        'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium',
-        isSelected ? 'border border-[#bfc7d2] bg-[#e8f5fb] text-[#006096]' : 'text-[#171c1f]',
+        'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#006096]/30',
+        isSelected ? 'border border-[#bfc7d2] bg-[#e8f5fb] text-[#006096]' : 'text-[#171c1f] hover:bg-[#f0f4f8]',
       )}
       onClick={onClick}
       type="button"

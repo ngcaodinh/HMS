@@ -3,10 +3,13 @@ import { NextResponse } from 'next/server';
 import {
   assertSameOrigin,
   forbiddenOrigin,
+  getSessionMaxAge,
   setSessionCookie,
 } from '@/shared/auth/backend';
 import { buildBackendApiV1Url } from '@/shared/auth/backend-url';
 import { resolveRoleHomePath } from '@/shared/auth/role-routing';
+
+import { addRetryAfterToPayload } from './retry-after';
 
 /**
  * @route   POST /api/auth/login
@@ -27,7 +30,20 @@ export async function POST(request: Request) {
   const payload = await response.json();
 
   if (!response.ok) {
-    return NextResponse.json(payload, { status: response.status });
+    const retryAfter = addRetryAfterToPayload(
+      payload,
+      response.status,
+      response.headers.get('retry-after'),
+    );
+
+    if (retryAfter.retryAfterSeconds !== undefined) {
+      const nextResponse = NextResponse.json(retryAfter.payload, { status: response.status });
+      nextResponse.headers.set('Retry-After', String(retryAfter.retryAfterSeconds));
+
+      return nextResponse;
+    }
+
+    return NextResponse.json(retryAfter.payload, { status: response.status });
   }
 
   const principal = payload.data.principal;
@@ -38,6 +54,10 @@ export async function POST(request: Request) {
     },
   });
 
-  setSessionCookie(nextResponse, payload.data.accessToken);
+  setSessionCookie(
+    nextResponse,
+    payload.data.accessToken,
+    getSessionMaxAge(payload.data.expiresAt),
+  );
   return nextResponse;
 }

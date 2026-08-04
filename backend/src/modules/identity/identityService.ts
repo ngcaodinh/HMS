@@ -46,6 +46,7 @@ type IdentityServiceDependencies = {
   clock: () => Date;
   departmentDirectory: DepartmentDirectoryPort;
   jwt: JwtPort;
+  jwtRememberExpiresIn: string;
   randomPassword: () => string;
   repository: IdentityRepository;
 };
@@ -60,7 +61,12 @@ export class IdentityService {
    * Xác thực username/password, ghi nhận audit đăng nhập và phát JWT theo authVersion hiện tại.
    * Nhận thông tin đăng nhập đã validate ở controller, trả principal đã loại bỏ password hash.
    */
-  async createSession(input: { password: string; requestId: string; username: string }) {
+  async createSession(input: {
+    password: string;
+    remember?: boolean;
+    requestId: string;
+    username: string;
+  }) {
     const user = await this.dependencies.repository.findUserByUsername(input.username);
     const invalidCredentials = new AppError({
       code: 'INVALID_CREDENTIALS',
@@ -90,11 +96,16 @@ export class IdentityService {
       resource: 'session',
     });
 
+    const sessionToken = this.dependencies.jwt.sign({
+      authVersion: user.authVersion,
+      userId: user.id,
+    }, {
+      expiresIn: input.remember ? this.dependencies.jwtRememberExpiresIn : undefined,
+    });
+
     return {
-      accessToken: this.dependencies.jwt.sign({
-        authVersion: user.authVersion,
-        userId: user.id,
-      }),
+      accessToken: sessionToken.token,
+      expiresAt: sessionToken.expiresAt,
       principal: sanitizeUser(user),
     };
   }
@@ -173,11 +184,14 @@ export class IdentityService {
       resourceId: user.id,
     });
 
+    const sessionToken = this.dependencies.jwt.sign({
+      authVersion: updated.authVersion,
+      userId: updated.id,
+    });
+
     return {
-      accessToken: this.dependencies.jwt.sign({
-        authVersion: updated.authVersion,
-        userId: updated.id,
-      }),
+      accessToken: sessionToken.token,
+      expiresAt: sessionToken.expiresAt,
       principal: sanitizeUser(updated),
     };
   }

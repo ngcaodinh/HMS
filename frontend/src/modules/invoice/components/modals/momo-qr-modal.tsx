@@ -91,8 +91,8 @@ export function MomoQrModal({
   const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden font-sans space-y-4 animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-sm p-4 animate-fadeIn">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden font-sans space-y-4 animate-modalIn">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[#e4e9ed] flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -109,7 +109,7 @@ export function MomoQrModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-md text-[#707882] hover:bg-[#f0f4f8] hover:text-[#171c1f]"
+            className="p-1 rounded-md text-[#707882] transition-all duration-200 ease-out hover:bg-[#f0f4f8] hover:text-[#171c1f] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -185,7 +185,7 @@ export function MomoQrModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2.5 border border-[#bfc7d2] rounded-xl text-xs font-semibold text-[#3f4851] hover:bg-white"
+            className="flex-1 py-2.5 border border-[#bfc7d2] rounded-xl text-xs font-semibold text-[#3f4851] transition-all duration-200 ease-out hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             Hủy giao dịch
           </button>
@@ -195,7 +195,7 @@ export function MomoQrModal({
             onClick={() => {
               void handleConfirm();
             }}
-            className="flex-1 py-2.5 bg-gradient-to-r from-purple-700 to-fuchsia-600 text-white rounded-xl text-xs font-bold hover:opacity-90 shadow-md disabled:opacity-60"
+            className="flex-1 py-2.5 bg-gradient-to-r from-purple-700 to-fuchsia-600 text-white rounded-xl text-xs font-bold transition-all duration-200 ease-out hover:opacity-90 active:scale-[0.97] shadow-md disabled:opacity-60 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             {busy ? 'Đang xử lý…' : 'Đồng bộ / xác nhận'}
           </button>

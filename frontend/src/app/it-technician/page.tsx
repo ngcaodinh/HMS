@@ -23,11 +23,11 @@ export default async function ItTechnicianPage() {
 
   if (!canManageStaff) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50 px-6">
-        <section className="max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.8px] text-red-700">403</p>
-          <h1 className="mt-2 text-xl font-bold text-slate-950">Không đủ quyền truy cập</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
+      <main className="flex min-h-screen items-center justify-center bg-[#f6fafe] px-6">
+        <section className="max-w-md rounded-2xl border border-[#dfe3e7] bg-white p-8 text-center shadow-hms-card">
+          <p className="text-sm font-bold uppercase tracking-[0.8px] text-[#ba1a1a]">403</p>
+          <h1 className="mt-2 text-xl font-bold text-[#171c1f]">Không đủ quyền truy cập</h1>
+          <p className="mt-2 text-sm leading-6 text-[#3f4851]">
             Chỉ kỹ thuật IT hoặc admin được mở màn hình quản lý tài khoản nhân viên.
           </p>
         </section>

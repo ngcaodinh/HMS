@@ -354,52 +354,52 @@ function cn(...classes: Array<string | false | null | undefined>) {
 function getToneClasses(tone: Tone) {
   return {
     amber: {
-      bar: 'bg-amber-700',
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
-      text: 'text-amber-700',
+      bar: 'bg-[#a05c00]',
+      bg: 'bg-[#fff0d9]',
+      border: 'border-[#a05c00]/25',
+      text: 'text-[#8a4f00]',
     },
     green: {
-      bar: 'bg-green-800',
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-800',
+      bar: 'bg-[#1a7a4a]',
+      bg: 'bg-[#e1f5e9]',
+      border: 'border-[#1a7a4a]/25',
+      text: 'text-[#1a7a4a]',
     },
     red: {
-      bar: 'bg-red-700',
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      text: 'text-red-700',
+      bar: 'bg-[#ba1a1a]',
+      bg: 'bg-[#ffdad6]/70',
+      border: 'border-[#ba1a1a]/25',
+      text: 'text-[#ba1a1a]',
     },
     sky: {
-      bar: 'bg-sky-700',
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-sky-700',
+      bar: 'bg-[#006096]',
+      bg: 'bg-[#e8f4ff]',
+      border: 'border-[#006096]/20',
+      text: 'text-[#006096]',
     },
     slate: {
-      bar: 'bg-slate-500',
-      bg: 'bg-slate-100',
-      border: 'border-slate-200',
-      text: 'text-slate-600',
+      bar: 'bg-[#707882]',
+      bg: 'bg-[#eaeef2]',
+      border: 'border-[#bfc7d2]',
+      text: 'text-[#3f4851]',
     },
     teal: {
-      bar: 'bg-teal-500',
-      bg: 'bg-teal-50',
-      border: 'border-teal-200',
-      text: 'text-teal-700',
+      bar: 'bg-[#006673]',
+      bg: 'bg-[#e0f7fa]',
+      border: 'border-[#006673]/25',
+      text: 'text-[#006673]',
     },
   }[tone];
 }
 
 function getToneHex(tone: Tone) {
   return {
-    amber: '#b45309',
-    green: '#166534',
-    red: '#b91c1c',
-    sky: '#0369a1',
-    slate: '#64748b',
-    teal: '#14b8a6',
+    amber: '#a05c00',
+    green: '#1a7a4a',
+    red: '#ba1a1a',
+    sky: '#006096',
+    slate: '#707882',
+    teal: '#006673',
   }[tone];
 }
 
@@ -435,7 +435,7 @@ function SearchBox({ label, placeholder }: { label: string; placeholder: string 
   return (
     <label className="relative block w-full">
       <span className="sr-only">{label}</span>
-      <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" name="search" />
+      <Icon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]" name="search" />
       <input className={styles.searchInput} placeholder={placeholder} type="search" />
     </label>
   );
@@ -466,16 +466,16 @@ function ToneBadge({ children, tone }: { children: ReactNode; tone: Tone }) {
 function getNotificationClasses(tone: NotificationTone) {
   if (tone === 'success') {
     return {
-      border: 'border-emerald-200',
-      icon: 'bg-emerald-50 text-emerald-700',
-      text: 'text-emerald-700',
+      border: 'border-[#1a7a4a]/25',
+      icon: 'bg-[#e1f5e9] text-[#1a7a4a]',
+      text: 'text-[#1a7a4a]',
     };
   }
 
   return {
-    border: 'border-red-200',
-    icon: 'bg-red-50 text-red-700',
-    text: 'text-red-700',
+    border: 'border-[#ba1a1a]/25',
+    icon: 'bg-[#ffdad6]/70 text-[#ba1a1a]',
+    text: 'text-[#ba1a1a]',
   };
 }
 
@@ -497,18 +497,23 @@ function NotificationPopup({
       className="fixed right-5 top-5 z-50 w-[min(360px,calc(100vw-40px))]"
       role={notification.tone === 'error' ? 'alert' : 'status'}
     >
-      <div className={cn('rounded-xl border bg-white p-4 shadow-2xl', toneClass.border)}>
+      <div
+        className={cn(
+          'animate-[ktv-modal-in_0.25s_ease] rounded-xl border bg-white p-4 shadow-[0_12px_32px_rgba(0,96,150,0.16),0_2px_8px_rgba(0,0,0,0.06)]',
+          toneClass.border,
+        )}
+      >
         <div className="flex items-start gap-3">
           <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', toneClass.icon)}>
             <Icon className="h-5 w-5" name={notification.tone === 'success' ? 'check' : 'alert'} />
           </span>
           <div className="min-w-0 flex-1">
             <p className={cn('text-sm font-bold leading-5', toneClass.text)}>{notification.title}</p>
-            <p className="mt-1 text-xs leading-5 text-slate-600">{notification.message}</p>
+            <p className="mt-1 text-xs leading-5 text-[#3f4851]">{notification.message}</p>
           </div>
           <button
             aria-label="Đóng thông báo"
-            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-700/20"
+            className="rounded-md p-1 text-[#707882] transition hover:bg-[#f0f4f8] hover:text-[#171c1f] focus:outline-none focus:ring-2 focus:ring-[#006096]/20"
             onClick={onClose}
             type="button"
           >
@@ -574,7 +579,7 @@ function ItSidebar({
           <span className="font-mono text-xs font-semibold text-white/90">09:51:54</span>
         </div>
         <div className="mt-3 flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-500 text-sm font-bold text-white">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#55d7ed] to-[#006096] text-sm font-bold text-white shadow-[0_0_0_2px_rgba(255,255,255,0.08)]">
             NH
           </div>
           <div className="min-w-0 flex-1">
@@ -594,9 +599,9 @@ function ItTopbar({ activePage }: { activePage: PageKind }) {
   return (
     <header className={styles.topbar}>
       <div className="flex min-w-0 items-center gap-2">
-        <span className="text-sm font-semibold text-sky-700">HMS-VN</span>
-        <span className="text-sm font-light text-slate-300">/</span>
-        <h1 className="truncate text-sm font-semibold text-slate-700">{pageTitles[activePage]}</h1>
+        <span className="text-sm font-semibold text-[#006096]">HMS-VN</span>
+        <span className="text-sm font-light text-[#bfc7d2]">/</span>
+        <h1 className="truncate text-sm font-semibold text-[#3f4851]">{pageTitles[activePage]}</h1>
         {activePage === 'monitoring' ? (
           <ToneBadge tone="green">LIVE</ToneBadge>
         ) : null}
@@ -649,9 +654,9 @@ function PageHeader({
   return (
     <section className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
       <div>
-        {eyebrow ? <p className="text-[11px] font-bold uppercase tracking-[0.8px] text-sky-700">{eyebrow}</p> : null}
-        <h2 className="text-xl font-bold leading-7 text-slate-950 md:text-2xl">{title}</h2>
-        <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-500">{subtitle}</p>
+        {eyebrow ? <p className="text-[11px] font-bold uppercase tracking-[0.8px] text-[#006096]">{eyebrow}</p> : null}
+        <h2 className="text-xl font-bold leading-7 text-[#171c1f] md:text-2xl">{title}</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-5 text-[#707882]">{subtitle}</p>
       </div>
       {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
     </section>
@@ -662,9 +667,9 @@ function SummaryCardView({ card }: { card: SummaryCard }) {
   const tone = getToneClasses(card.tone);
 
   return (
-    <article className={cn(styles.card, 'relative overflow-hidden p-5')}>
+    <article className={cn(styles.card, 'relative overflow-hidden p-5 transition-transform duration-200 hover:-translate-y-0.5')}>
       <div className={cn('absolute inset-x-0 top-0 h-1', tone.bar)} />
-      <p className="text-[10px] font-bold uppercase tracking-[0.8px] text-slate-500">{card.label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.8px] text-[#707882]">{card.label}</p>
       <p className={cn('mt-3 text-3xl font-bold leading-9', tone.text)}>{card.value}</p>
       <p className={cn('mt-1 flex items-center gap-1 text-[10px] font-semibold', tone.text)}>
         <span className={cn('h-1.5 w-1.5 rounded-full', tone.bar)} />
@@ -678,12 +683,17 @@ function ServiceTile({ service }: { service: ServiceStatus }) {
   const tone = service.isOnline ? getToneClasses('green') : getToneClasses('red');
 
   return (
-    <article className={cn('rounded-lg border-2 bg-white p-4', service.isOnline ? 'border-green-100' : 'border-red-200')}>
+    <article
+      className={cn(
+        'rounded-lg border-2 bg-white p-4 transition-transform duration-200 hover:-translate-y-0.5',
+        service.isOnline ? 'border-[#1a7a4a]/20' : 'border-[#ba1a1a]/25',
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
-        <h4 className="font-bold text-slate-950">{service.name}</h4>
-        <Icon className="h-5 w-5 text-slate-400" name={service.icon} />
+        <h4 className="font-bold text-[#171c1f]">{service.name}</h4>
+        <Icon className="h-5 w-5 text-[#707882]" name={service.icon} />
       </div>
-      <p className="mt-3 rounded bg-slate-50 px-2 py-1 font-mono text-[10px] text-slate-600">
+      <p className="mt-3 rounded bg-[#f0f4f8] px-2 py-1 font-mono text-[10px] text-[#3f4851]">
         {service.endpoint}
       </p>
       <p className={cn('mt-2 text-[10px]', tone.text)}>
@@ -705,21 +715,21 @@ function ResourceRing({ metric }: { metric: ResourceMetric }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <div
-        className="grid h-28 w-28 place-items-center rounded-full"
+        className="grid h-28 w-28 place-items-center rounded-full transition-[background] duration-500"
         style={{
-          background: `conic-gradient(${ringColor} ${metric.value * 3.6}deg, #e5e7eb 0deg)`,
+          background: `conic-gradient(${ringColor} ${metric.value * 3.6}deg, #dfe3e7 0deg)`,
         } as React.CSSProperties}
       >
         <div className="grid h-20 w-20 place-items-center rounded-full bg-white text-center">
           <div>
             <p className={cn('text-xl font-bold', tone.text)}>{metric.value}%</p>
-            <p className="text-[9px] font-bold uppercase text-slate-500">{metric.label}</p>
+            <p className="text-[9px] font-bold uppercase text-[#707882]">{metric.label}</p>
           </div>
         </div>
       </div>
       <div className="text-center">
-        <p className="text-xs font-bold text-slate-950">{metric.label} Usage</p>
-        <p className="text-[10px] text-slate-500">{metric.detail}</p>
+        <p className="text-xs font-bold text-[#171c1f]">{metric.label} Usage</p>
+        <p className="text-[10px] text-[#707882]">{metric.detail}</p>
       </div>
     </div>
   );
@@ -731,11 +741,14 @@ function ActivityRow({ item }: { item: ActivityMetric }) {
   return (
     <div>
       <div className="flex items-center justify-between text-xs">
-        <span className="font-bold text-slate-700">{item.label}</span>
+        <span className="font-bold text-[#3f4851]">{item.label}</span>
         <span className={cn('font-bold', tone.text)}>{item.value}</span>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-        <div className={cn('h-full rounded-full', tone.bar)} style={{ width: `${item.percent}%` }} />
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#eaeef2]">
+        <div
+          className={cn('h-full rounded-full transition-[width] duration-500 ease-out', tone.bar)}
+          style={{ width: `${item.percent}%` }}
+        />
       </div>
     </div>
   );
@@ -769,7 +782,7 @@ function MonitoringContent() {
 
       <section className={cn(styles.card, 'p-6')}>
         <div className="mb-5 flex items-center gap-2">
-          <span className="h-4 w-1 rounded-full bg-sky-700" />
+          <span className="h-4 w-1 rounded-full bg-[#006096]" />
           <h3 className={styles.sectionTitle}>Trạng thái các dịch vụ cốt lõi</h3>
         </div>
         <div className="grid grid-cols-5 gap-4">
@@ -786,7 +799,7 @@ function MonitoringContent() {
       <section className="grid grid-cols-[1.1fr_0.9fr] gap-6">
         <div className={cn(styles.card, 'p-6')}>
           <div className="mb-8 flex items-center gap-2">
-            <span className="h-4 w-1 rounded-full bg-sky-700" />
+            <span className="h-4 w-1 rounded-full bg-[#006096]" />
             <h3 className={styles.sectionTitle}>Tài nguyên máy chủ</h3>
           </div>
           <div className="flex justify-center gap-10">
@@ -797,7 +810,7 @@ function MonitoringContent() {
         </div>
         <div className={cn(styles.card, 'p-6')}>
           <div className="mb-8 flex items-center gap-2">
-            <span className="h-4 w-1 rounded-full bg-sky-700" />
+            <span className="h-4 w-1 rounded-full bg-[#006096]" />
             <h3 className={styles.sectionTitle}>Hoạt động tổng hợp 24h</h3>
           </div>
           <div className="space-y-5">
@@ -809,24 +822,24 @@ function MonitoringContent() {
       </section>
 
       <section className={cn(styles.card, 'overflow-hidden')}>
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[#dfe3e7] px-6 py-4">
           <div className="flex items-center gap-2">
-            <span className="h-4 w-1 rounded-full bg-sky-700" />
+            <span className="h-4 w-1 rounded-full bg-[#006096]" />
             <h3 className={styles.sectionTitle}>Nhật ký lỗi hệ thống gần nhất</h3>
           </div>
-          <button className="text-[10px] font-bold text-sky-700" type="button">Xem tất cả nhật ký</button>
+          <button className="text-[10px] font-bold text-[#006096] transition hover:text-[#004f7e]" type="button">Xem tất cả nhật ký</button>
         </div>
         <table className="w-full text-left">
-          <thead className="bg-slate-50 text-[10px] font-bold uppercase tracking-[0.5px] text-slate-500">
+          <thead className="bg-[#f0f4f8] text-[10px] font-bold uppercase tracking-[0.5px] text-[#707882]">
             <tr>
               {['Thời điểm', 'Phân hệ', 'Mã lỗi', 'Thông điệp lỗi', 'Lặp lại', 'Mức độ'].map((head) => (
                 <th className="px-6 py-4" key={head}>{head}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-[#dfe3e7]">
             {errorLogs.map((log) => (
-              <tr key={`${log.time}-${log.code}`}>
+              <tr className="transition-colors hover:bg-[#f6fafe]" key={`${log.time}-${log.code}`}>
                 <td className="px-6 py-5 font-mono text-xs">{log.time}</td>
                 <td className="px-6 py-5"><ToneBadge tone="sky">{log.module}</ToneBadge></td>
                 <td className="px-6 py-5 font-mono text-xs font-bold">{log.code}</td>
@@ -837,8 +850,8 @@ function MonitoringContent() {
             ))}
           </tbody>
         </table>
-        <div className="flex items-center justify-between bg-slate-50 px-6 py-4">
-          <p className="text-[10px] text-slate-500">
+        <div className="flex items-center justify-between bg-[#f0f4f8] px-6 py-4">
+          <p className="text-[10px] text-[#707882]">
             Dữ liệu log được trích xuất trực tiếp từ hệ thống theo dõi phân tán.
           </p>
           <button className={styles.primaryButton} type="button">
@@ -871,36 +884,36 @@ function AuditContent() {
         <button className={styles.secondaryButton} type="button">Tất cả phân hệ</button>
         <div className="col-span-3 flex items-center gap-3">
           <input aria-label="Từ ngày" className={styles.searchInput} defaultValue="07/18/2026" />
-          <span className="text-slate-400">-</span>
+          <span className="text-[#707882]">-</span>
           <input aria-label="Đến ngày" className={styles.searchInput} defaultValue="07/18/2026" />
         </div>
       </section>
 
       <section className={cn(styles.card, 'overflow-hidden')}>
-        <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-4">
+        <div className="flex items-center gap-3 border-b border-[#eaeef2] px-6 py-4">
           <ToneBadge tone="amber">3 hành động đặc biệt hôm nay</ToneBadge>
           <ToneBadge tone="slate">Tổng: 1.842 bản ghi</ToneBadge>
         </div>
         <table className="w-full text-left">
-          <thead className="bg-slate-100 text-[11px] font-bold uppercase tracking-[0.5px] text-slate-600">
+          <thead className="bg-[#f0f4f8] text-[11px] font-bold uppercase tracking-[0.5px] text-[#3f4851]">
             <tr>
               {['Thời gian', 'Tài khoản', 'Địa chỉ IP', 'Hành động', 'Mô tả thay đổi', 'Chi tiết'].map((head) => (
                 <th className="px-6 py-4" key={head}>{head}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[#eaeef2]">
             {auditLogs.map((log) => (
-              <tr key={`${log.time}-${log.action}`}>
+              <tr className="transition-colors hover:bg-[#f6fafe]" key={`${log.time}-${log.action}`}>
                 <td className="px-6 py-4 font-mono text-xs leading-5">{log.time}</td>
                 <td className="px-6 py-4">
                   <p className="font-bold">{log.account}</p>
-                  <p className="font-mono text-[11px] text-slate-500">{log.employeeId}</p>
+                  <p className="font-mono text-[11px] text-[#707882]">{log.employeeId}</p>
                 </td>
                 <td className="px-6 py-4 font-mono text-xs">{log.ip}</td>
                 <td className="px-6 py-4">
                   <p className="font-mono text-xs font-bold">{log.action}</p>
-                  <p className="mt-1 text-[10px] text-slate-500">{log.module}</p>
+                  <p className="mt-1 text-[10px] text-[#707882]">{log.module}</p>
                 </td>
                 <td className="max-w-[360px] px-6 py-4 text-xs leading-5">{log.description}</td>
                 <td className="px-6 py-4">
@@ -912,8 +925,8 @@ function AuditContent() {
             ))}
           </tbody>
         </table>
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50 px-6 py-4">
-          <p className="text-xs font-bold text-slate-600">Dữ liệu log được bảo vệ ở cấp Database - không thể UPDATE hoặc DELETE</p>
+        <div className="flex items-center justify-between border-t border-[#eaeef2] bg-[#f0f4f8] px-6 py-4">
+          <p className="text-xs font-bold text-[#3f4851]">Dữ liệu log được bảo vệ ở cấp Database - không thể UPDATE hoặc DELETE</p>
           <div className="flex items-center gap-2">
             <button className={styles.secondaryButton} type="button">
               <Icon className="h-4 w-4" name="chevronLeft" />
@@ -952,13 +965,13 @@ function RbacContent() {
         title="Ma trận phân quyền vai trò (RBAC)"
       />
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-800">
+      <div className="rounded-lg border border-[#a05c00]/25 bg-[#fff0d9] px-4 py-3 text-sm leading-5 text-[#7a4f00]">
         Quyền của vai trò admin và director đối với một số danh mục kiểm toán nhạy cảm đang được khóa chỉnh sửa để bảo vệ tính toàn vẹn hệ thống.
       </div>
 
       <section className={cn(styles.card, 'overflow-hidden')}>
         <table className="w-full table-fixed text-left">
-          <thead className="bg-slate-100 text-[11px] font-bold uppercase tracking-[0.4px] text-slate-600">
+          <thead className="bg-[#f0f4f8] text-[11px] font-bold uppercase tracking-[0.4px] text-[#3f4851]">
             <tr>
               <th className="w-40 px-4 py-5">Vai trò \ Quyền</th>
               {permissionColumns.map((column) => (
@@ -966,9 +979,9 @@ function RbacContent() {
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-[#dfe3e7]">
             {permissionRows.map((row) => (
-              <tr key={row.role}>
+              <tr className="transition-colors hover:bg-[#f6fafe]" key={row.role}>
                 <td className="px-4 py-4">
                   <ToneBadge tone={row.tone}>{row.role}</ToneBadge>
                 </td>
@@ -977,8 +990,8 @@ function RbacContent() {
                     <span
                       aria-label={isAllowed ? 'Được cấp quyền' : 'Chưa cấp quyền'}
                       className={cn(
-                        'inline-grid h-5 w-5 place-items-center border',
-                        isAllowed ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-400 bg-white',
+                        'inline-grid h-5 w-5 place-items-center rounded border transition-colors',
+                        isAllowed ? 'border-[#006096] bg-[#006096] text-white' : 'border-[#707882]/50 bg-white',
                         index > 5 && row.role !== 'Kỹ thuật IT' && 'opacity-50',
                       )}
                       role="img"
@@ -1286,7 +1299,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
     const error = getFirstFieldError(addFieldErrors, field);
 
     return error ? (
-      <p className="mt-1 text-[10px] font-semibold text-red-700" id={getFieldErrorId(field)}>
+      <p className="mt-1 text-[10px] font-semibold text-[#ba1a1a]" id={getFieldErrorId(field)}>
         {error}
       </p>
     ) : null;
@@ -1456,7 +1469,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
     const error = getFirstEditFieldError(editFieldErrors, field);
 
     return error ? (
-      <p className="mt-1 text-[10px] font-semibold text-red-700" id={getEditFieldErrorId(field)}>
+      <p className="mt-1 text-[10px] font-semibold text-[#ba1a1a]" id={getEditFieldErrorId(field)}>
         {error}
       </p>
     ) : null;
@@ -1596,7 +1609,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
   };
 
   return (
-    <div className="min-w-[1080px] space-y-5 p-6 font-sans text-slate-800">
+    <div className="min-w-[1080px] space-y-5 p-6 font-sans text-[#171c1f]">
       {notification ? (
         <NotificationPopup notification={notification} onClose={() => setNotification(null)} />
       ) : null}
@@ -1611,6 +1624,11 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
           display: flex;
           flex-direction: column;
           gap: 4px;
+          transition: transform 180ms ease, box-shadow 180ms ease;
+        }
+        .ktv-stat-mini:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 20px rgba(0,96,150,0.13), 0 2px 6px rgba(0,0,0,0.05);
         }
         .ktv-stat-mini-label {
           font-size: 11px;
@@ -1761,7 +1779,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
             />
           </div>
           <button
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white text-xs font-semibold rounded-lg shadow-sm transition whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white text-xs font-semibold rounded-lg shadow-sm transition active:scale-[0.98] whitespace-nowrap"
             onClick={openAddModal}
             ref={addAccountButtonRef}
             type="button"
@@ -1856,8 +1874,8 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
 
                 return (
                   <tr
-                    className={`border-b border-[#dfe3e7] hover:bg-[#e8f4ff] transition ${
-                      isLocked ? 'opacity-60 bg-slate-50/50' : ''
+                    className={`border-b border-[#dfe3e7] transition-colors hover:bg-[#e8f4ff] ${
+                      isLocked ? 'bg-[#f0f4f8]/60 opacity-60' : ''
                     }`}
                     key={user.id}
                   >
@@ -2135,7 +2153,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'fullName'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstFieldError(addFieldErrors, 'fullName') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'fullName') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.fullName}
                     name="fullName"
@@ -2161,7 +2179,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     autoComplete="username"
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstFieldError(addFieldErrors, 'username') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'username') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.username}
                     name="username"
@@ -2189,7 +2207,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     autoComplete="tel"
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstFieldError(addFieldErrors, 'phoneNumber') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'phoneNumber') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.phoneNumber}
                     inputMode="tel"
@@ -2220,7 +2238,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'identityCardNumber'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstFieldError(addFieldErrors, 'identityCardNumber') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'identityCardNumber') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.identityCardNumber}
                     inputMode="numeric"
@@ -2249,7 +2267,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'dateOfBirth'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstFieldError(addFieldErrors, 'dateOfBirth') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'dateOfBirth') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.dateOfBirth}
                     name="dateOfBirth"
@@ -2272,7 +2290,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'gender'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                      getFirstFieldError(addFieldErrors, 'gender') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'gender') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.gender}
                     name="gender"
@@ -2301,7 +2319,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'roleCode'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                      getFirstFieldError(addFieldErrors, 'roleCode') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'roleCode') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.roleCode}
                     name="roleCode"
@@ -2330,7 +2348,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstFieldError(addFieldErrors, 'departmentId'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                      getFirstFieldError(addFieldErrors, 'departmentId') && 'border-red-300 bg-red-50/30',
+                      getFirstFieldError(addFieldErrors, 'departmentId') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     id={createStaffFieldIds.departmentId}
                     name="departmentId"
@@ -2350,7 +2368,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
               </div>
 
               {addFormError ? (
-                <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                <p className="mb-3 rounded-lg border border-[#ba1a1a]/25 bg-[#ffdad6]/50 px-3 py-2 text-xs font-medium text-[#ba1a1a]">
                   {addFormError}
                 </p>
               ) : null}
@@ -2365,7 +2383,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                   Hủy
                 </button>
                 <button
-                  className="min-w-[132px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+                  className="min-w-[132px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:active:scale-100"
                   disabled={createMutation.isPending}
                   type="submit"
                 >
@@ -2466,7 +2484,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                 {copiedPass ? 'Đã sao chép!' : 'Sao chép'}
               </button>
               <button
-                className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition"
+                className="px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition active:scale-[0.98]"
                 onClick={closeTemporaryPasswordDialog}
                 type="button"
               >
@@ -2525,7 +2543,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'fullName'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstEditFieldError(editFieldErrors, 'fullName') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'fullName') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.fullName}
@@ -2550,7 +2568,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     autoComplete="username"
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstEditFieldError(editFieldErrors, 'username') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'username') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.username}
@@ -2578,7 +2596,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     autoComplete="tel"
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstEditFieldError(editFieldErrors, 'phoneNumber') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'phoneNumber') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.phoneNumber}
@@ -2603,7 +2621,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'identityCardNumber'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstEditFieldError(editFieldErrors, 'identityCardNumber') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'identityCardNumber') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.identityCardNumber}
@@ -2632,7 +2650,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'dateOfBirth'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15',
-                      getFirstEditFieldError(editFieldErrors, 'dateOfBirth') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'dateOfBirth') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.dateOfBirth}
@@ -2656,7 +2674,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'gender'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                      getFirstEditFieldError(editFieldErrors, 'gender') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'gender') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.gender}
@@ -2685,7 +2703,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'roleCode'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                      getFirstEditFieldError(editFieldErrors, 'roleCode') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'roleCode') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.roleCode}
@@ -2714,7 +2732,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                     aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'departmentId'))}
                     className={cn(
                       'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                      getFirstEditFieldError(editFieldErrors, 'departmentId') && 'border-red-300 bg-red-50/30',
+                      getFirstEditFieldError(editFieldErrors, 'departmentId') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                     )}
                     disabled={updateMutation.isPending}
                     id={editStaffFieldIds.departmentId}
@@ -2746,7 +2764,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                   aria-invalid={Boolean(getFirstEditFieldError(editFieldErrors, 'isActive'))}
                   className={cn(
                     'w-full px-3 py-2 border border-[#bfc7d2] rounded-lg text-xs outline-none focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 bg-white',
-                    getFirstEditFieldError(editFieldErrors, 'isActive') && 'border-red-300 bg-red-50/30',
+                    getFirstEditFieldError(editFieldErrors, 'isActive') && 'border-[#ba1a1a]/40 bg-[#ffdad6]/25',
                   )}
                   disabled={updateMutation.isPending}
                   id={editStaffFieldIds.isActive}
@@ -2761,7 +2779,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
               </div>
 
               {editFormError ? (
-                <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                <p className="mb-3 rounded-lg border border-[#ba1a1a]/25 bg-[#ffdad6]/50 px-3 py-2 text-xs font-medium text-[#ba1a1a]">
                   {editFormError}
                 </p>
               ) : null}
@@ -2780,7 +2798,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
                   Hủy
                 </button>
                 <button
-                  className="min-w-[128px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-70"
+                  className="min-w-[128px] px-4 py-2 bg-[#006096] hover:bg-[#004f7e] text-white rounded-lg text-xs font-semibold shadow-sm transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 disabled:active:scale-100"
                   disabled={updateMutation.isPending}
                   type="submit"
                 >
@@ -2820,24 +2838,24 @@ function BackupContent() {
         <SummaryCardView card={{ helper: 'Không có lỗi phát sinh', label: 'Trạng thái', tone: 'green', value: 'Ổn định' }} />
       </section>
       <section className={cn(styles.card, 'overflow-hidden')}>
-        <div className="border-b border-slate-100 px-6 py-4">
+        <div className="border-b border-[#eaeef2] px-6 py-4">
           <h3 className={styles.sectionTitle}>Lịch sử sao lưu gần nhất</h3>
         </div>
         <table className="w-full text-left">
-          <thead className="bg-slate-100 text-[11px] font-bold uppercase tracking-[0.5px] text-slate-600">
+          <thead className="bg-[#f0f4f8] text-[11px] font-bold uppercase tracking-[0.5px] text-[#3f4851]">
             <tr>
               {['Thời gian', 'Tên file', 'Dung lượng', 'Loại', 'Trạng thái'].map((head) => (
                 <th className="px-6 py-4" key={head}>{head}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-[#eaeef2]">
             {[
               ['2026-07-18 03:30:00', 'hms_backup_20260718_030000.sql', '1.24 GB', 'Tự động', 'Hoàn thành'],
               ['2026-07-17 03:30:00', 'hms_backup_20260717_030000.sql', '1.21 GB', 'Tự động', 'Hoàn thành'],
               ['2026-07-16 22:15:11', 'hms_manual_before_release.sql', '1.20 GB', 'Thủ công', 'Hoàn thành'],
             ].map((row) => (
-              <tr key={row[1]}>
+              <tr className="transition-colors hover:bg-[#f6fafe]" key={row[1]}>
                 <td className="px-6 py-4 font-mono text-xs">{row[0]}</td>
                 <td className="px-6 py-4 font-mono text-xs font-bold">{row[1]}</td>
                 <td className="px-6 py-4 text-xs">{row[2]}</td>

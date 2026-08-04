@@ -11,8 +11,11 @@ import { backendApiV1BaseUrl } from './shared/auth/backend-url';
 import { fetchMiddlewarePrincipal } from './shared/auth/middleware-principal';
 import { sessionCookieName } from './shared/auth/session-cookie';
 
-const createLoginRedirect = (request: NextRequest) => {
-  const response = NextResponse.redirect(new URL('/login', request.url));
+const createLoginRedirect = (request: NextRequest, reason?: 'session_expired') => {
+  const loginUrl = new URL('/login', request.url);
+  if (reason) loginUrl.searchParams.set('reason', reason);
+
+  const response = NextResponse.redirect(loginUrl);
   response.cookies.delete(sessionCookieName);
 
   return response;
@@ -165,7 +168,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const token = request.cookies.get(sessionCookieName)?.value;
-  if (!token) return createLoginRedirect(request);
+  if (!token) return createLoginRedirect(request, 'session_expired');
 
   const authResult = await fetchMiddlewarePrincipal({
     backendBaseUrl: backendApiV1BaseUrl,
@@ -173,7 +176,9 @@ export async function middleware(request: NextRequest) {
   });
 
   if (authResult.status === 'unavailable') return createAuthUnavailableResponse();
-  if (authResult.status === 'unauthenticated') return createLoginRedirect(request);
+  if (authResult.status === 'unauthenticated') {
+    return createLoginRedirect(request, 'session_expired');
+  }
   if (authResult.status === 'forbidden') return createForbiddenResponse(null);
 
   const { principal } = authResult;

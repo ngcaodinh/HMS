@@ -74,7 +74,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
           <span className="relative block">
             <AssetIcon className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 opacity-60" name="icon-search.svg" />
             <input
-              className="h-12 w-full rounded-[12px] border border-[#bfc7d2] bg-[#f2f3f8] pl-11 pr-4 text-sm outline-none placeholder:text-[#6b7280]"
+              className={styles.searchInputLg}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Gõ tên dịch vụ (VD: Hóa sinh máu, IgE...)"
               value={searchTerm}
@@ -85,7 +85,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
           <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-auto rounded-[12px] border border-[#bfc7d2] bg-white shadow-lg">
             {searchResults?.map((item) => (
               <button
-                className="flex w-full items-center justify-between px-4 py-3 text-left text-sm hover:bg-[#f0f4f8]"
+                className={styles.searchResultItem}
                 key={item.labTestTypeId}
                 onClick={() => addItem(item)}
                 type="button"
@@ -124,7 +124,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                 </tr>
               )}
               {selected.map((item, index) => (
-                <tr key={item.labTestTypeId}>
+                <tr className={styles.tableRow} key={item.labTestTypeId}>
                   <td className={styles.td}>{index + 1}</td>
                   <td className={cn(styles.td, 'font-bold text-[#001d32]')}>{item.name}</td>
                   <td className={styles.td}>{item.specimen ?? '—'}</td>
@@ -133,7 +133,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                   </td>
                   <td className={styles.td}>
                     <button
-                      className="text-xs font-bold text-[#ba1a1a]"
+                      className={styles.dangerLink}
                       onClick={() => removeItem(item.labTestTypeId)}
                       type="button"
                     >
@@ -143,7 +143,7 @@ export function OrdersScreen({ record }: { record: MedicalRecordDetail }) {
                 </tr>
               ))}
               {record.labTests.map((test, index) => (
-                <tr key={test.labTestId}>
+                <tr className={styles.tableRow} key={test.labTestId}>
                   <td className={styles.td}>{selected.length + index + 1}</td>
                   <td className={cn(styles.td, 'font-bold text-[#001d32]')}>{test.testName}</td>
                   <td className={styles.td}>{test.specimenType ?? '—'}</td>

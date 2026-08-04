@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mapErrorDetailsToFields } from '../../src/core/http/AppError';
 import {
   changePasswordSchema,
+  createSessionSchema,
   createStaffSchema,
   listStaffSchema,
   resetPasswordSchema,
@@ -19,6 +20,40 @@ const validCreateStaffInput = {
   roleCodes: ['doctor'],
   username: 'doctor.managed',
 };
+
+describe('createSessionSchema', () => {
+  it('accepts a normal login payload when remember is omitted', () => {
+    expect(
+      createSessionSchema.parse({
+        password: 'secret',
+        username: 'it.tech.dev',
+      }),
+    ).toEqual({
+      password: 'secret',
+      username: 'it.tech.dev',
+    });
+  });
+
+  it('accepts the optional remember flag as a boolean', () => {
+    expect(
+      createSessionSchema.parse({
+        password: 'secret',
+        remember: true,
+        username: 'it.tech.dev',
+      }),
+    ).toMatchObject({ remember: true });
+  });
+
+  it('rejects a non-boolean remember value', () => {
+    expect(
+      createSessionSchema.safeParse({
+        password: 'secret',
+        remember: 'true',
+        username: 'it.tech.dev',
+      }).success,
+    ).toBe(false);
+  });
+});
 
 describe('createStaffSchema', () => {
   afterEach(() => {

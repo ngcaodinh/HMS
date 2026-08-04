@@ -142,6 +142,9 @@ export type BcryptPort = {
 };
 
 export type JwtPort = {
-  sign(payload: { authVersion: number; userId: string }): string;
+  sign(
+    payload: { authVersion: number; userId: string },
+    options?: { expiresIn?: string },
+  ): { token: string; expiresAt: string };
   verify(token: string): { authVersion: number; userId: string };
 };

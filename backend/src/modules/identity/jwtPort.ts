@@ -9,14 +9,28 @@ import type { JwtPort } from './identityTypes';
  * Adapter JWT ký và xác thực access token theo issuer/audience cấu hình.
  */
 export const jwtPort: JwtPort = {
-  sign(payload) {
+  sign(payload, signOptions) {
     const options: SignOptions = {
       audience: config.auth.jwtAudience,
-      expiresIn: config.auth.jwtExpiresIn as SignOptions['expiresIn'],
+      expiresIn: (signOptions?.expiresIn ?? config.auth.jwtExpiresIn) as SignOptions['expiresIn'],
       issuer: config.auth.jwtIssuer,
     };
 
-    return jwt.sign(payload, config.auth.jwtSecret, options);
+    const token = jwt.sign(payload, config.auth.jwtSecret, options);
+    const decoded = jwt.decode(token);
+
+    if (!decoded || typeof decoded !== 'object' || typeof decoded.exp !== 'number') {
+      throw new AppError({
+        code: 'TOKEN_EXPIRATION_MISSING',
+        message: 'Không thể xác định thời hạn phiên đăng nhập',
+        status: 500,
+      });
+    }
+
+    return {
+      expiresAt: new Date(decoded.exp * 1000).toISOString(),
+      token,
+    };
   },
   verify(token) {
     try {

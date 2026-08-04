@@ -28,7 +28,7 @@ export function PaymentStatementScreen({
   const isPaid = patient.status === 'settled' || invoice.status === 'paid';
 
   return (
-    <div className="screen active space-y-4 font-sans select-none" id="s3">
+    <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s3">
       {/* Screen Header matching lines 1119-1131 */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
@@ -60,7 +60,7 @@ export function PaymentStatementScreen({
           <button
             type="button"
             onClick={onBack}
-            className="px-3.5 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#707882] rounded-md text-[12.5px] font-medium hover:bg-[#eaeef2] transition-colors flex items-center gap-1.5 min-h-[36px]"
+            className="px-3.5 py-1.5 border border-[#bfc7d2] bg-[#f8fafc] text-[#707882] rounded-md text-[12.5px] font-medium hover:bg-[#eaeef2] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             &larr; Quay lại
           </button>
@@ -70,7 +70,7 @@ export function PaymentStatementScreen({
       {/* Main Split Layout matching lines 1133-1259 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         {/* Left Side: A4 Document Preview */}
-        <div className="bg-white rounded-xl border border-[#bfc7d2] p-8 shadow-[0_1px_2px_rgba(0,0,0,0.05)] relative space-y-5 min-h-[600px]">
+        <div className="bg-white rounded-xl border border-[#bfc7d2] p-8 shadow-hms-card relative space-y-5 min-h-[600px]">
           {/* Watermark Stamp Overlay matching paid-watermark in ke_toan copy.html line 1136 */}
           {isPaid && (
             <div className="absolute top-[120px] right-[40px] border-[4px] border-[#ba1a1a] rounded-lg px-6 py-2 font-black text-[#ba1a1a] text-[32px] tracking-[4px] rotate-[-18deg] opacity-[0.25] pointer-events-none select-none">
@@ -198,7 +198,7 @@ export function PaymentStatementScreen({
                 <button
                   type="button"
                   onClick={() => setIsSigned(true)}
-                  className="px-3 py-1.5 border border-[#006096] text-[#006096] rounded-md text-xs font-semibold hover:bg-[#cee5ff] transition-colors"
+                  className="px-3 py-1.5 border border-[#006096] text-[#006096] rounded-md text-xs font-semibold hover:bg-[#cee5ff] active:scale-[0.97] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
                 >
                   Xác nhận ký
                 </button>
@@ -213,7 +213,7 @@ export function PaymentStatementScreen({
 
         {/* Right Side: Control Panel matching lines 1216-1258 */}
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)] text-center">
+          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card text-center">
             <div className="text-[12px] text-[#707882] mb-1">Số tiền cần thu</div>
             <div className="text-[32px] font-bold font-mono text-[#006096] leading-tight">
               {isPaid ? '0 đ' : '430.000 đ'}
@@ -221,7 +221,7 @@ export function PaymentStatementScreen({
           </div>
 
           {/* Payment Actions Card */}
-          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)] space-y-3">
+          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card space-y-3">
             <div className="text-[12px] font-bold text-[#707882] uppercase tracking-wider">
               Phương thức thanh toán
             </div>
@@ -237,7 +237,7 @@ export function PaymentStatementScreen({
                 <button
                   type="button"
                   onClick={onOpenCashModal}
-                  className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-[14px] hover:bg-[#004a75] transition-colors flex items-center justify-center gap-2 shadow-sm min-h-[44px]"
+                  className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-[14px] hover:bg-[#004a75] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-2 shadow-[0_2px_8px_rgba(0,96,150,0.24)] hover:shadow-[0_4px_14px_rgba(0,96,150,0.3)] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth={2} />
@@ -249,7 +249,7 @@ export function PaymentStatementScreen({
                 <button
                   type="button"
                   onClick={onOpenMomoModal}
-                  className="w-full py-3 bg-gradient-to-r from-purple-700 to-fuchsia-600 text-white rounded-md font-bold text-[14px] hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-sm min-h-[44px]"
+                  className="w-full py-3 bg-gradient-to-r from-purple-700 to-fuchsia-600 text-white rounded-md font-bold text-[14px] hover:opacity-90 active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-2 shadow-[0_2px_8px_rgba(162,28,175,0.28)] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-2"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path
@@ -265,41 +265,41 @@ export function PaymentStatementScreen({
             )}
           </div>
 
-          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)] space-y-2">
+          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card space-y-2">
             <div className="text-[12px] font-bold text-[#707882] uppercase tracking-wider mb-2">
               Hành động đặc biệt
             </div>
             <button
               type="button"
               onClick={onOpenCancelModal}
-              className="w-full py-2 border border-[#ba1a1a] text-[#ba1a1a] rounded-md font-medium text-[12.5px] hover:bg-[#ffdad6]/40 transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 border border-[#ba1a1a] text-[#ba1a1a] rounded-md font-medium text-[12.5px] hover:bg-[#ffdad6]/40 active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ba1a1a]/40 focus-visible:ring-offset-1"
             >
               Hủy hóa đơn
             </button>
             <button
               type="button"
               onClick={onOpenWriteoffModal}
-              className="w-full py-2 border border-[#a05c00] text-[#a05c00] rounded-md font-medium text-[12.5px] hover:bg-[#fff8e1]/40 transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 border border-[#a05c00] text-[#a05c00] rounded-md font-medium text-[12.5px] hover:bg-[#fff8e1]/40 active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a05c00]/40 focus-visible:ring-offset-1"
             >
               Miễn giảm thất thu (Cấp cứu)
             </button>
           </div>
 
-          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-[0_1px_2px_rgba(0,0,0,0.05)] space-y-2">
+          <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card space-y-2">
             <div className="text-[12px] font-bold text-[#707882] uppercase tracking-wider mb-2">
               Kết xuất &amp; In ấn
             </div>
             <button
               type="button"
               onClick={() => {}}
-              className="w-full py-2 border border-[#bfc7d2] bg-[#f8fafc] text-[#3f4851] rounded-md font-medium text-[12.5px] hover:bg-[#eaeef2] transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 border border-[#bfc7d2] bg-[#f8fafc] text-[#3f4851] rounded-md font-medium text-[12.5px] hover:bg-[#eaeef2] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
             >
               Xuất XML BHYT
             </button>
             <button
               type="button"
               onClick={() => window.print()}
-              className="w-full py-2 border border-[#006096] bg-[#cee5ff] text-[#006096] rounded-md font-bold text-[12.5px] hover:bg-[#b8daff] transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-2 border border-[#006096] bg-[#cee5ff] text-[#006096] rounded-md font-bold text-[12.5px] hover:bg-[#b8daff] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
             >
               In bảng kê 01/KBCB
             </button>

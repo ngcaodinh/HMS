@@ -2,6 +2,12 @@ import Image from 'next/image';
 
 import { LoginForm } from '@/modules/auth/components/login-form';
 
+type LoginPageProps = {
+  searchParams?: {
+    reason?: string;
+  };
+};
+
 const stats = [
   {
     label: 'BỆNH NHÂN / THÁNG',
@@ -20,7 +26,7 @@ const stats = [
   },
 ];
 
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <main className="min-h-screen bg-[#f6fafe] font-sans text-[#171c1f] lg:flex">
       <section className="relative flex min-h-[360px] flex-1 overflow-hidden px-6 py-7 text-white sm:px-10 sm:py-10 lg:min-h-screen lg:px-12 lg:py-12">
@@ -122,7 +128,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <LoginForm />
+          <LoginForm initialReason={searchParams?.reason} />
         </div>
       </section>
     </main>

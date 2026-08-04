@@ -26,8 +26,8 @@ export function WriteoffModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-fadeIn">
+      <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-modalIn">
         {/* Header matching lines 1680-1690 */}
         <div className="p-5 border-b border-[#e4e9ed] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#fff8e1] text-[#a05c00] flex items-center justify-center shrink-0">
@@ -81,7 +81,7 @@ export function WriteoffModal({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Nhập lý do chi tiết: Bệnh nhân vô danh, không có thân nhân đến nhận, tử vong..."
-              className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none focus:border-[#a05c00]"
+              className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#a05c00] focus:ring-2 focus:ring-[#a05c00]/15"
             />
           </div>
         </div>
@@ -91,7 +91,7 @@ export function WriteoffModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] transition-colors"
+            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             Hủy bỏ
           </button>
@@ -99,7 +99,7 @@ export function WriteoffModal({
             type="button"
             disabled={reason.trim().length < 10}
             onClick={handleConfirm}
-            className="px-4 py-2 border border-[#a05c00] text-[#a05c00] rounded-md text-[13px] font-bold hover:bg-[#fff8e1] transition-colors disabled:opacity-50"
+            className="px-4 py-2 border border-[#a05c00] text-[#a05c00] rounded-md text-[13px] font-bold hover:bg-[#fff8e1] active:scale-[0.97] transition-all duration-200 ease-out disabled:opacity-50 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a05c00]/40 focus-visible:ring-offset-1"
           >
             Duyệt Write-off Cấp cứu
           </button>

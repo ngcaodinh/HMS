@@ -207,7 +207,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           <div className={styles.actionRow}>
             {isPathology && (
               <button className={styles.outlineButton} disabled={draftMutation.isPending} onClick={saveDraft} type="button">
-                <AssetIcon className="h-4 w-4" name="icon-save.svg" />
+                <AssetIcon className="h-4 w-4 brightness-0" name="icon-save.svg" />
                 {draftMutation.isPending ? 'Đang lưu...' : 'Lưu nháp'}
               </button>
             )}

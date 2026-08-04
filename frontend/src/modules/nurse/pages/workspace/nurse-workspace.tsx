@@ -155,7 +155,7 @@ function Sidebar({
                 <span
                   className={cn(
                     styles.badge,
-                    item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#b91c1c]',
+                    item.id === 'samples' ? 'bg-[#006096]' : 'bg-[#ba1a1a]',
                   )}
                 >
                   {badgeCount}
@@ -217,10 +217,10 @@ function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
   return (
     <header className={styles.topbar}>
       <div className="min-w-0">
-        <h1 className={cn('truncate text-lg font-bold leading-7 text-[#0369a1]', meta.titleClass)}>
+        <h1 className={cn('truncate text-lg font-bold leading-7 text-[#006096]', meta.titleClass)}>
           {meta.title}
         </h1>
-        <p className="truncate text-xs font-medium leading-4 text-[#64748b]">{subtitle}</p>
+        <p className="truncate text-xs font-medium leading-4 text-[#3f4851]">{subtitle}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <span className={styles.shortcut}>F2 Gọi tiếp</span>
@@ -240,10 +240,10 @@ function StatGrid({ stats }: { stats: StatCard[] }) {
               <Icon className="h-5 w-5" name={stat.icon} />
             </div>
             <div className="min-w-0">
-              <p className={cn('text-2xl font-bold leading-6 text-[#1e293b]', stat.valueClass)}>
+              <p className={cn('text-2xl font-bold leading-6 text-[#171c1f]', stat.valueClass)}>
                 {stat.value}
               </p>
-              <p className="mt-1 text-xs font-medium uppercase leading-4 text-[#64748b]">
+              <p className="mt-1 text-xs font-medium uppercase leading-4 text-[#3f4851]">
                 {stat.label}
               </p>
               {stat.delta && (
@@ -272,10 +272,10 @@ function Card({
     <section className={styles.card}>
       <div className={styles.cardHeader}>
         <h2 className={styles.cardTitle}>
-          <Icon className="h-4 w-4 text-[#0369a1]" name={icon} />
+          <Icon className="h-4 w-4 text-[#006096]" name={icon} />
           {title}
         </h2>
-        {count && <span className="text-xs font-medium leading-4 text-[#64748b]">{count}</span>}
+        {count && <span className="text-xs font-medium leading-4 text-[#3f4851]">{count}</span>}
       </div>
       {children}
     </section>
@@ -306,8 +306,8 @@ function PatientQueue({
   return (
     <Card count={`${ticketQueue.waitingCount} số đang chờ`} icon="clipboard" title="Hàng đợi chờ đo sinh hiệu">
       <div className="p-3">
-        <div className="mb-2 rounded-lg bg-[#f1f5f9] p-3 text-center">
-          <p className="text-xs font-medium text-[#64748b]">Số đang gọi</p>
+        <div className="mb-2 rounded-lg bg-[#eaeef2] p-3 text-center">
+          <p className="text-xs font-medium text-[#3f4851]">Số đang gọi</p>
           <p className="text-3xl font-bold text-[#006096]">
             {ticketQueue.currentCalled ? String(ticketQueue.currentCalled.number).padStart(2, '0') : '--'}
           </p>
@@ -335,9 +335,9 @@ function PatientQueue({
           </button>
         </div>
       </div>
-      <div className="max-h-96 overflow-auto border-t border-[#cbd5e1]">
+      <div className="max-h-96 overflow-auto border-t border-[#bfc7d2]">
         {worklist.length === 0 ? (
-          <div className="p-4 text-center text-xs text-[#64748b]">Không có bệnh nhân chờ đo</div>
+          <div className="p-4 text-center text-xs text-[#3f4851]">Không có bệnh nhân chờ đo</div>
         ) : (
           worklist.map((item) => {
             const active = item.recordId === selectedRecordId;
@@ -345,7 +345,7 @@ function PatientQueue({
             return (
               <button
                 className={cn(
-                  'flex w-full items-center gap-3 border-b border-[#cbd5e1] p-4 text-left transition hover:bg-[#f8fafc]',
+                  'flex w-full items-center gap-3 border-b border-[#bfc7d2] p-4 text-left transition hover:bg-[#f0f4f8]',
                   active && 'border-l-4 border-l-[#006096] bg-[#e0f2fe]'
                 )}
                 key={item.recordId}
@@ -356,12 +356,12 @@ function PatientQueue({
                   <span
                     className={cn(
                       'block truncate text-xs font-bold uppercase leading-5',
-                      active ? 'text-[#006096]' : 'text-[#334155]'
+                      active ? 'text-[#006096]' : 'text-[#171c1f]'
                     )}
                   >
                     {item.patientName}
                   </span>
-                  <span className="block truncate text-xs font-medium leading-4 text-[#64748b]">
+                  <span className="block truncate text-xs font-medium leading-4 text-[#3f4851]">
                     {`${item.gender}, ${item.age}t — BA: ${item.recordCode}`}
                   </span>
                 </span>
@@ -369,7 +369,7 @@ function PatientQueue({
                   className={cn(
                     'rounded-sm px-2 py-1 text-[10px] font-bold uppercase leading-4',
                     active
-                      ? 'bg-red-100 text-[#b91c1c]'
+                      ? 'bg-red-100 text-[#ba1a1a]'
                       : isCalled
                         ? 'bg-amber-100 text-amber-700'
                         : 'bg-blue-50 text-[#006096]'
@@ -463,14 +463,14 @@ function VitalInputField({
           className={cn(
             styles.input,
             'rounded-r-none',
-            error && 'border-red-400 text-[#b91c1c] focus:border-red-500 focus:ring-red-500/10'
+            error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10'
           )}
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
         <span className={styles.fieldUnit}>{unit}</span>
       </span>
-      {error && <p className="mt-1 text-xs font-bold text-[#b91c1c]">{error}</p>}
+      {error && <p className="mt-1 text-xs font-bold text-[#ba1a1a]">{error}</p>}
     </label>
   );
 }
@@ -558,7 +558,7 @@ function VitalsForm({
             Đang nhập sinh hiệu cho: <span className="uppercase">{selectedRecord.patientName}</span> ({selectedRecord.gender}, {selectedRecord.age}t — BA: {selectedRecord.recordCode})
           </div>
         ) : (
-          <div className="rounded-lg bg-[#f1f5f9] p-3 text-xs font-medium text-[#64748b]">
+          <div className="rounded-lg bg-[#eaeef2] p-3 text-xs font-medium text-[#3f4851]">
             Chưa chọn bệnh nhân — hãy gọi số và chọn bệnh nhân từ danh sách bên trái
           </div>
         )}
@@ -636,7 +636,7 @@ function VitalsForm({
 
           <label>
             <span className={styles.label}>Chỉ số BMI (tự tính)</span>
-            <div className="flex h-10 items-center rounded-lg border border-[#cbd5e1] bg-[#f1f5f9] px-4 text-sm font-bold text-[#475569]">
+            <div className="flex h-10 items-center rounded-lg border border-[#bfc7d2] bg-[#eaeef2] px-4 text-sm font-bold text-[#3f4851]">
               {bmiValue}
             </div>
           </label>
@@ -648,8 +648,8 @@ function VitalsForm({
             className={cn(
               'rounded-xl border-2 p-4 transition-colors',
               form.allergyEnabled
-                ? 'border-[#b91c1c]/40 bg-red-50/50'
-                : 'border-[#cbd5e1] bg-[#f8fafc]',
+                ? 'border-[#ba1a1a]/40 bg-red-50/50'
+                : 'border-[#bfc7d2] bg-[#f0f4f8]',
               allergyNoteMissing && 'animate-blink-red'
             )}
           >
@@ -659,8 +659,8 @@ function VitalsForm({
                 className={cn(
                   'relative h-6 w-12 rounded-full shadow-inner focus:outline-none focus:ring-4 transition-colors',
                   form.allergyEnabled
-                    ? 'bg-[#b91c1c] focus:ring-[#b91c1c]/20'
-                    : 'bg-[#cbd5e1] focus:ring-gray-200'
+                    ? 'bg-[#ba1a1a] focus:ring-[#ba1a1a]/20'
+                    : 'bg-[#bfc7d2] focus:ring-gray-200'
                 )}
                 type="button"
                 onClick={() => setForm((prev) => ({ ...prev, allergyEnabled: !prev.allergyEnabled }))}
@@ -676,18 +676,18 @@ function VitalsForm({
                 <p
                   className={cn(
                     'text-sm font-bold leading-5',
-                    form.allergyEnabled ? 'text-[#b91c1c]' : 'text-[#64748b]'
+                    form.allergyEnabled ? 'text-[#ba1a1a]' : 'text-[#3f4851]'
                   )}
                 >
                   {form.allergyEnabled ? 'Có dị ứng thuốc / thức ăn' : 'Không có tiền sử dị ứng'}
                 </p>
-                <p className="text-xs font-medium leading-4 text-[#64748b]">
+                <p className="text-xs font-medium leading-4 text-[#3f4851]">
                   {form.allergyEnabled
                     ? 'Vui lòng ấn nút lại để tắt chức năng nhập dị ứng'
                     : 'Vui lòng ấn nút để nhập dị ứng cho bệnh nhân'}
                 </p>
               </div>
-              {form.allergyEnabled && <Icon className="h-6 w-6 text-[#b91c1c]" name="alert" />}
+              {form.allergyEnabled && <Icon className="h-6 w-6 text-[#ba1a1a]" name="alert" />}
             </div>
 
             <div className="relative mt-4">
@@ -695,8 +695,8 @@ function VitalsForm({
                 className={cn(
                   styles.textarea,
                   form.allergyEnabled
-                    ? 'border-[#b91c1c]/40 bg-white'
-                    : 'border-[#cbd5e1] bg-[#e2e8f0]/40 text-[#94a3b8] cursor-not-allowed'
+                    ? 'border-[#ba1a1a]/40 bg-white'
+                    : 'border-[#bfc7d2] bg-[#e4e9ed]/40 text-[#707882] cursor-not-allowed'
                 )}
                 disabled={!form.allergyEnabled}
                 value={form.allergyNote}
@@ -704,7 +704,7 @@ function VitalsForm({
                 placeholder="Nhập mô tả chi tiết: tên thuốc, loại thức ăn gây dị ứng và biểu hiện dị ứng... Ví dụ: Penicillin → nổi mề đay toàn thân"
               />
               {form.allergyEnabled && !form.allergyNote.trim() && (
-                <p className="mt-1 text-xs font-bold text-[#b91c1c]">
+                <p className="mt-1 text-xs font-bold text-[#ba1a1a]">
                   Vui lòng nhập mô tả chi tiết dị ứng trước khi lưu
                 </p>
               )}
@@ -713,7 +713,7 @@ function VitalsForm({
         </div>
       </div>
 
-      <div className="flex flex-wrap justify-end gap-3 rounded-b-xl border-t border-[#cbd5e1] bg-[#f8fafc] p-4">
+      <div className="flex flex-wrap justify-end gap-3 rounded-b-xl border-t border-[#bfc7d2] bg-[#f0f4f8] p-4">
         <button className={styles.secondaryButton} type="button" onClick={onCancel}>
           Hủy
         </button>
@@ -1006,18 +1006,18 @@ function VitalsScreen() {
       value: String(statsData?.allergyAlertTodayCount ?? 0),
       label: 'Cảnh báo dị ứng',
       icon: 'alert',
-      iconClass: 'bg-red-100 text-[#b91c1c]',
+      iconClass: 'bg-red-100 text-[#ba1a1a]',
     },
     {
       value: `${statsData?.avgMinutesPerPatient ?? 0} phút`,
       label: 'Thời gian TB/Bệnh nhân',
       icon: 'activity',
-      iconClass: 'bg-teal-100 text-[#0f766e]',
+      iconClass: 'bg-teal-100 text-[#006673]',
     },
   ], [statsData]);
 
   if (isLoading) {
-    return <div className="p-8 text-center text-sm font-medium text-[#64748b]">Đang tải dữ liệu sinh hiệu...</div>;
+    return <div className="p-8 text-center text-sm font-medium text-[#3f4851]">Đang tải dữ liệu sinh hiệu...</div>;
   }
 
   return (
@@ -1026,7 +1026,7 @@ function VitalsScreen() {
         <div
           className={cn(
             'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
-            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#b91c1c]'
+            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]'
           )}
         >
           {toast.message}
@@ -1091,11 +1091,11 @@ function BarcodeModal({ specimen, onClose }: { specimen: SpecimenDto; onClose: (
         className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-1 text-sm font-bold text-[#18181b]">Mã vạch mẫu bệnh phẩm</h3>
-        <p className="mb-4 text-xs text-[#64748b]">
+        <h3 className="mb-1 text-sm font-bold text-[#171c1f]">Mã vạch mẫu bệnh phẩm</h3>
+        <p className="mb-4 text-xs text-[#3f4851]">
           {specimen.specimenType} — {specimen.patientName} ({specimen.patientCode})
         </p>
-        <div className="flex items-center justify-center rounded-lg border border-[#cbd5e1] bg-white p-4">
+        <div className="flex items-center justify-center rounded-lg border border-[#bfc7d2] bg-white p-4">
           <canvas ref={canvasRef} />
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -1135,8 +1135,8 @@ function SamplesScreen() {
   const stats: StatCard[] = [
     { value: String(pendingCount), label: 'Chờ lấy mẫu', icon: 'flask', iconClass: 'bg-blue-100 text-[#006096]' },
     { value: String(collectedCount), label: 'Đã lấy mẫu', icon: 'check', iconClass: 'bg-green-100 text-[#15803d]' },
-    { value: String(handoffCount), label: 'Chờ bàn giao lab', icon: 'file', iconClass: 'bg-teal-100 text-[#0f766e]' },
-    { value: String(priorityCount), label: 'Mẫu cấp cứu ưu tiên', icon: 'alert', iconClass: 'bg-red-100 text-[#b91c1c]' },
+    { value: String(handoffCount), label: 'Chờ bàn giao lab', icon: 'file', iconClass: 'bg-teal-100 text-[#006673]' },
+    { value: String(priorityCount), label: 'Mẫu cấp cứu ưu tiên', icon: 'alert', iconClass: 'bg-red-100 text-[#ba1a1a]' },
   ];
 
   // Filter specimens client-side
@@ -1186,13 +1186,13 @@ function SamplesScreen() {
     <div className="space-y-5">
       <StatGrid stats={stats} />
       <section className={cn(styles.card, 'overflow-hidden')}>
-        <div className="flex border-b border-[#cbd5e1] bg-[#f8fafc]">
+        <div className="flex border-b border-[#bfc7d2] bg-[#f0f4f8]">
           <button
             className={cn(
               'px-6 py-3 text-sm font-medium transition-colors',
               activeTab === 'collect'
                 ? 'border-b-2 border-[#006096] text-[#006096]'
-                : 'text-[#64748b] hover:text-[#1f2937]'
+                : 'text-[#3f4851] hover:text-[#171c1f]'
             )}
             type="button"
             onClick={() => setActiveTab('collect')}
@@ -1204,7 +1204,7 @@ function SamplesScreen() {
               'px-6 py-3 text-sm font-medium transition-colors',
               activeTab === 'handoff'
                 ? 'border-b-2 border-[#006096] text-[#006096]'
-                : 'text-[#64748b] hover:text-[#1f2937]'
+                : 'text-[#3f4851] hover:text-[#171c1f]'
             )}
             type="button"
             onClick={() => setActiveTab('handoff')}
@@ -1215,8 +1215,8 @@ function SamplesScreen() {
 
         {activeTab === 'collect' ? (
           <div className="grid min-h-[620px] lg:grid-cols-[288px_minmax(0,1fr)]">
-            <aside className="border-r border-[#cbd5e1]">
-              <div className="flex gap-2 border-b border-[#cbd5e1] bg-[#f8fafc] p-3">
+            <aside className="border-r border-[#bfc7d2]">
+              <div className="flex gap-2 border-b border-[#bfc7d2] bg-[#f0f4f8] p-3">
                 <select
                   className={cn(styles.input, 'h-9 text-xs')}
                   value={departmentFilter}
@@ -1228,7 +1228,7 @@ function SamplesScreen() {
                 <label className="relative flex-1">
                   <span className="sr-only">Tìm bệnh nhân</span>
                   <Icon
-                    className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#64748b]"
+                    className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#3f4851]"
                     name="search"
                   />
                   <input
@@ -1239,16 +1239,16 @@ function SamplesScreen() {
                   />
                 </label>
               </div>
-              <p className="bg-[#f8fafc]/70 px-4 py-2 text-xs font-bold uppercase leading-4 tracking-[0.4px] text-[#64748b]">
+              <p className="bg-[#f0f4f8]/70 px-4 py-2 text-xs font-bold uppercase leading-4 tracking-[0.4px] text-[#3f4851]">
                 Bệnh nhân chờ lấy mẫu ({pendingPatientsList.length})
               </p>
               {pendingPatientsList.length === 0 ? (
-                <div className="p-4 text-center text-xs text-[#64748b]">Không có bệnh nhân nào chờ lấy mẫu</div>
+                <div className="p-4 text-center text-xs text-[#3f4851]">Không có bệnh nhân nào chờ lấy mẫu</div>
               ) : (
                 pendingPatientsList.map((patient, index) => (
                   <button
                     className={cn(
-                      'flex w-full items-center gap-3 border-b border-[#f1f5f9] p-4 text-left transition-colors',
+                      'flex w-full items-center gap-3 border-b border-[#eaeef2] p-4 text-left transition-colors',
                       patient.patientCode === activePatientCode && 'border-l-4 border-l-[#006096] bg-indigo-50'
                     )}
                     key={patient.patientCode}
@@ -1264,10 +1264,10 @@ function SamplesScreen() {
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold uppercase text-[#1f2937]">
+                      <span className="block truncate text-sm font-bold uppercase text-[#171c1f]">
                         {patient.patientName}
                       </span>
-                      <span className="block text-xs text-[#64748b]">Mã: {patient.patientCode}</span>
+                      <span className="block text-xs text-[#3f4851]">Mã: {patient.patientCode}</span>
                       <span className="block text-xs font-semibold text-[#006096]">
                         {patient.count} mẫu bệnh phẩm
                       </span>
@@ -1278,49 +1278,49 @@ function SamplesScreen() {
             </aside>
             <div className="min-w-0">
               {selectedPatientInfo ? (
-                <div className="flex flex-wrap justify-between gap-3 border-b border-[#cbd5e1] p-4">
+                <div className="flex flex-wrap justify-between gap-3 border-b border-[#bfc7d2] p-4">
                   <div>
-                    <h2 className="text-lg font-bold leading-7 text-[#1f2937]">{selectedPatientInfo.patientName}</h2>
-                    <p className="text-xs leading-5 text-[#64748b]">
+                    <h2 className="text-lg font-bold leading-7 text-[#171c1f]">{selectedPatientInfo.patientName}</h2>
+                    <p className="text-xs leading-5 text-[#3f4851]">
                       Mã BN: {selectedPatientInfo.patientCode} • Khoa: {selectedPatientInfo.departmentName}
                     </p>
                   </div>
                   <div className="text-left lg:text-right">
-                    <p className="text-xs font-medium leading-4 text-[#64748b]">Số mẫu chờ lấy:</p>
+                    <p className="text-xs font-medium leading-4 text-[#3f4851]">Số mẫu chờ lấy:</p>
                     <p className="text-sm font-bold leading-5 text-[#006096]">
                       {activePatientSpecimens.length} mẫu bệnh phẩm
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="border-b border-[#cbd5e1] p-4 text-sm text-[#64748b]">
+                <div className="border-b border-[#bfc7d2] p-4 text-sm text-[#3f4851]">
                   Chọn bệnh nhân ở danh sách bên trái để xem yêu cầu lấy mẫu
                 </div>
               )}
               <div className="space-y-4 p-4">
                 {activePatientSpecimens.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-[#64748b]">
+                  <div className="py-8 text-center text-sm text-[#3f4851]">
                     Đã hoàn thành lấy tất cả mẫu cho bệnh nhân này!
                   </div>
                 ) : (
                   activePatientSpecimens.map((order) => (
                     <article
                       className={cn(
-                        'overflow-hidden rounded-lg border border-[#cbd5e1] shadow-[0_1px_2px_rgba(0,0,0,0.05)]',
-                        order.priority && 'border-l-4 border-l-[#b91c1c]'
+                        'overflow-hidden rounded-lg border border-[#bfc7d2] shadow-[0_1px_2px_rgba(0,0,0,0.05)]',
+                        order.priority && 'border-l-4 border-l-[#ba1a1a]'
                       )}
                       key={order.id}
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#cbd5e1] bg-[#f8fafc] px-4 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#bfc7d2] bg-[#f0f4f8] px-4 py-2">
                         <div className="flex flex-wrap items-center gap-3">
-                          <span className="rounded-sm bg-[#e5e7eb] px-2 py-0.5 text-xs font-bold text-[#475569]">
+                          <span className="rounded-sm bg-[#e4e9ed] px-2 py-0.5 text-xs font-bold text-[#3f4851]">
                             {order.specimenCode}
                           </span>
-                          <span className="text-xs font-bold uppercase text-[#0f766e]">
+                          <span className="text-xs font-bold uppercase text-[#006673]">
                             {order.specimenType}
                           </span>
                           {order.priority && (
-                            <span className="rounded-sm bg-red-100 px-2 py-0.5 text-xs font-bold text-[#b91c1c]">
+                            <span className="rounded-sm bg-red-100 px-2 py-0.5 text-xs font-bold text-[#ba1a1a]">
                               ƯU TIÊN CẤP CỨU
                             </span>
                           )}
@@ -1330,12 +1330,12 @@ function SamplesScreen() {
                             </span>
                           )}
                         </div>
-                        <span className="text-xs font-bold uppercase text-[#475569]">Chờ lấy mẫu</span>
+                        <span className="text-xs font-bold uppercase text-[#3f4851]">Chờ lấy mẫu</span>
                       </div>
                       <div className="space-y-2 px-4 py-4">
                         <h3 className="text-base font-bold leading-6 text-[#006096]">{order.orderDescription}</h3>
-                        <p className="text-xs leading-5 text-[#64748b]">
-                          Bệnh nhân: <strong className="text-[#334155]">{order.patientName} ({order.patientCode})</strong> • Khoa: <strong className="text-[#334155]">{order.departmentName}</strong>
+                        <p className="text-xs leading-5 text-[#3f4851]">
+                          Bệnh nhân: <strong className="text-[#171c1f]">{order.patientName} ({order.patientCode})</strong> • Khoa: <strong className="text-[#171c1f]">{order.departmentName}</strong>
                         </p>
                         <div className="flex flex-wrap justify-end gap-3 pt-3">
                           <button
@@ -1367,29 +1367,29 @@ function SamplesScreen() {
           </div>
         ) : (
           <div className="p-4 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#cbd5e1] pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#bfc7d2] pb-3">
               <div>
-                <h2 className="text-lg font-bold leading-7 text-[#1f2937]">Danh sách mẫu đã lấy — Chờ bàn giao Phòng Lab</h2>
-                <p className="text-xs text-[#64748b]">Các mẫu bệnh phẩm đã được lấy thành công, sẵn sàng bàn giao sang kỹ thuật viên phòng xét nghiệm</p>
+                <h2 className="text-lg font-bold leading-7 text-[#171c1f]">Danh sách mẫu đã lấy — Chờ bàn giao Phòng Lab</h2>
+                <p className="text-xs text-[#3f4851]">Các mẫu bệnh phẩm đã được lấy thành công, sẵn sàng bàn giao sang kỹ thuật viên phòng xét nghiệm</p>
               </div>
-              <span className="rounded-sm bg-teal-100 px-3 py-1 text-xs font-bold text-[#0f766e]">
+              <span className="rounded-sm bg-teal-100 px-3 py-1 text-xs font-bold text-[#006673]">
                 {collectedSpecimens.length} mẫu chờ bàn giao
               </span>
             </div>
 
             {collectedSpecimens.length === 0 ? (
-              <div className="py-12 text-center text-sm text-[#64748b]">
+              <div className="py-12 text-center text-sm text-[#3f4851]">
                 Chưa có mẫu bệnh phẩm nào đã lấy chờ bàn giao.
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {collectedSpecimens.map((spec) => (
                   <article
-                    className="overflow-hidden rounded-lg border border-[#cbd5e1] bg-white p-4 shadow-sm space-y-3"
+                    className="overflow-hidden rounded-lg border border-[#bfc7d2] bg-white p-4 shadow-sm space-y-3"
                     key={spec.id}
                   >
-                    <div className="flex items-center justify-between border-b border-[#f1f5f9] pb-2">
-                      <span className="rounded bg-[#e5e7eb] px-2 py-0.5 text-xs font-bold text-[#334155]">
+                    <div className="flex items-center justify-between border-b border-[#eaeef2] pb-2">
+                      <span className="rounded bg-[#e4e9ed] px-2 py-0.5 text-xs font-bold text-[#171c1f]">
                         {spec.specimenCode}
                       </span>
                       <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-bold text-[#15803d]">
@@ -1398,17 +1398,17 @@ function SamplesScreen() {
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-[#006096]">{spec.orderDescription}</h3>
-                      <p className="text-xs text-[#475569] font-medium">Loại mẫu: {spec.specimenType}</p>
-                      <p className="text-xs text-[#64748b]">
+                      <p className="text-xs text-[#3f4851] font-medium">Loại mẫu: {spec.specimenType}</p>
+                      <p className="text-xs text-[#3f4851]">
                         Bệnh nhân: <strong>{spec.patientName}</strong> ({spec.patientCode})
                       </p>
-                      <p className="text-xs text-[#64748b]">
+                      <p className="text-xs text-[#3f4851]">
                         Thời gian lấy: {spec.collectedAt ? new Date(spec.collectedAt).toLocaleTimeString('vi-VN') + ' - ' + new Date(spec.collectedAt).toLocaleDateString('vi-VN') : '—'}
                       </p>
                     </div>
-                    <div className="flex items-center justify-between pt-2 border-t border-[#f1f5f9]">
-                      <span className="text-xs text-[#64748b]">
-                        KTV tiếp nhận: <span className="font-semibold text-[#1f2937]">Phòng Lab Central</span>
+                    <div className="flex items-center justify-between pt-2 border-t border-[#eaeef2]">
+                      <span className="text-xs text-[#3f4851]">
+                        KTV tiếp nhận: <span className="font-semibold text-[#171c1f]">Phòng Lab Central</span>
                       </span>
                       <button
                         className={styles.primaryButton}
@@ -1461,11 +1461,11 @@ function BedCard({
 
   if (bed.status === 'available' || bed.status === 'empty') {
     return (
-      <article className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-[#cbd5e1] bg-white p-6 text-center shadow-sm">
-        <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border-2 border-[#e5e7eb] text-[#cbd5e1]">
+      <article className="flex min-h-56 flex-col items-center justify-center rounded-xl border border-[#bfc7d2] bg-white p-6 text-center shadow-sm">
+        <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg border-2 border-[#e4e9ed] text-[#bfc7d2]">
           <Icon name="bed" />
         </div>
-        <p className="mb-4 text-xs font-medium text-[#94a3b8]">Giường {bed.bed} - Trống</p>
+        <p className="mb-4 text-xs font-medium text-[#707882]">Giường {bed.bed} - Trống</p>
         <button
           className={styles.primaryButton}
           type="button"
@@ -1501,13 +1501,13 @@ function BedCard({
 
   const tone =
     effectiveStatus === 'emergency'
-      ? 'border-[#b91c1c] shadow-md ring-2 ring-red-500/20'
+      ? 'border-[#ba1a1a] shadow-md ring-2 ring-red-500/20'
       : effectiveStatus === 'discharge'
         ? 'border-[#22c55e]'
         : 'border-[#006096]';
   const dotClass =
     effectiveStatus === 'emergency'
-      ? 'bg-[#b91c1c]'
+      ? 'bg-[#ba1a1a]'
       : effectiveStatus === 'discharge'
         ? 'bg-[#22c55e]'
         : 'bg-[#006096]';
@@ -1515,11 +1515,11 @@ function BedCard({
   return (
     <>
       <article className={cn('overflow-hidden rounded-xl border bg-white shadow-sm transition-all', tone)}>
-        <div className="flex items-center justify-between gap-2 border-b border-[#f1f5f9] p-3">
-          <p className="text-xs font-bold leading-5 text-[#18181b]">Giường {bed.bed}</p>
+        <div className="flex items-center justify-between gap-2 border-b border-[#eaeef2] p-3">
+          <p className="text-xs font-bold leading-5 text-[#171c1f]">Giường {bed.bed}</p>
           <div className="flex items-center gap-2">
             {bed.allergy && (
-              <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#b91c1c]">
+              <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#ba1a1a]">
                 Dị ứng
               </span>
             )}
@@ -1537,15 +1537,15 @@ function BedCard({
           </div>
         </div>
         <div className="space-y-2 p-4">
-          <h3 className="text-sm font-bold uppercase leading-5 text-[#18181b]">{bed.patient}</h3>
-          <p className="text-xs leading-4 text-[#64748b]">{bed.meta}</p>
-          <p className="min-h-8 text-xs leading-4 text-[#374151]">{bed.diagnosis}</p>
+          <h3 className="text-sm font-bold uppercase leading-5 text-[#171c1f]">{bed.patient}</h3>
+          <p className="text-xs leading-4 text-[#3f4851]">{bed.meta}</p>
+          <p className="min-h-8 text-xs leading-4 text-[#3f4851]">{bed.diagnosis}</p>
           <p className="flex items-center gap-1 text-xs font-semibold leading-4 text-[#006096]">
             <Icon className="h-3.5 w-3.5" name="user" />
             BS. Điều trị phụ trách
           </p>
         </div>
-        <div className="flex flex-wrap gap-1 border-t border-[#f1f5f9] bg-[#f8fafc] p-2">
+        <div className="flex flex-wrap gap-1 border-t border-[#eaeef2] bg-[#f0f4f8] p-2">
           <button
             className={cn(
               styles.secondaryButton,
@@ -1623,12 +1623,12 @@ function TransferReasonModal({
         className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-1 text-sm font-bold text-[#18181b]">Xác nhận chuyển giường</h3>
-        <p className="mb-4 text-xs text-[#64748b]">
+        <h3 className="mb-1 text-sm font-bold text-[#171c1f]">Xác nhận chuyển giường</h3>
+        <p className="mb-4 text-xs text-[#3f4851]">
           Từ giường <strong>{sourceBed.bed}</strong> ({sourceBed.patient}) sang giường{' '}
           <strong>{targetBed.bed}</strong>
         </p>
-        <label className="mb-1 block text-xs font-semibold text-[#334155]">
+        <label className="mb-1 block text-xs font-semibold text-[#171c1f]">
           Lý do chuyển giường (tối thiểu 10 ký tự)
         </label>
         <textarea
@@ -1664,29 +1664,29 @@ function MedicalRecordModal({ bed, onClose }: { bed: BedDto; onClose: () => void
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-[#18181b]">Thông tin bệnh án</h3>
+          <h3 className="text-sm font-bold text-[#171c1f]">Thông tin bệnh án</h3>
           {bed.allergy && (
-            <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#b91c1c]">
+            <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#ba1a1a]">
               Dị ứng
             </span>
           )}
         </div>
         <dl className="space-y-3 text-xs">
           <div>
-            <dt className="font-semibold text-[#64748b]">Bệnh nhân</dt>
-            <dd className="text-[#18181b]">{bed.patient || '—'}</dd>
+            <dt className="font-semibold text-[#3f4851]">Bệnh nhân</dt>
+            <dd className="text-[#171c1f]">{bed.patient || '—'}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-[#64748b]">Giường</dt>
-            <dd className="text-[#18181b]">{bed.roomName} — Giường {bed.bed}</dd>
+            <dt className="font-semibold text-[#3f4851]">Giường</dt>
+            <dd className="text-[#171c1f]">{bed.roomName} — Giường {bed.bed}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-[#64748b]">Thông tin hồ sơ</dt>
-            <dd className="text-[#18181b]">{bed.meta || '—'}</dd>
+            <dt className="font-semibold text-[#3f4851]">Thông tin hồ sơ</dt>
+            <dd className="text-[#171c1f]">{bed.meta || '—'}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-[#64748b]">Chẩn đoán</dt>
-            <dd className="text-[#18181b]">{bed.diagnosis || '—'}</dd>
+            <dt className="font-semibold text-[#3f4851]">Chẩn đoán</dt>
+            <dd className="text-[#171c1f]">{bed.diagnosis || '—'}</dd>
           </div>
         </dl>
         <div className="mt-5 flex justify-end">
@@ -1735,7 +1735,7 @@ function BedsScreen() {
   const sourceBedForModal = bedsList.find((b) => b.id === transferSourceBedId) ?? null;
 
   if (isLoading) {
-    return <div className="p-8 text-center text-[#64748b]">Đang tải dữ liệu buồng giường...</div>;
+    return <div className="p-8 text-center text-[#3f4851]">Đang tải dữ liệu buồng giường...</div>;
   }
 
   const totalBeds = bedsList.length;
@@ -1763,8 +1763,8 @@ function BedsScreen() {
       value: dischargeCount.toString(),
       label: 'Chờ xuất viện',
       icon: 'file',
-      iconClass: 'bg-slate-100 text-[#475569]',
-      valueClass: 'text-[#0284c7]',
+      iconClass: 'bg-slate-100 text-[#3f4851]',
+      valueClass: 'text-[#006096]',
     },
   ];
 
@@ -1791,10 +1791,10 @@ function BedsScreen() {
       <StatGrid stats={stats} />
 
       {/* Action bar - Part B controls */}
-      <div className="rounded-xl border border-[#cbd5e1] bg-white p-4 shadow-sm space-y-3">
-        <div className="flex flex-wrap gap-4 items-center justify-between border-b border-[#f1f5f9] pb-3">
+      <div className="rounded-xl border border-[#bfc7d2] bg-white p-4 shadow-sm space-y-3">
+        <div className="flex flex-wrap gap-4 items-center justify-between border-b border-[#eaeef2] pb-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#1e293b]">Tiếp nhận bệnh nhân chờ giường:</span>
+            <span className="text-xs font-bold text-[#171c1f]">Tiếp nhận bệnh nhân chờ giường:</span>
             <select
               className={cn(styles.input, 'w-80 text-xs')}
               value={selectedRecordId}
@@ -1810,7 +1810,7 @@ function BedsScreen() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#1e293b]">Đánh dấu Cấp cứu:</span>
+            <span className="text-xs font-bold text-[#171c1f]">Đánh dấu Cấp cứu:</span>
             <select
               className={cn(styles.input, 'w-48 text-xs')}
               value={selectedEmergencyBedId}
@@ -1874,13 +1874,13 @@ function BedsScreen() {
           </div>
           <div className="flex flex-wrap items-center gap-4">
             {[
-              ['bg-[#cbd5e1]', 'Trống'],
+              ['bg-[#bfc7d2]', 'Trống'],
               ['bg-[#006096]', 'Đang dùng'],
-              ['bg-[#b91c1c]', 'Cấp cứu'],
+              ['bg-[#ba1a1a]', 'Cấp cứu'],
               ['bg-[#22c55e]', 'Chờ xuất viện'],
             ].map(([color, label]) => (
               <span
-                className="inline-flex items-center gap-2 text-xs font-medium text-[#64748b]"
+                className="inline-flex items-center gap-2 text-xs font-medium text-[#3f4851]"
                 key={label}
               >
                 <span className={cn('h-2.5 w-2.5 rounded-full', color)} />
@@ -1917,7 +1917,7 @@ function BedsScreen() {
       <div className="space-y-8">
         {Object.entries(rooms).map(([roomName, roomBeds]) => (
           <section key={roomName}>
-            <h2 className="mb-4 text-xs font-bold uppercase tracking-[1px] text-[#94a3b8]">
+            <h2 className="mb-4 text-xs font-bold uppercase tracking-[1px] text-[#707882]">
               {roomName}
             </h2>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -1988,8 +1988,8 @@ function CancelOrderModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
       <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <h3 className="mb-4 text-sm font-bold text-[#18181b]">Hủy y lệnh</h3>
-        <label className="mb-1 block text-xs font-semibold text-[#334155]">Lý do hủy</label>
+        <h3 className="mb-4 text-sm font-bold text-[#171c1f]">Hủy y lệnh</h3>
+        <label className="mb-1 block text-xs font-semibold text-[#171c1f]">Lý do hủy</label>
         <textarea
           className={cn(
             styles.input,
@@ -2042,7 +2042,7 @@ function OrderStatus({ order }: { order: OrderDto }) {
         </span>
         <span>
           <span className="block text-xs font-bold text-[#15803d]">Đã thực hiện</span>
-          <span className="block text-[10px] font-medium text-[#64748b]">
+          <span className="block text-[10px] font-medium text-[#3f4851]">
             Bởi ĐD Nguyễn Thị Hương
           </span>
         </span>
@@ -2093,8 +2093,8 @@ function OrderStatus({ order }: { order: OrderDto }) {
 
   return (
     <div className="space-y-2">
-      <label className="flex items-start gap-2 text-xs font-semibold leading-4 text-[#475569]">
-        <input className="mt-0.5 h-4 w-4 rounded border-[#cbd5e1]" type="checkbox" />
+      <label className="flex items-start gap-2 text-xs font-semibold leading-4 text-[#3f4851]">
+        <input className="mt-0.5 h-4 w-4 rounded border-[#bfc7d2]" type="checkbox" />
         Đã test da – Kết quả: ÂM TÍNH
       </label>
       <button
@@ -2147,7 +2147,7 @@ function OrdersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
   if (isLoading) {
-    return <div className="p-8 text-center text-[#64748b]">Đang tải dữ liệu y lệnh...</div>;
+    return <div className="p-8 text-center text-[#3f4851]">Đang tải dữ liệu y lệnh...</div>;
   }
 
   const pendingCount = ordersList.filter(o => o.status === 'active' || o.status === 'pending').length;
@@ -2174,14 +2174,14 @@ function OrdersScreen() {
       value: cancelledCount.toString(),
       label: 'Đã hủy',
       icon: 'alert',
-      iconClass: 'bg-red-50 text-[#dc2626]',
+      iconClass: 'bg-red-50 text-[#ba1a1a]',
       valueClass: 'text-red-700',
     },
     {
       value: allergyCount.toString(),
       label: 'Cảnh báo dị ứng thuốc',
       icon: 'shield',
-      iconClass: 'bg-red-100 text-[#dc2626]',
+      iconClass: 'bg-red-100 text-[#ba1a1a]',
       valueClass: 'text-red-700',
     },
   ];
@@ -2211,7 +2211,7 @@ function OrdersScreen() {
             Danh sách y lệnh & Kế hoạch chăm sóc trong ngày
           </h2>
         </div>
-        <div className="flex flex-wrap gap-3 border-b border-[#f1f5f9] bg-[#f8fafc]/60 p-4">
+        <div className="flex flex-wrap gap-3 border-b border-[#eaeef2] bg-[#f0f4f8]/60 p-4">
           <select
             className={cn(styles.input, 'w-36 text-xs')}
             value={roomFilter}
@@ -2249,7 +2249,7 @@ function OrdersScreen() {
           <label className="relative min-w-[240px] flex-1">
             <span className="sr-only">Tìm y lệnh</span>
             <Icon
-              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]"
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#707882]"
               name="search"
             />
             <input
@@ -2274,7 +2274,7 @@ function OrdersScreen() {
             <tbody>
               {filteredOrders.length === 0 && (
                 <tr>
-                  <td className="p-6 text-center text-sm text-[#64748b]" colSpan={5}>
+                  <td className="p-6 text-center text-sm text-[#3f4851]" colSpan={5}>
                     Không tìm thấy y lệnh phù hợp bộ lọc
                   </td>
                 </tr>
@@ -2288,17 +2288,17 @@ function OrdersScreen() {
                     <p
                       className={cn(
                         'text-base font-bold',
-                        order.status === 'pending' || order.status === 'active' ? 'text-[#006096]' : 'text-[#334155]',
+                        order.status === 'pending' || order.status === 'active' ? 'text-[#006096]' : 'text-[#171c1f]',
                       )}
                     >
                       {new Date(order.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </td>
                   <td className={styles.td}>
-                    <p className="text-sm font-bold uppercase leading-5 text-[#1e293b]">
+                    <p className="text-sm font-bold uppercase leading-5 text-[#171c1f]">
                       {order.patientName}
                     </p>
-                    <p className="mt-1 text-xs font-medium text-[#64748b]">{order.roomLabel}</p>
+                    <p className="mt-1 text-xs font-medium text-[#3f4851]">{order.roomLabel}</p>
                   </td>
                   <td className={styles.td}>
                     {order.status === 'pending' && (
@@ -2314,7 +2314,7 @@ function OrdersScreen() {
                     <p
                       className={cn(
                         'text-sm font-bold leading-5',
-                        order.status === 'blocked' ? 'text-red-700' : 'text-[#1e293b]',
+                        order.status === 'blocked' ? 'text-red-700' : 'text-[#171c1f]',
                       )}
                     >
                       {order.title}
@@ -2322,13 +2322,13 @@ function OrdersScreen() {
                     <span className="mt-1 inline-flex rounded-sm bg-red-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
                       「ĐÃ KÝ」 BS. T.V.Khoa
                     </span>
-                    <p className="mt-1 text-xs font-medium text-[#475569]">{order.instruction}</p>
+                    <p className="mt-1 text-xs font-medium text-[#3f4851]">{order.instruction}</p>
                   </td>
                   <td className={styles.td}>
                     <p
                       className={cn(
                         'text-xs leading-4',
-                        order.status === 'blocked' ? 'font-bold text-red-600' : 'text-[#64748b]',
+                        order.status === 'blocked' ? 'font-bold text-red-600' : 'text-[#3f4851]',
                       )}
                     >
                       {order.note}
@@ -2465,7 +2465,7 @@ function EmergencyScreen() {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-sm font-medium text-[#64748b]">
+      <div className="p-8 text-center text-sm font-medium text-[#3f4851]">
         Đang tải danh sách ca cấp cứu vô danh...
       </div>
     );
@@ -2477,15 +2477,15 @@ function EmergencyScreen() {
         <div
           className={cn(
             'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
-            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#b91c1c]'
+            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]'
           )}
         >
           {toast.message}
         </div>
       )}
 
-      <section className="flex flex-wrap items-center gap-4 rounded-xl border border-[#b91c1c] bg-rose-200 p-5">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#b91c1c]">
+      <section className="flex flex-wrap items-center gap-4 rounded-xl border border-[#ba1a1a] bg-rose-200 p-5">
+        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#ba1a1a]">
           <Icon className="h-6 w-6" name="shield" />
         </div>
         <div className="min-w-0 flex-1">
@@ -2505,20 +2505,20 @@ function EmergencyScreen() {
       </section>
 
       {patients.length === 0 ? (
-        <section className={cn(styles.card, 'p-10 text-center text-sm text-[#64748b]')}>
+        <section className={cn(styles.card, 'p-10 text-center text-sm text-[#3f4851]')}>
           Không còn ca cấp cứu vô danh nào cần chuẩn hóa danh tính.
         </section>
       ) : (
         <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
           <Card count={`${patients.length} ca`} icon="alert" title="Bệnh nhân vô danh chưa xác định">
-            <div className="divide-y divide-[#f1f5f9]">
+            <div className="divide-y divide-[#eaeef2]">
               {patients.map((p) => {
                 const isSelected = p.patientId === selectedPatientId;
                 return (
                   <button
                     className={cn(
                       'flex w-full gap-3 p-4 text-left',
-                      isSelected ? 'border-l-4 border-l-[#b91c1c] bg-red-700/5' : 'opacity-70'
+                      isSelected ? 'border-l-4 border-l-[#ba1a1a] bg-red-700/5' : 'opacity-70'
                     )}
                     key={p.patientId}
                     type="button"
@@ -2527,14 +2527,14 @@ function EmergencyScreen() {
                     <span
                       className={cn(
                         'flex h-10 w-10 items-center justify-center rounded-lg',
-                        isSelected ? 'bg-rose-200 text-[#b91c1c]' : 'bg-gray-100 text-gray-400'
+                        isSelected ? 'bg-rose-200 text-[#ba1a1a]' : 'bg-gray-100 text-gray-400'
                       )}
                     >
                       <Icon name="user" />
                     </span>
                     <span className="min-w-0">
                       <span className="block text-sm font-bold leading-4 text-gray-900">{p.tempName}</span>
-                      <span className="mt-1 block text-xs leading-5 text-[#64748b]">
+                      <span className="mt-1 block text-xs leading-5 text-[#3f4851]">
                         STT {String(p.sttNumber).padStart(2, '0')}
                         {p.bedLabel ? ` • Giường ${p.bedLabel}` : ''}
                         {p.roomLabel ? ` • ${p.roomLabel}` : ''}
@@ -2542,7 +2542,7 @@ function EmergencyScreen() {
                       <span
                         className={cn(
                           'mt-1 block text-[10px] font-bold leading-5',
-                          isSelected ? 'text-[#b91c1c]' : 'text-gray-400'
+                          isSelected ? 'text-[#ba1a1a]' : 'text-gray-400'
                         )}
                       >
                         Vào viện: {formatAdmittedAt(p.admittedAt)}
@@ -2556,7 +2556,7 @@ function EmergencyScreen() {
 
           <section className={cn(styles.card, 'overflow-hidden')}>
             <div className="border-b border-red-700/20 bg-red-50 px-5 py-3">
-              <h2 className="flex items-center gap-2 text-xs font-bold uppercase leading-4 text-[#b91c1c]">
+              <h2 className="flex items-center gap-2 text-xs font-bold uppercase leading-4 text-[#ba1a1a]">
                 <Icon name="file" />
                 Biểu mẫu chuẩn hóa danh tính – STT {String(selectedPatient?.sttNumber ?? 0).padStart(2, '0')}
               </h2>
@@ -2596,7 +2596,7 @@ function EmergencyScreen() {
                 />
                 <div>
                   <span className={styles.label}>
-                    Giới tính <span className="text-[#b91c1c]">*</span>
+                    Giới tính <span className="text-[#ba1a1a]">*</span>
                   </span>
                   <div className="grid grid-cols-2 gap-3">
                     {(['male', 'female'] as const).map((g) => {
@@ -2604,7 +2604,7 @@ function EmergencyScreen() {
                       return (
                         <button
                           className={cn(
-                            'flex h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium text-[#18181b]',
+                            'flex h-11 items-center gap-2 rounded-md border px-4 text-sm font-medium text-[#171c1f]',
                             active ? 'border-[#006096] bg-sky-50' : 'border-[#d1d5db] bg-white'
                           )}
                           key={g}
@@ -2680,14 +2680,14 @@ function EmergencyScreen() {
                 </span>
               </label>
               {errors.privacyConfirmed && (
-                <p className="text-xs font-bold text-[#b91c1c]">{errors.privacyConfirmed}</p>
+                <p className="text-xs font-bold text-[#ba1a1a]">{errors.privacyConfirmed}</p>
               )}
               <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-6">
                 <button className={styles.secondaryButton} type="button" onClick={handleReset}>
                   Làm mới
                 </button>
                 <button
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#b91c1c] px-8 text-sm font-bold text-white shadow-[0_4px_6px_rgba(186,26,26,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-[#ba1a1a] px-8 text-sm font-bold text-white shadow-[0_4px_6px_rgba(186,26,26,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
                   disabled={isPending}
                   type="button"
                   onClick={handleSubmit}
@@ -2724,19 +2724,19 @@ function Field({
   return (
     <label>
       <span className={styles.label}>
-        {label} {required && <span className="text-[#b91c1c]">*</span>}
+        {label} {required && <span className="text-[#ba1a1a]">*</span>}
       </span>
       <input
         className={cn(
           styles.input,
-          error && 'border-red-400 text-[#b91c1c] focus:border-red-500 focus:ring-red-500/10'
+          error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10'
         )}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         type={type}
         value={value}
       />
-      {error && <p className="mt-1 text-xs font-bold text-[#b91c1c]">{error}</p>}
+      {error && <p className="mt-1 text-xs font-bold text-[#ba1a1a]">{error}</p>}
     </label>
   );
 }

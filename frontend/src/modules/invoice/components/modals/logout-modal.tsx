@@ -10,8 +10,8 @@ export function LogoutModal({ isOpen, onClose, onConfirmLogout }: LogoutModalPro
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-in fade-in duration-150">
-      <div className="w-full max-w-[360px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-fadeIn">
+      <div className="w-full max-w-[360px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-modalIn">
         {/* Header matching lines 1740-1751 */}
         <div className="p-5 border-b border-[#e4e9ed] flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-[#ffdad6] text-[#ba1a1a] flex items-center justify-center shrink-0">
@@ -55,14 +55,14 @@ export function LogoutModal({ isOpen, onClose, onConfirmLogout }: LogoutModalPro
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] transition-colors"
+            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             Ở lại
           </button>
           <button
             type="button"
             onClick={onConfirmLogout}
-            className="px-4 py-2 bg-[#ba1a1a] text-white rounded-md text-[13px] font-bold hover:bg-[#93000a] transition-colors"
+            className="px-4 py-2 bg-[#ba1a1a] text-white rounded-md text-[13px] font-bold hover:bg-[#93000a] active:scale-[0.97] transition-all duration-200 ease-out shadow-[0_2px_8px_rgba(186,26,26,0.24)] hover:shadow-[0_4px_14px_rgba(186,26,26,0.3)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ba1a1a]/40 focus-visible:ring-offset-1"
           >
             Đăng xuất
           </button>

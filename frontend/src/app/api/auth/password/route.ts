@@ -5,6 +5,7 @@ import {
   backendFetch,
   clearSessionCookie,
   forbiddenOrigin,
+  getSessionMaxAge,
   setSessionCookie,
 } from '@/shared/auth/backend';
 import { resolveRoleHomePath } from '@/shared/auth/role-routing';
@@ -36,7 +37,9 @@ export async function PUT(request: Request) {
   );
 
   if (response.status === 401) clearSessionCookie(nextResponse);
-  if (response.ok) setSessionCookie(nextResponse, payload.data.accessToken);
+  if (response.ok) {
+    setSessionCookie(nextResponse, payload.data.accessToken, getSessionMaxAge(payload.data.expiresAt));
+  }
 
   return nextResponse;
 }

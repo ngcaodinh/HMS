@@ -35,6 +35,7 @@ const dateOnlySchema = z
  */
 export const createSessionSchema = z.object({
   password: z.string().min(1).max(200),
+  remember: z.boolean().optional(),
   username: usernameSchema,
 });
 

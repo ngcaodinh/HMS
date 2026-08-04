@@ -44,7 +44,11 @@ export function AttachmentDropzone({ labTestId, onUploaded, uploaded }: Attachme
         <a className="flex-1 truncate text-[#006096] hover:underline" href={downloadAttachmentUrl(uploaded.attachmentId)} rel="noreferrer" target="_blank">
           {uploaded.originalName}
         </a>
-        <button className="text-xs font-semibold text-[#ba1a1a]" onClick={() => onUploaded(null as unknown as LabTestAttachment)} type="button">
+        <button
+          className="rounded text-xs font-semibold text-[#ba1a1a] transition-colors hover:text-[#93000a] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ba1a1a]/30"
+          onClick={() => onUploaded(null as unknown as LabTestAttachment)}
+          type="button"
+        >
           Đổi tệp
         </button>
       </div>
@@ -69,7 +73,7 @@ export function AttachmentDropzone({ labTestId, onUploaded, uploaded }: Attachme
         role="button"
         style={isDragging ? { borderColor: '#006096' } : undefined}
       >
-        <AssetIcon className="h-8 w-8 opacity-50" name="icon-save.svg" />
+        <AssetIcon className="h-8 w-8 brightness-0 opacity-50" name="icon-save.svg" />
         <p className="text-[13px] font-semibold text-[#3f4851]">
           {uploadMutation.isPending ? 'Đang tải lên...' : 'Kéo thả hoặc click để tải lên'}
         </p>

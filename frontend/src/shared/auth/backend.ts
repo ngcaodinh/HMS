@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 
 import { backendApiV1BaseUrl, buildBackendApiV1Url } from './backend-url';
 import { sessionCookieName } from './session-cookie';
+import { getSessionMaxAge } from './session-expiration';
+
+export { getSessionMaxAge } from './session-expiration';
 
 export const backendBaseUrl = backendApiV1BaseUrl;
 
@@ -16,10 +19,10 @@ export const getSessionToken = () => cookies().get(sessionCookieName)?.value;
  * Lưu JWT vào cookie bảo mật để BFF tự gắn Authorization khi gọi backend.
  * Nhận response Next.js và access token, side effect là set cookie httpOnly trên response.
  */
-export const setSessionCookie = (response: NextResponse, token: string) => {
+export const setSessionCookie = (response: NextResponse, token: string, maxAge: number) => {
   response.cookies.set(sessionCookieName, token, {
     httpOnly: true,
-    maxAge: 8 * 60 * 60,
+    maxAge: Math.max(0, Math.floor(maxAge)),
     path: '/',
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',

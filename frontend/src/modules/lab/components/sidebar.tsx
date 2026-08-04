@@ -47,7 +47,13 @@ export function Sidebar({ onChangeScreen, onLogout, pendingCount, screen, techni
             onClick={() => onChangeScreen(item.id)}
             type="button"
           >
-            <AssetIcon className="h-4 w-4" name={item.icon} />
+            <AssetIcon
+              className={cn(
+                'h-4 w-4 brightness-0 invert transition-opacity duration-200',
+                screen === item.id ? 'opacity-100' : 'opacity-40 group-hover:opacity-75',
+              )}
+              name={item.icon}
+            />
             {item.label}
             {item.id === 'queue' && pendingCount > 0 && <span className={styles.navBadge}>{pendingCount}</span>}
           </button>
@@ -61,7 +67,13 @@ export function Sidebar({ onChangeScreen, onLogout, pendingCount, screen, techni
             onClick={() => onChangeScreen(item.id)}
             type="button"
           >
-            <AssetIcon className="h-4 w-4" name={item.icon} />
+            <AssetIcon
+              className={cn(
+                'h-4 w-4 brightness-0 invert transition-opacity duration-200',
+                screen === item.id ? 'opacity-100' : 'opacity-40 group-hover:opacity-75',
+              )}
+              name={item.icon}
+            />
             {item.label}
           </button>
         ))}
@@ -74,7 +86,7 @@ export function Sidebar({ onChangeScreen, onLogout, pendingCount, screen, techni
           <p className={styles.userRole}>Kỹ thuật viên</p>
         </div>
         <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
-          <AssetIcon className="h-4 w-4 invert" name="icon-logout.svg" />
+          <AssetIcon className="h-4 w-4" name="icon-logout.svg" />
         </button>
       </div>
     </aside>

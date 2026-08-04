@@ -148,7 +148,7 @@ export function HistoryDetail({ labTestId }: { labTestId: string | null }) {
             rel="noreferrer"
             target="_blank"
           >
-            <AssetIcon className="h-4 w-4" name="icon-save.svg" />
+            <AssetIcon className="h-4 w-4 brightness-0" name="icon-save.svg" />
             Tải tệp đính kèm
           </a>
         )}
