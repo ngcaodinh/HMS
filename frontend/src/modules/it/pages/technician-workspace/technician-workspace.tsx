@@ -1481,6 +1481,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
   const [notification, setNotification] = useState<PopupNotification | null>(null);
   const addAccountButtonRef = useRef<HTMLButtonElement>(null);
   const firstAddFieldRef = useRef<HTMLInputElement>(null);
+  const temporaryPasswordCloseButtonRef = useRef<HTMLButtonElement>(null);
   const notificationTimer = useRef<number | null>(null);
   const copyTimer = useRef<number | null>(null);
   const queryClient = useQueryClient();
@@ -1649,6 +1650,12 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
 
     firstAddFieldRef.current?.focus();
   }, [isAddModalOpen]);
+
+  useEffect(() => {
+    if (!temporaryPasswordDialog) return;
+
+    temporaryPasswordCloseButtonRef.current?.focus();
+  }, [temporaryPasswordDialog]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3071,6 +3078,7 @@ function UsersContent({ principal }: { principal: ItPrincipal }) {
               className="absolute top-4 right-4 w-7 h-7 rounded-full bg-[#f0f4f8] hover:bg-[#e4e9ed] text-[#707882] flex items-center justify-center text-sm font-semibold transition"
               aria-label="Đóng hộp thoại mật khẩu tạm thời"
               onClick={closeTemporaryPasswordDialog}
+              ref={temporaryPasswordCloseButtonRef}
               type="button"
             >
               ✕
