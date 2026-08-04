@@ -42,3 +42,10 @@ export function getApiErrorCode(error: unknown): string | undefined {
   const axiosError = error as AxiosError<ApiErrorBody>;
   return axiosError.response?.data?.error?.code;
 }
+
+export function getApiErrorDetails(
+  error: unknown,
+): Array<{ field: string; rule: string; message?: string }> {
+  const axiosError = error as AxiosError<ApiErrorBody>;
+  return axiosError.response?.data?.error?.details ?? [];
+}

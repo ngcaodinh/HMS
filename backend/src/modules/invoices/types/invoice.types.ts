@@ -2,17 +2,9 @@
  * Invoice / settlement DTOs — money fields are decimal strings.
  */
 
-export type HealthInsuranceBenefitLevelDto =
-  | 'NO_COVERAGE'
-  | 'RATE_80'
-  | 'RATE_95'
-  | 'RATE_100';
+export type HealthInsuranceBenefitLevelDto = 'NO_COVERAGE' | 'RATE_80' | 'RATE_95' | 'RATE_100';
 
-export type HealthInsuranceRouteTypeDto =
-  | 'right_route'
-  | 'referral'
-  | 'emergency'
-  | 'wrong_route';
+export type HealthInsuranceRouteTypeDto = 'right_route' | 'referral' | 'emergency' | 'wrong_route';
 
 export type InvoiceStatusDto = 'pending' | 'paid' | 'cancelled' | 'write_off';
 
@@ -72,5 +64,8 @@ export type InvoiceDto = {
     patientCode: string;
     fullName: string;
     recordCode: string;
+    treatmentType: 'outpatient' | 'inpatient' | null;
+    bedId: string | null;
+    department: string | null;
   };
 };

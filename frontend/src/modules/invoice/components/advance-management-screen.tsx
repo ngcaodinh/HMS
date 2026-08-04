@@ -1,303 +1,302 @@
 'use client';
 
-import { useState } from 'react';
-import { AdvanceReceipt, PatientRecord } from '../types/invoice.types';
+import { useEffect, useMemo, useState } from 'react';
+
+import type { PaymentAdvanceSummaryDto } from '../services/payment-advance.api';
+import type { PatientRecord } from '../types/invoice.types';
+import {
+  formatVndInput,
+  parsePositiveVnd,
+  sanitizeVndInput,
+} from '../utils/payment-advance.validation';
 
 interface AdvanceManagementScreenProps {
   patients: PatientRecord[];
-  receipts: AdvanceReceipt[];
-  onOpenAdvanceModal: () => void;
+  summary: PaymentAdvanceSummaryDto | null;
+  isLoading: boolean;
+  isSubmitting: boolean;
+  onPatientChange: (patient: PatientRecord) => void;
+  onCreateDeposit: (input: {
+    recordId: string;
+    amountVnd: number;
+    method: 'cash' | 'momo';
+    reason?: string;
+  }) => void;
   onOpenRefundModal: () => void;
 }
 
+/**
+ * Quản lý màn tạm ứng nội trú; số dư và lịch sử luôn lấy từ API, không dùng số hard-code.
+ */
 export function AdvanceManagementScreen({
   patients,
-  receipts,
-  onOpenAdvanceModal,
+  summary,
+  isLoading,
+  isSubmitting,
+  onPatientChange,
+  onCreateDeposit,
   onOpenRefundModal,
 }: AdvanceManagementScreenProps) {
-  const [activeTab, setActiveTab] = useState<'deposit' | 'refund'>('deposit');
-  const [selectedPatientCode, setSelectedPatientCode] = useState<string>('BN-2026-0091');
-  const [advanceInput, setAdvanceInput] = useState<string>('2.000.000');
-  const [advanceReason, setAdvanceReason] = useState<string>(
-    'Tạm ứng nhập viện nội trú đợt bổ sung',
+  const inpatientPatients = useMemo(
+    () =>
+      patients.filter(
+        (patient) =>
+          patient.treatmentType === 'inpatient' ||
+          Boolean(patient.bedId) ||
+          patient.department.toLocaleLowerCase('vi-VN').includes('nội trú'),
+      ),
+    [patients],
   );
+  const [activeTab, setActiveTab] = useState<'deposit' | 'refund'>('deposit');
+  const [selectedPatientCode, setSelectedPatientCode] = useState('');
+  const [advanceInput, setAdvanceInput] = useState('');
+  const [advanceReason, setAdvanceReason] = useState('');
+  const [method, setMethod] = useState<'cash' | 'momo'>('cash');
+  const [amountError, setAmountError] = useState<string | null>(null);
 
-  const currentPatient = patients.find((p) => p.code === selectedPatientCode) || patients[1];
+  useEffect(() => {
+    const selectedPatientStillExists = inpatientPatients.some(
+      (patient) => patient.code === selectedPatientCode,
+    );
+    if ((!selectedPatientCode || !selectedPatientStillExists) && inpatientPatients[0]) {
+      setSelectedPatientCode(inpatientPatients[0].code);
+      onPatientChange(inpatientPatients[0]);
+    }
+  }, [inpatientPatients, onPatientChange, selectedPatientCode]);
+
+  const currentPatient = inpatientPatients.find((patient) => patient.code === selectedPatientCode);
+  const balance = summary ? Number(summary.balance) : 0;
+
+  /** Kiểm tra tiền VND ở FE để phản hồi ngay, server vẫn validate lại khi nhận request. */
+  const handleCreateDeposit = () => {
+    const amountVnd = parsePositiveVnd(advanceInput);
+    if (!amountVnd) {
+      setAmountError('Số tiền tạm ứng phải lớn hơn 0.');
+      return;
+    }
+    if (!currentPatient?.recordId) {
+      setAmountError('Không xác định được hồ sơ nội trú.');
+      return;
+    }
+    setAmountError(null);
+    onCreateDeposit({
+      recordId: currentPatient.recordId,
+      amountVnd,
+      method,
+      ...(advanceReason.trim() ? { reason: advanceReason.trim() } : {}),
+    });
+  };
+
+  const handlePatientChange = (code: string) => {
+    setSelectedPatientCode(code);
+    const patient = inpatientPatients.find((item) => item.code === code);
+    if (patient) onPatientChange(patient);
+  };
 
   return (
     <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s4">
-      {/* Screen Header matching lines 1267-1284 */}
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
-          <h2 className="text-[22px] font-bold text-[#171c1f] leading-tight">
-            Quản lý tạm ứng nội trú
-          </h2>
+          <h2 className="text-[22px] font-bold text-[#171c1f]">Quản lý tạm ứng nội trú</h2>
           <p className="text-[13px] text-[#707882] mt-0.5">
-            Tạm ứng &amp; Hoàn ứng cho bệnh nhân nội trú
+            Thu và hoàn ứng theo từng hồ sơ nội trú.
           </p>
         </div>
-        <div className="w-80">
-          <select
-            value={selectedPatientCode}
-            onChange={(e) => setSelectedPatientCode(e.target.value)}
-            className="w-full h-10 px-3 border border-[#bfc7d2] rounded-md bg-white text-[13px] font-semibold text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15 cursor-pointer"
-          >
-            {patients.map((p) => (
-              <option key={p.id} value={p.code}>
-                {p.fullName} ({p.code}) — {p.department}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={selectedPatientCode}
+          onChange={(event) => handlePatientChange(event.target.value)}
+          disabled={!inpatientPatients.length}
+          aria-label="Chọn bệnh nhân nội trú"
+          className="w-80 max-w-full h-10 px-3 border border-[#bfc7d2] rounded-md bg-white text-[13px] font-semibold disabled:bg-[#f0f4f8]"
+        >
+          {!inpatientPatients.length ? <option value="">Không có hồ sơ nội trú</option> : null}
+          {inpatientPatients.map((patient) => (
+            <option key={patient.id} value={patient.code}>
+              {patient.fullName} ({patient.code}) — {patient.department}
+            </option>
+          ))}
+        </select>
       </div>
 
-      {/* Patient Mini Info Card matching lines 1287-1296 */}
-      <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px]">
+      {currentPatient ? (
+        <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card grid grid-cols-2 md:grid-cols-4 gap-4 text-[13px]">
           <div>
-            <span className="block text-[11px] font-semibold uppercase text-[#707882] mb-0.5">
-              Họ tên
-            </span>
-            <strong className="text-[#171c1f] font-bold">{currentPatient.fullName}</strong>
+            <span className="block text-[11px] font-semibold uppercase text-[#707882]">Họ tên</span>
+            <strong>{currentPatient.fullName}</strong>
           </div>
           <div>
-            <span className="block text-[11px] font-semibold uppercase text-[#707882] mb-0.5">
-              Mã BN
-            </span>
+            <span className="block text-[11px] font-semibold uppercase text-[#707882]">Mã BN</span>
             <span className="font-mono font-bold text-[#006096]">{currentPatient.code}</span>
           </div>
           <div>
-            <span className="block text-[11px] font-semibold uppercase text-[#707882] mb-0.5">
+            <span className="block text-[11px] font-semibold uppercase text-[#707882]">
               Khoa / Buồng
             </span>
-            <span className="text-[#171c1f] font-medium">{currentPatient.department}</span>
+            <span>{currentPatient.department}</span>
           </div>
           <div>
-            <span className="block text-[11px] font-semibold uppercase text-[#707882] mb-0.5">
+            <span className="block text-[11px] font-semibold uppercase text-[#707882]">
               Ngày nhập viện
             </span>
-            <span className="text-[#171c1f]">17/07/2026</span>
+            <span>{currentPatient.admissionDate}</span>
           </div>
         </div>
-      </div>
+      ) : null}
 
-      {/* Sub-Tabs matching lines 1298-1308 */}
       <div className="flex border-b-2 border-[#e4e9ed] bg-white rounded-t-xl px-4 pt-2">
         <button
           type="button"
           onClick={() => setActiveTab('deposit')}
-          className={`px-5 py-3 text-[13.5px] font-semibold transition-all duration-200 ease-out border-b-2 -mb-[2px] flex items-center gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1 ${
+          aria-pressed={activeTab === 'deposit'}
+          className={`px-5 py-3 text-[13.5px] font-semibold border-b-2 ${
             activeTab === 'deposit'
               ? 'border-[#006096] text-[#006096]'
-              : 'border-transparent text-[#707882] hover:text-[#006096]'
+              : 'border-transparent text-[#707882]'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M3 9l9-7 9 7v11a2 2 0 002 2H5a2 2 0 002-2z"
-            />
-          </svg>
           Thu tạm ứng
         </button>
-
         <button
           type="button"
           onClick={() => setActiveTab('refund')}
-          className={`px-5 py-3 text-[13.5px] font-semibold transition-all duration-200 ease-out border-b-2 -mb-[2px] flex items-center gap-2 rounded-t-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1 ${
+          aria-pressed={activeTab === 'refund'}
+          className={`px-5 py-3 text-[13.5px] font-semibold border-b-2 ${
             activeTab === 'refund'
               ? 'border-[#006096] text-[#006096]'
-              : 'border-transparent text-[#707882] hover:text-[#006096]'
+              : 'border-transparent text-[#707882]'
           }`}
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-          Đối soát &amp; Hoàn trả
+          Đối soát & Hoàn trả
         </button>
       </div>
 
-      {/* Tab 1: Thu tạm ứng matching lines 1311-1360 */}
-      {activeTab === 'deposit' && (
+      {activeTab === 'deposit' ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white rounded-b-xl border border-[#bfc7d2] p-6 shadow-hms-card">
-          {/* Form */}
           <div className="space-y-4">
-            <div className="text-[14px] font-bold text-[#171c1f] flex items-center gap-2 border-b border-[#e4e9ed] pb-3">
-              <svg
-                className="w-4 h-4 text-[#006096]"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth={2} />
-                <circle cx="12" cy="12" r="2" strokeWidth={2} />
-              </svg>
+            <h3 className="text-[14px] font-bold border-b border-[#e4e9ed] pb-3">
               Biểu mẫu thu tiền tạm ứng
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-bold text-[#707882] mb-1">
-                Số tiền tạm ứng (VNĐ) *
-              </label>
+            </h3>
+            <label className="block text-[12px] font-bold text-[#707882]">
+              Số tiền tạm ứng (VNĐ) *
               <input
                 type="text"
-                value={advanceInput}
-                onChange={(e) => setAdvanceInput(e.target.value)}
-                placeholder="Nhập số tiền, VD: 2000000"
-                className="w-full h-10 px-3 border border-[#bfc7d2] rounded-md font-mono font-bold text-[#171c1f] text-[13.5px] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                inputMode="numeric"
+                value={formatVndInput(advanceInput)}
+                onChange={(event) => setAdvanceInput(sanitizeVndInput(event.target.value))}
+                onBlur={() => setAdvanceInput(sanitizeVndInput(advanceInput))}
+                aria-invalid={Boolean(amountError)}
+                className="mt-1 w-full h-10 px-3 border border-[#bfc7d2] rounded-md font-mono font-bold text-[#171c1f]"
               />
-            </div>
-
-            <div>
-              <label className="block text-[12px] font-bold text-[#707882] mb-1">
-                Lý do tạm ứng *
-              </label>
+              {amountError ? (
+                <span className="mt-1 block text-[12px] font-normal text-[#ba1a1a]">
+                  {amountError}
+                </span>
+              ) : null}
+            </label>
+            <label className="block text-[12px] font-bold text-[#707882]">
+              Phương thức *
+              <select
+                value={method}
+                onChange={(event) => setMethod(event.target.value as 'cash' | 'momo')}
+                className="mt-1 w-full h-10 px-3 border border-[#bfc7d2] rounded-md bg-white font-normal text-[#171c1f]"
+              >
+                <option value="cash">Tiền mặt</option>
+                <option value="momo">MoMo</option>
+              </select>
+            </label>
+            <label className="block text-[12px] font-bold text-[#707882]">
+              Lý do tạm ứng
               <textarea
                 rows={3}
+                maxLength={500}
                 value={advanceReason}
-                onChange={(e) => setAdvanceReason(e.target.value)}
-                placeholder="Tạm ứng điều trị nội trú..."
-                className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
+                onChange={(event) => setAdvanceReason(event.target.value)}
+                className="mt-1 w-full p-3 border border-[#bfc7d2] rounded-md font-normal text-[#171c1f]"
               />
-            </div>
-
+            </label>
             <button
               type="button"
-              onClick={onOpenAdvanceModal}
-              className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-sm hover:bg-[#004a75] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-2 shadow-[0_2px_8px_rgba(0,96,150,0.24)] hover:shadow-[0_4px_14px_rgba(0,96,150,0.3)] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-2"
+              disabled={isSubmitting || !currentPatient}
+              onClick={handleCreateDeposit}
+              className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-sm disabled:opacity-50 min-h-[44px]"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-                />
-              </svg>
-              Thu tiền &amp; In phiếu tạm ứng
+              {isSubmitting ? 'Đang lưu giao dịch…' : 'Thu tiền & In phiếu tạm ứng'}
             </button>
           </div>
-
-          {/* History */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b border-[#e4e9ed] pb-3">
-              <div className="text-[14px] font-bold text-[#171c1f] flex items-center gap-2">
-                <svg
-                  className="w-4 h-4 text-[#006096]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"
-                  />
-                </svg>
-                Lịch sử tạm ứng
-              </div>
-              <span className="px-2.5 py-0.5 rounded-full bg-[#cee5ff] text-[#006096] font-bold text-[11px]">
-                2 đợt
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              <div className="p-3 bg-[#f0f4f8] rounded-md border border-[#e4e9ed] flex items-center justify-between">
-                <div>
-                  <div className="font-mono font-bold text-[13px] text-[#171c1f]">
-                    ADV-2026-0012
-                  </div>
-                  <div className="text-[11.5px] text-[#707882]">
-                    17/07/2026 · 08:12 · Nguyễn Văn A
-                  </div>
-                  <div className="text-[11.5px] text-[#707882] mt-0.5">
-                    Tạm ứng nhập viện nội trú
-                  </div>
-                </div>
-                <span className="font-mono font-bold text-[#1a7a4a] text-sm">+ 3.000.000 đ</span>
-              </div>
-
-              <div className="p-3 bg-[#f0f4f8] rounded-md border border-[#e4e9ed] flex items-center justify-between">
-                <div>
-                  <div className="font-mono font-bold text-[13px] text-[#171c1f]">
-                    ADV-2026-0018
-                  </div>
-                  <div className="text-[11.5px] text-[#707882]">
-                    19/07/2026 · 09:45 · Nguyễn Văn A
-                  </div>
-                  <div className="text-[11.5px] text-[#707882] mt-0.5">Bổ sung tạm ứng ngày 3</div>
-                </div>
-                <span className="font-mono font-bold text-[#1a7a4a] text-sm">+ 2.000.000 đ</span>
-              </div>
-            </div>
-
-            <div className="pt-3 border-t-2 border-[#bfc7d2] flex items-center justify-between">
-              <span className="text-[13px] font-bold text-[#171c1f]">Tổng đã tạm ứng</span>
-              <span className="font-mono font-bold text-[#006096] text-base">5.000.000 đ</span>
-            </div>
-          </div>
+          <AdvanceHistory summary={summary} isLoading={isLoading} />
         </div>
-      )}
-
-      {/* Tab 2: Refund matching lines 1363-1393 */}
-      {activeTab === 'refund' && (
+      ) : (
         <div className="bg-white rounded-b-xl border border-[#bfc7d2] p-6 shadow-hms-card space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-[#ffdad6] p-4 rounded-xl text-center border border-[#f5c6c6]">
-              <h4 className="text-[11.5px] font-bold uppercase text-[#ba1a1a]">
-                Tổng viện phí thực tế
-              </h4>
-              <div className="text-[22px] font-bold font-mono text-[#ba1a1a] mt-1">4.200.000 đ</div>
-              <div className="text-[11.5px] text-[#707882] mt-1">Đã lập hóa đơn #INV-2026-0315</div>
+          <div className="bg-[#d4f4e2] border border-[#a7f0c8] rounded-xl p-5 text-center">
+            <div className="text-[28px] font-bold font-mono text-[#1a7a4a]">
+              {balance.toLocaleString('vi-VN')} đ
             </div>
-
-            <div className="bg-[#cee5ff] p-4 rounded-xl text-center border border-[#96ccff]">
-              <h4 className="text-[11.5px] font-bold uppercase text-[#006096]">
-                Tổng tiền đã tạm ứng
-              </h4>
-              <div className="text-[22px] font-bold font-mono text-[#006096] mt-1">5.000.000 đ</div>
-              <div className="text-[11.5px] text-[#707882] mt-1">2 đợt tạm ứng</div>
-            </div>
+            <div className="text-[12px] font-bold text-[#1a7a4a]">Số dư tạm ứng có thể hoàn</div>
           </div>
-
-          <div className="bg-[#d4f4e2] border border-[#a7f0c8] rounded-xl p-5 text-center space-y-1">
-            <div className="text-[28px] font-bold font-mono text-[#1a7a4a] tabular-nums">
-              + 800.000 đ
-            </div>
-            <div className="text-[12px] font-bold text-[#1a7a4a]">Bệnh viện hoàn trả bệnh nhân</div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-[12px] font-bold text-[#707882] mb-1">
-                Lý do hoàn trả * (tối thiểu 10 ký tự)
-              </label>
-              <textarea
-                rows={3}
-                defaultValue="Hoàn trả tiền tạm ứng dư sau khi bệnh nhân xuất viện ngày 20/07/2026"
-                className="w-full p-3 border border-[#bfc7d2] rounded-md text-[13.5px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={onOpenRefundModal}
-              className="w-full py-3 bg-[#1a7a4a] text-white rounded-md font-bold text-sm hover:bg-[#145c38] active:scale-[0.98] transition-all duration-200 ease-out flex items-center justify-center gap-2 shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-2"
-            >
-              Xác nhận hoàn trả &amp; In phiếu
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={isLoading || isSubmitting || balance <= 0 || !currentPatient}
+            onClick={onOpenRefundModal}
+            className="w-full py-3 bg-[#1a7a4a] text-white rounded-md font-bold text-sm disabled:opacity-50 min-h-[44px]"
+          >
+            {balance > 0 ? 'Xác nhận hoàn trả & In phiếu' : 'Không có số dư tạm ứng để hoàn trả'}
+          </button>
+          <AdvanceHistory summary={summary} isLoading={isLoading} />
         </div>
       )}
+    </div>
+  );
+}
+
+function AdvanceHistory({
+  summary,
+  isLoading,
+}: {
+  summary: PaymentAdvanceSummaryDto | null;
+  isLoading: boolean;
+}) {
+  if (isLoading)
+    return (
+      <div role="status" className="text-sm text-[#707882]">
+        Đang tải lịch sử tạm ứng…
+      </div>
+    );
+  if (!summary || summary.items.length === 0)
+    return (
+      <div role="status" className="text-sm text-[#707882]">
+        Chưa có giao dịch tạm ứng.
+      </div>
+    );
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-[14px] font-bold border-b border-[#e4e9ed] pb-3">Lịch sử tạm ứng</h3>
+      {summary.items.map((item) => (
+        <div
+          key={item.id}
+          className="p-3 bg-[#f0f4f8] rounded-md border border-[#e4e9ed] flex items-center justify-between gap-3"
+        >
+          <div>
+            <div className="font-mono font-bold text-[13px]">
+              {item.receiptNumber ?? item.id.slice(0, 8)}
+            </div>
+            <div className="text-[11.5px] text-[#707882]">
+              {new Date(item.createdAt).toLocaleString('vi-VN')} · {item.reason ?? 'Không có lý do'}
+            </div>
+          </div>
+          <span
+            className={`font-mono font-bold text-sm ${item.type === 'deposit' ? 'text-[#1a7a4a]' : 'text-[#ba1a1a]'}`}
+          >
+            {item.type === 'deposit' ? '+' : '-'} {Number(item.amount).toLocaleString('vi-VN')} đ
+          </span>
+        </div>
+      ))}
+      <div className="pt-3 border-t-2 border-[#bfc7d2] flex items-center justify-between">
+        <span className="text-[13px] font-bold">Số dư hiện tại</span>
+        <span className="font-mono font-bold text-[#006096]">
+          {Number(summary.balance).toLocaleString('vi-VN')} đ
+        </span>
+      </div>
     </div>
   );
 }
