@@ -109,6 +109,8 @@ export async function getMedicalRecordDetail(recordId: string, principal: Princi
             icd10: record.icd10,
             icdCodingSystem: record.icdCodingSystem,
             diagnosisText: record.diagnosisText,
+            // treatmentType nullable để dữ liệu không nhất quán vẫn được hiển thị như
+            // "chưa quyết định hướng điều trị", thay vì giả định là ngoại trú.
             treatmentType: record.treatmentType,
             diagnosedAt: record.diagnosedAt,
             diagnosisSignedAt: record.diagnosisSignedAt,

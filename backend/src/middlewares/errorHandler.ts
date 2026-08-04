@@ -32,7 +32,7 @@ export function errorHandler(
   if (error instanceof ZodError) {
     const details = error.issues.map((issue) => ({
       field: issue.path.join('.') || 'body',
-      rule: issue.code,
+      rule: issue.message,
       message: issue.message,
     }));
     const message =

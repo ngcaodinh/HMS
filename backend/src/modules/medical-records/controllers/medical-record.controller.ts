@@ -6,6 +6,7 @@ import {
   diagnoseMedicalRecord,
   orderLabTests,
   recordVitalSigns,
+  recordVitalSignsAndAssessment,
   updateClinicalAssessment,
 } from '../services/medical-record-command.service';
 import {
@@ -13,9 +14,11 @@ import {
   getMedicalRecordDetail,
   listDoctorWorklist,
 } from '../services/medical-record-query.service';
+import type { VitalSignsWithAssessmentInput } from '../types/medical-record.types';
 
 function requirePrincipal(req: Request) {
-  if (!req.principal) throw AppError.unauthorized('UNAUTHENTICATED', 'Không xác thực được người dùng.');
+  if (!req.principal)
+    throw AppError.unauthorized('UNAUTHENTICATED', 'Không xác thực được người dùng.');
   return req.principal;
 }
 
@@ -23,7 +26,11 @@ function requirePrincipal(req: Request) {
  * @route GET /api/v1/medical-records/worklist
  * @access doctor
  */
-export async function listDoctorWorklistController(req: Request, res: Response, next: NextFunction) {
+export async function listDoctorWorklistController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const principal = requirePrincipal(req);
     const { status, date, page, pageSize } = req.query as unknown as {
@@ -43,7 +50,11 @@ export async function listDoctorWorklistController(req: Request, res: Response, 
  * @route GET /api/v1/medical-records/:recordId
  * @access doctor
  */
-export async function getMedicalRecordDetailController(req: Request, res: Response, next: NextFunction) {
+export async function getMedicalRecordDetailController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
@@ -84,10 +95,38 @@ export async function recordVitalSignsController(req: Request, res: Response, ne
 }
 
 /**
+ * @route POST /api/v1/medical-records/:recordId/vital-signs-with-assessment
+ * @desc Lưu sinh hiệu và khám lâm sàng bác sĩ trong cùng transaction.
+ * @access doctor (bác sĩ được phân công)
+ */
+export async function recordVitalSignsAndAssessmentController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
+  try {
+    const principal = requirePrincipal(req);
+    const { recordId } = req.params as { recordId: string };
+    const result = await recordVitalSignsAndAssessment(
+      recordId,
+      principal.userId,
+      req.body as VitalSignsWithAssessmentInput,
+    );
+    sendSuccess(res, result, { status: 201 });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * @route PATCH /api/v1/medical-records/:recordId/clinical-assessment
  * @access doctor
  */
-export async function updateClinicalAssessmentController(req: Request, res: Response, next: NextFunction) {
+export async function updateClinicalAssessmentController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
@@ -117,7 +156,11 @@ export async function orderLabTestsController(req: Request, res: Response, next:
  * @route POST /api/v1/medical-records/:recordId/diagnosis
  * @access doctor
  */
-export async function diagnoseMedicalRecordController(req: Request, res: Response, next: NextFunction) {
+export async function diagnoseMedicalRecordController(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };

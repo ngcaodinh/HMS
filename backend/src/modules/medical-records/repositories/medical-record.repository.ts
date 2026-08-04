@@ -1,12 +1,11 @@
 import { randomUUID } from 'node:crypto';
 
-import type { Prisma } from '@prisma/client';
-
 import { prisma } from '../../../core/db/prisma-client';
 import type {
   ClinicalAssessmentInput,
   DiagnoseRecordInput,
   OrderLabTestsInput,
+  VitalSignsInput,
   WorklistQuery,
 } from '../types/medical-record.types';
 
@@ -46,32 +45,125 @@ export function findMedicalRecordById(recordId: string) {
   return prisma.medicalRecord.findUnique({ where: { id: recordId }, include: detailInclude });
 }
 
+/** Kiểm tra đơn đã ký còn hiệu lực trước khi cho phép đổi hồ sơ từ ngoại trú sang nội trú. */
+export function findActivePrescriptionForRecord(recordId: string) {
+  return prisma.prescription.findFirst({
+    where: { recordId, status: { in: ['active', 'xml_exported'] } },
+    select: { id: true },
+  });
+}
+
 export type MedicalRecordDetail = NonNullable<Awaited<ReturnType<typeof findMedicalRecordById>>>;
 
-export async function snapshotVitalSigns(
+/**
+ * Lưu snapshot sinh hiệu, audit log và khám lâm sàng trong cùng transaction.
+ * Trả về null khi version hồ sơ đã thay đổi để service phát sinh lỗi 409.
+ */
+export async function saveVitalSignsAndAssessment(
   recordId: string,
-  snapshot: Record<string, unknown>,
-  confirmedBy: string,
+  recordedBy: string,
+  input: ClinicalAssessmentInput,
+  vitalSigns: VitalSignsInput,
 ) {
-  await prisma.medicalRecord.update({
-    where: { id: recordId },
-    data: {
-      vitalSigns: snapshot as Prisma.InputJsonValue,
-      vitalConfirmedBy: confirmedBy,
-      vitalConfirmedAt: new Date(),
-    },
+  return prisma.$transaction(async (tx) => {
+    const {
+      expectedVersion: _expectedVersion,
+      chiefComplaint,
+      heightCm,
+      weightKg,
+      historyOfPresentIllness,
+      pastMedicalHistory,
+      familyHistory,
+      skinLesionTypes,
+      skinLesionDescription,
+      skinLesionLocation,
+      skinLesionDistribution,
+      bodySurfaceAreaPercent,
+      itchSeverity,
+      notes,
+    } = input;
+    void _expectedVersion;
+    const assessment = {
+      chiefComplaint,
+      heightCm,
+      weightKg,
+      historyOfPresentIllness,
+      pastMedicalHistory,
+      familyHistory,
+      skinLesionDescription,
+      skinLesionLocation,
+      skinLesionDistribution,
+      bodySurfaceAreaPercent,
+      itchSeverity,
+      notes,
+    };
+    const snapshot = {
+      pulse: vitalSigns.pulse,
+      temperatureC: vitalSigns.temperatureC ?? null,
+      bloodPressureSystolic: vitalSigns.bloodPressureSystolic,
+      bloodPressureDiastolic: vitalSigns.bloodPressureDiastolic,
+      respiratoryRate: vitalSigns.respiratoryRate ?? null,
+      spo2: vitalSigns.spo2,
+      weightKg: vitalSigns.weightKg ?? null,
+    };
+    const updated = await tx.medicalRecord.updateMany({
+      where: {
+        id: recordId,
+        doctorId: recordedBy,
+        version: input.expectedVersion,
+        deletedAt: null,
+        status: { not: 'closed' },
+      },
+      data: {
+        ...assessment,
+        ...(skinLesionTypes ? { skinLesionTypes: skinLesionTypes.join(',') } : {}),
+        vitalSigns: snapshot,
+        vitalConfirmedBy: recordedBy,
+        vitalConfirmedAt: new Date(),
+        version: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1) return null;
+
+    const log = await tx.vitalSignLog.create({
+      data: {
+        id: randomUUID(),
+        recordId,
+        recordedBy,
+        pulse: vitalSigns.pulse,
+        temperatureC: vitalSigns.temperatureC,
+        bloodPressureSystolic: vitalSigns.bloodPressureSystolic,
+        bloodPressureDiastolic: vitalSigns.bloodPressureDiastolic,
+        respiratoryRate: vitalSigns.respiratoryRate,
+        spo2: vitalSigns.spo2,
+        weightKg: vitalSigns.weightKg,
+        treatmentOrderId: vitalSigns.treatmentOrderId,
+        measuredAt: vitalSigns.measuredAt ? new Date(vitalSigns.measuredAt) : undefined,
+        note: vitalSigns.note,
+      },
+    });
+
+    return { log };
   });
 }
 
 export async function updateClinicalAssessment(
   recordId: string,
+  doctorId: string,
   expectedVersion: number,
   input: ClinicalAssessmentInput,
 ) {
-  const { skinLesionTypes, expectedVersion: _v, ...rest } = input;
+  const { skinLesionTypes, expectedVersion: _expectedVersion, ...rest } = input;
+  void _expectedVersion;
 
   const result = await prisma.medicalRecord.updateMany({
-    where: { id: recordId, version: expectedVersion, deletedAt: null },
+    where: {
+      id: recordId,
+      doctorId,
+      version: expectedVersion,
+      deletedAt: null,
+      status: { not: 'closed' },
+    },
     data: {
       ...rest,
       ...(skinLesionTypes ? { skinLesionTypes: skinLesionTypes.join(',') } : {}),
@@ -96,7 +188,13 @@ export async function createLabTestOrders(
 ) {
   return prisma.$transaction(async (tx) => {
     const updated = await tx.medicalRecord.updateMany({
-      where: { id: recordId, version: expectedVersion, deletedAt: null },
+      where: {
+        id: recordId,
+        doctorId: orderedBy,
+        version: expectedVersion,
+        deletedAt: null,
+        status: { not: 'closed' },
+      },
       data: { status: 'waiting_results', version: { increment: 1 } },
     });
     if (updated.count !== 1) return null;

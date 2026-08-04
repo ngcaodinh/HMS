@@ -9,6 +9,7 @@ import {
   listDoctorWorklistController,
   orderLabTestsController,
   recordVitalSignsController,
+  recordVitalSignsAndAssessmentController,
   updateClinicalAssessmentController,
 } from '../controllers/medical-record.controller';
 import {
@@ -17,6 +18,7 @@ import {
   orderLabTestsSchema,
   recordIdParamsSchema,
   recordVitalSignsSchema,
+  recordVitalSignsWithAssessmentSchema,
   updateClinicalAssessmentSchema,
   worklistQuerySchema,
 } from '../schemas/medical-record.schemas';
@@ -43,6 +45,13 @@ medicalRecordRouter.post(
   authorizeAndAudit('vital_sign.write'),
   validateRequest({ params: recordIdParamsSchema, body: recordVitalSignsSchema }),
   recordVitalSignsController,
+);
+
+medicalRecordRouter.post(
+  '/:recordId/vital-signs-with-assessment',
+  authorizeAndAudit('clinical_assessment.write'),
+  validateRequest({ params: recordIdParamsSchema, body: recordVitalSignsWithAssessmentSchema }),
+  recordVitalSignsAndAssessmentController,
 );
 
 medicalRecordRouter.patch(

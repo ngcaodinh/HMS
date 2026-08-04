@@ -141,18 +141,21 @@ describe('reception validation schemas', () => {
       /Invalid literal value, expected true/,
     ],
     ['invalid doctor id', {}, ['doctorId'], /Invalid uuid/],
-  ] as const)('rejects %s with the correct field message', (caseName, patientOverrides, path, message) => {
-    const result = createReceptionBodySchema.safeParse({
-      ...validReceptionBody,
-      doctorId: caseName === 'invalid doctor id' ? 'not-a-uuid' : validReceptionBody.doctorId,
-      newPatient: {
-        ...validReceptionBody.newPatient,
-        ...patientOverrides,
-      },
-    });
+  ] as const)(
+    'rejects %s with the correct field message',
+    (caseName, patientOverrides, path, message) => {
+      const result = createReceptionBodySchema.safeParse({
+        ...validReceptionBody,
+        doctorId: caseName === 'invalid doctor id' ? 'not-a-uuid' : validReceptionBody.doctorId,
+        newPatient: {
+          ...validReceptionBody.newPatient,
+          ...patientOverrides,
+        },
+      });
 
-    expectIssue(result, path, message);
-  });
+      expectIssue(result, path, message);
+    },
+  );
 
   it('returns a specific Vietnamese message for an invalid phone number', () => {
     const result = createReceptionBodySchema.safeParse({
@@ -315,7 +318,7 @@ describe('reception validation schemas', () => {
         details: [
           {
             field: 'newPatient.phoneNumber',
-            rule: 'custom',
+            rule: 'Số điện thoại phải gồm 10 chữ số đầu di động Việt Nam hợp lệ',
             message: 'Số điện thoại phải gồm 10 chữ số đầu di động Việt Nam hợp lệ',
           },
         ],
@@ -357,12 +360,12 @@ describe('reception validation schemas', () => {
         details: [
           {
             field: 'newPatient.phoneNumber',
-            rule: 'custom',
+            rule: 'Số điện thoại phải gồm 10 chữ số đầu di động Việt Nam hợp lệ',
             message: 'Số điện thoại phải gồm 10 chữ số đầu di động Việt Nam hợp lệ',
           },
           {
             field: 'newPatient.identityCardNumber',
-            rule: 'custom',
+            rule: 'Căn cước công dân phải đủ 12 chữ số',
             message: 'Căn cước công dân phải đủ 12 chữ số',
           },
         ],
@@ -371,24 +374,28 @@ describe('reception validation schemas', () => {
     });
   });
 
-  it.each([
-    ['invalid emergency gender', { gender: 'unknown' }, /Invalid enum value/],
-  ] as const)('rejects %s at the emergency boundary', (_name, overrides, message) => {
-    const identityBase = {
-      expectedVersion: 1,
-      fullName: 'Nguyen Van A',
-      dateOfBirth: '1990-01-15',
-      gender: 'male',
-      phoneNumber: '0912345678',
-      privacyNoticeAccepted: true,
-    };
-    const result = normalizeEmergencyIdentityBodySchema.safeParse({ ...identityBase, ...overrides });
+  it.each([['invalid emergency gender', { gender: 'unknown' }, /Invalid enum value/]] as const)(
+    'rejects %s at the emergency boundary',
+    (_name, overrides, message) => {
+      const identityBase = {
+        expectedVersion: 1,
+        fullName: 'Nguyen Van A',
+        dateOfBirth: '1990-01-15',
+        gender: 'male',
+        phoneNumber: '0912345678',
+        privacyNoticeAccepted: true,
+      };
+      const result = normalizeEmergencyIdentityBodySchema.safeParse({
+        ...identityBase,
+        ...overrides,
+      });
 
-    expect(result.success).toBe(false);
-    if (result.success) return;
+      expect(result.success).toBe(false);
+      if (result.success) return;
 
-    expect(result.error.issues.some((issue) => message.test(issue.message))).toBe(true);
-  });
+      expect(result.error.issues.some((issue) => message.test(issue.message))).toBe(true);
+    },
+  );
 
   it.each([
     ['emergency reason with nine characters', '123456789', 'Lý do cấp cứu tối thiểu 10 ký tự'],
@@ -406,14 +413,18 @@ describe('reception validation schemas', () => {
   });
 
   it('accepts emergency reason at exactly 10 and 500 characters', () => {
-    expect(createEmergencyBodySchema.safeParse({
-      gender: 'male',
-      emergencyReason: '1234567890',
-    }).success).toBe(true);
-    expect(createEmergencyBodySchema.safeParse({
-      gender: 'female',
-      emergencyReason: 'a'.repeat(500),
-    }).success).toBe(true);
+    expect(
+      createEmergencyBodySchema.safeParse({
+        gender: 'male',
+        emergencyReason: '1234567890',
+      }).success,
+    ).toBe(true);
+    expect(
+      createEmergencyBodySchema.safeParse({
+        gender: 'female',
+        emergencyReason: 'a'.repeat(500),
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts emergency identity boundaries and optional phone reason', () => {
@@ -444,7 +455,11 @@ describe('reception validation schemas', () => {
 
   it.each([
     ['missing queue ticket', { queueTicketId: undefined }, 'Thiếu số thứ tự hàng đợi'],
-    ['both patient branches', { existingPatientId: validReceptionBody.doctorId }, 'Đúng một trong existingPatientId | newPatient'],
+    [
+      'both patient branches',
+      { existingPatientId: validReceptionBody.doctorId },
+      'Đúng một trong existingPatientId | newPatient',
+    ],
   ] as const)('rejects %s at the reception root', (_name, overrides, message) => {
     const result = createReceptionBodySchema.safeParse({ ...validReceptionBody, ...overrides });
 
@@ -475,6 +490,8 @@ describe('patient search query validation', () => {
     expect(parsed.page).toBe(1);
     expect(parsed.pageSize).toBe(20);
     expect(searchPatientsQuerySchema.safeParse({ fullName: 'A', page: 0 }).success).toBe(false);
-    expect(searchPatientsQuerySchema.safeParse({ fullName: 'A', pageSize: 101 }).success).toBe(false);
+    expect(searchPatientsQuerySchema.safeParse({ fullName: 'A', pageSize: 101 }).success).toBe(
+      false,
+    );
   });
 });

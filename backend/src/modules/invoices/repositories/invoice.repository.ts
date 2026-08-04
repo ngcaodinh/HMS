@@ -65,12 +65,7 @@ export class InvoiceRepository {
     });
   }
 
-  async list(params: {
-    recordId?: string;
-    status?: InvoiceStatus;
-    skip: number;
-    take: number;
-  }) {
+  async list(params: { recordId?: string; status?: InvoiceStatus; skip: number; take: number }) {
     const where: Prisma.InvoiceWhereInput = {
       ...(params.recordId ? { recordId: params.recordId } : {}),
       ...(params.status ? { status: params.status } : {}),
@@ -371,7 +366,7 @@ export class InvoiceRepository {
   async closeRecordIfOpen(recordId: string) {
     await prisma.medicalRecord.updateMany({
       where: { id: recordId, status: { not: 'closed' } },
-      data: { status: 'closed' },
+      data: { status: 'closed', version: { increment: 1 } },
     });
   }
 }

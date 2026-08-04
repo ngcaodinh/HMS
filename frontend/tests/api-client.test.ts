@@ -103,8 +103,8 @@ describe('apiClient', () => {
       if (!(error instanceof ApiError)) return false;
 
       assert.deepEqual(error.fields, {
-        identityCardNumber: ['CCCD đã tồn tại'],
-        phoneNumber: ['Dữ liệu không hợp lệ'],
+        identityCardNumber: ['unique'],
+        phoneNumber: ['invalid_string'],
       });
 
       return true;

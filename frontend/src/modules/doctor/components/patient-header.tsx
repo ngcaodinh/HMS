@@ -19,7 +19,9 @@ const BASE_STEPS: Array<{ id: StepId; label: string }> = [
 const PRESCRIPTION_STEP: { id: StepId; label: string } = { id: 'prescription', label: 'Đơn thuốc' };
 
 /** Tab 5A only appears once the record is diagnosed with an outpatient plan — updateTab5Visibility() in doctor.html. */
-export function visibleSteps(diagnosis: { treatmentType: string } | null): Array<{ id: StepId; label: string }> {
+export function visibleSteps(
+  diagnosis: { treatmentType: string | null } | null,
+): Array<{ id: StepId; label: string }> {
   if (diagnosis?.treatmentType === 'outpatient') return [...BASE_STEPS, PRESCRIPTION_STEP];
   return BASE_STEPS;
 }
@@ -52,9 +54,18 @@ export function Topbar() {
         <div className="h-6 w-px bg-[#bfc7d2]" />
         <div>
           <p className={styles.topbarTimeStrong}>
-            {now ? now.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }) : ' '}
+            {now
+              ? now.toLocaleDateString('vi-VN', {
+                  weekday: 'long',
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })
+              : ' '}
           </p>
-          <p className={styles.topbarTime}>{now ? `${now.toLocaleTimeString('vi-VN')} ICT` : ' '}</p>
+          <p className={styles.topbarTime}>
+            {now ? `${now.toLocaleTimeString('vi-VN')} ICT` : ' '}
+          </p>
         </div>
       </div>
     </header>
@@ -89,20 +100,35 @@ export function PatientSummary({
   return (
     <section className={styles.patientCard}>
       <div className={styles.patientGrid}>
-        <div className={cn('flex h-[54px] w-[54px] items-center justify-center rounded-[10px] border', avatarTone)}>
+        <div
+          className={cn(
+            'flex h-[54px] w-[54px] items-center justify-center rounded-[10px] border',
+            avatarTone,
+          )}
+        >
           <AssetIcon className="h-7 w-7" name="icon-outpatient.svg" />
         </div>
 
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[18px] font-bold leading-[27px] text-[#171c1f]">{record.patient.fullName}</h2>
-            <span className={cn(styles.chip, 'bg-[#cee5ff] text-[#006096]')}>{record.patient.patientCode}</span>
-            {record.isEmergency && <span className={cn(styles.chip, 'bg-[#ba1a1a] text-white')}>CẤP CỨU</span>}
+            <h2 className="text-[18px] font-bold leading-[27px] text-[#171c1f]">
+              {record.patient.fullName}
+            </h2>
+            <span className={cn(styles.chip, 'bg-[#cee5ff] text-[#006096]')}>
+              {record.patient.patientCode}
+            </span>
+            {record.isEmergency && (
+              <span className={cn(styles.chip, 'bg-[#ba1a1a] text-white')}>CẤP CỨU</span>
+            )}
             {record.patient.allergies && (
-              <span className={cn(styles.chip, 'bg-[#ffdad6] text-[#ba1a1a]')}>Dị ứng: {record.patient.allergies}</span>
+              <span className={cn(styles.chip, 'bg-[#ffdad6] text-[#ba1a1a]')}>
+                Dị ứng: {record.patient.allergies}
+              </span>
             )}
             {record.patient.healthInsuranceCode && (
-              <span className={cn(styles.chip, 'bg-[#edf3ff] text-[#174ea6]')}>BHYT: {record.patient.healthInsuranceCode}</span>
+              <span className={cn(styles.chip, 'bg-[#edf3ff] text-[#174ea6]')}>
+                BHYT: {record.patient.healthInsuranceCode}
+              </span>
             )}
           </div>
           <dl className="mt-3 grid gap-x-5 gap-y-2 sm:grid-cols-3 xl:grid-cols-5">
@@ -118,7 +144,11 @@ export function PatientSummary({
         <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
           <span className={cn(styles.chip, 'bg-[#e5f3ff] text-[#006096]')}>{worklistLabel}</span>
           <div className="flex w-full justify-end gap-2">
-            <button className={styles.outlineButton} onClick={() => setIsRecordModalOpen(true)} type="button">
+            <button
+              className={styles.outlineButton}
+              onClick={() => setIsRecordModalOpen(true)}
+              type="button"
+            >
               Xem bệnh án
             </button>
             <button className={styles.mutedButton} onClick={onCloseRecord} type="button">
@@ -128,18 +158,28 @@ export function PatientSummary({
         </div>
       </div>
 
-      {isRecordModalOpen && <MedicalRecordModal onClose={() => setIsRecordModalOpen(false)} record={record} />}
+      {isRecordModalOpen && (
+        <MedicalRecordModal onClose={() => setIsRecordModalOpen(false)} record={record} />
+      )}
     </section>
   );
 }
 
 /** Mẫu 08/BV-01 rút gọn — bố cục theo đúng ảnh tham chiếu Tailieu/PIC_CHAN_DOAN_LAM_SANG,
  * đổ dữ liệu thật thay vì iframe tĩnh benhan.html (file gốc không có hook data-ba để bind). */
-function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: MedicalRecordDetail }) {
+function MedicalRecordModal({
+  onClose,
+  record,
+}: {
+  onClose: () => void;
+  record: MedicalRecordDetail;
+}) {
   const vitals = record.latestVitalSigns;
   const ca = record.clinicalAssessment;
   const admittedAt = new Date(record.createdAt);
-  const chiefComplaintLower = record.chiefComplaint ? record.chiefComplaint.toLowerCase() : 'lý do chưa ghi nhận';
+  const chiefComplaintLower = record.chiefComplaint
+    ? record.chiefComplaint.toLowerCase()
+    : 'lý do chưa ghi nhận';
   const summaryParts: string[] = [
     `Bệnh nhân ${genderLabel(record.patient.gender).toLowerCase()}, ${calculateAge(record.patient.dateOfBirth)} tuổi, vào viện vì ${chiefComplaintLower}.`,
   ];
@@ -152,11 +192,27 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
   const summary = summaryParts.join(' ');
 
   return (
-    <div className="fixed inset-0 z-50 flex animate-fadeIn items-center justify-center bg-[#3a3f47]/70 p-4 backdrop-blur-[2px] print:static print:animate-none print:bg-transparent print:p-0 print:backdrop-blur-none sm:p-8">
-      <div className="flex max-h-[92vh] w-full max-w-[900px] animate-modalIn flex-col overflow-hidden rounded-[4px] bg-white shadow-2xl print:max-h-none print:animate-none print:overflow-visible print:rounded-none print:shadow-none">
-        <div className="flex shrink-0 items-center justify-between bg-[#171c1f] px-5 py-3 print:hidden">
-          <p className="text-sm font-bold text-white">Phân hệ Bác sĩ — Hồ sơ bệnh án (Mẫu 08/BV-01)</p>
-          <button className="flex h-8 w-8 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white" onClick={onClose} type="button">
+    <div
+      className={cn(
+        styles.modalOverlay,
+        'animate-fadeIn backdrop-blur-[2px] sm:p-8 print:static print:animate-none print:bg-transparent print:p-0 print:backdrop-blur-none',
+      )}
+    >
+      <div
+        className={cn(
+          styles.modalDocumentCard,
+          'animate-modalIn print:max-h-none print:animate-none print:overflow-visible print:rounded-none print:shadow-none',
+        )}
+      >
+        <div className={cn(styles.modalDocumentHeader, 'print:hidden')}>
+          <p className="text-sm font-bold text-white">
+            Phân hệ Bác sĩ — Hồ sơ bệnh án (Mẫu 08/BV-01)
+          </p>
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white"
+            onClick={onClose}
+            type="button"
+          >
             <AssetIcon className="h-4 w-4 invert" name="icon-close.svg" />
           </button>
         </div>
@@ -175,18 +231,22 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
                   Bệnh viện: <BaBlank value="Da liễu" width="w-28" />
                 </p>
                 <p>
-                  Khoa: <BaBlank value="Da liễu" width="w-20" /> Giường: <BaBlank value={record.status === 'closed' ? '—' : 'NT'} width="w-10" />
+                  Khoa: <BaBlank value="Da liễu" width="w-20" /> Giường:{' '}
+                  <BaBlank value={record.status === 'closed' ? '—' : 'NT'} width="w-10" />
                 </p>
               </div>
               <div className="pt-2 text-center">
-                <h1 className="text-[19px] font-bold uppercase tracking-[1.5px] text-[#1a56b0]">Bệnh án Da liễu</h1>
+                <h1 className="text-[19px] font-bold uppercase tracking-[1.5px] text-[#1a56b0]">
+                  Bệnh án Da liễu
+                </h1>
               </div>
               <div className="text-right text-[12.5px] leading-[1.7]">
                 <p>
                   MS: <strong>08/BV-01</strong>
                 </p>
                 <p>
-                  Số lưu trữ: <BaBlank value={record.recordId.slice(0, 8).toUpperCase()} width="w-24" />
+                  Số lưu trữ:{' '}
+                  <BaBlank value={record.recordId.slice(0, 8).toUpperCase()} width="w-24" />
                 </p>
                 <p>
                   Mã YT: <BaBlank value={record.patient.patientCode} width="w-24" />
@@ -197,59 +257,90 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
             <hr className="my-2 border-t border-[#171c1f]" />
 
             <BaSection title="I. Hành chính">
-            <BaRow label="1. Họ và tên (Chữ in hoa)" value={record.patient.fullName.toUpperCase()} />
-            <div className="flex flex-wrap gap-x-6">
-              <BaRow label="2. Ngày sinh" value={formatDateVN(record.patient.dateOfBirth)} />
-              <BaRow label="3. Tuổi" value={String(calculateAge(record.patient.dateOfBirth))} />
-              <BaRow label="4. Giới tính" value={genderLabel(record.patient.gender)} />
-            </div>
-            <BaRow label="7. Địa chỉ" value={record.patient.address ?? 'Chưa ghi nhận'} />
-            <BaRow
-              label="10. Đối tượng"
-              value={record.patient.healthInsuranceCode ? `BHYT — hạn dùng ${formatDateVN(record.patient.healthInsuranceExpiryDate ?? '')}` : 'Thu phí'}
-            />
-            {record.patient.healthInsuranceCode && <BaRow label="11. Số thẻ BHYT" value={record.patient.healthInsuranceCode} />}
-            <BaRow
-              label="12. Người nhà khi cần báo tin"
-              value={
-                record.patient.emergencyContact
-                  ? `${record.patient.emergencyContact}${record.patient.emergencyPhoneNumber ? ' · SĐT: ' + record.patient.emergencyPhoneNumber : ''}`
-                  : 'Chưa ghi nhận'
-              }
-            />
-            <BaRow
-              label="13. Vào viện lúc"
-              value={`${admittedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ngày ${formatDateVN(record.createdAt)}`}
-            />
-          </BaSection>
-
-          <BaSection title="II. Quản lý người bệnh">
-            <BaRow label="16. Chẩn đoán khi vào khoa điều trị" value={record.diagnosis ? `${record.diagnosis.icd10} — ${record.diagnosis.diagnosisText}` : 'Chưa có chẩn đoán'} />
-          </BaSection>
-
-          <BaSection title="III. Bệnh lý">
-            <BaRow label="1. Lý do vào viện" value={record.chiefComplaint ?? 'Chưa ghi nhận'} />
-            <BaParagraph label="2. Quá trình bệnh lý" value={ca.historyOfPresentIllness} />
-            <BaRow label="3. Tiền sử bệnh — Bản thân" value={ca.pastMedicalHistory ?? record.patient.allergies ?? 'Chưa ghi nhận'} />
-            <BaRow label="Tiền sử bệnh — Gia đình" value={ca.familyHistory ?? 'Chưa ghi nhận'} />
-          </BaSection>
-
-          <BaSection title="IV. Khám bệnh">
-            <p className="mb-1 font-bold">1. Toàn thân:</p>
-            {vitals ? (
-              <div className="mb-2 grid grid-cols-2 gap-x-6 gap-y-1 pl-4 sm:grid-cols-3">
-                <BaRow label="Mạch" value={`${vitals.pulse} lần/phút`} />
-                <BaRow label="Nhiệt độ" value={vitals.temperatureC ? `${vitals.temperatureC} °C` : '—'} />
-                <BaRow label="Huyết áp" value={`${vitals.bloodPressureSystolic}/${vitals.bloodPressureDiastolic} mmHg`} />
-                <BaRow label="Nhịp thở" value={vitals.respiratoryRate ? `${vitals.respiratoryRate} lần/phút` : '—'} />
-                <BaRow label="Cân nặng" value={vitals.weightKg ? `${vitals.weightKg} kg` : '—'} />
+              <BaRow
+                label="1. Họ và tên (Chữ in hoa)"
+                value={record.patient.fullName.toUpperCase()}
+              />
+              <div className="flex flex-wrap gap-x-6">
+                <BaRow label="2. Ngày sinh" value={formatDateVN(record.patient.dateOfBirth)} />
+                <BaRow label="3. Tuổi" value={String(calculateAge(record.patient.dateOfBirth))} />
+                <BaRow label="4. Giới tính" value={genderLabel(record.patient.gender)} />
               </div>
-            ) : (
-              <p className="mb-2 pl-4 text-[#707882]">Chưa ghi nhận sinh hiệu.</p>
-            )}
-            <BaParagraph label="2. Thương tổn da" value={ca.skinLesionDescription} />
-            <BaParagraph label="3. Các bộ phận khác" value="Tim đều, phổi trong, bụng mềm, không sờ chạm gan lách." />
-          </BaSection>
+              <BaRow label="7. Địa chỉ" value={record.patient.address ?? 'Chưa ghi nhận'} />
+              <BaRow
+                label="10. Đối tượng"
+                value={
+                  record.patient.healthInsuranceCode
+                    ? `BHYT — hạn dùng ${formatDateVN(record.patient.healthInsuranceExpiryDate ?? '')}`
+                    : 'Thu phí'
+                }
+              />
+              {record.patient.healthInsuranceCode && (
+                <BaRow label="11. Số thẻ BHYT" value={record.patient.healthInsuranceCode} />
+              )}
+              <BaRow
+                label="12. Người nhà khi cần báo tin"
+                value={
+                  record.patient.emergencyContact
+                    ? `${record.patient.emergencyContact}${record.patient.emergencyPhoneNumber ? ' · SĐT: ' + record.patient.emergencyPhoneNumber : ''}`
+                    : 'Chưa ghi nhận'
+                }
+              />
+              <BaRow
+                label="13. Vào viện lúc"
+                value={`${admittedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ngày ${formatDateVN(record.createdAt)}`}
+              />
+            </BaSection>
+
+            <BaSection title="II. Quản lý người bệnh">
+              <BaRow
+                label="16. Chẩn đoán khi vào khoa điều trị"
+                value={
+                  record.diagnosis
+                    ? `${record.diagnosis.icd10} — ${record.diagnosis.diagnosisText}`
+                    : 'Chưa có chẩn đoán'
+                }
+              />
+            </BaSection>
+
+            <BaSection title="III. Bệnh lý">
+              <BaRow label="1. Lý do vào viện" value={record.chiefComplaint ?? 'Chưa ghi nhận'} />
+              <BaParagraph label="2. Quá trình bệnh lý" value={ca.historyOfPresentIllness} />
+              <BaRow
+                label="3. Tiền sử bệnh — Bản thân"
+                value={ca.pastMedicalHistory ?? record.patient.allergies ?? 'Chưa ghi nhận'}
+              />
+              <BaRow label="Tiền sử bệnh — Gia đình" value={ca.familyHistory ?? 'Chưa ghi nhận'} />
+            </BaSection>
+
+            <BaSection title="IV. Khám bệnh">
+              <p className="mb-1 font-bold">1. Toàn thân:</p>
+              {vitals ? (
+                <div className="mb-2 grid grid-cols-2 gap-x-6 gap-y-1 pl-4 sm:grid-cols-3">
+                  <BaRow label="Mạch" value={`${vitals.pulse} lần/phút`} />
+                  <BaRow
+                    label="Nhiệt độ"
+                    value={vitals.temperatureC ? `${vitals.temperatureC} °C` : '—'}
+                  />
+                  <BaRow
+                    label="Huyết áp"
+                    value={`${vitals.bloodPressureSystolic}/${vitals.bloodPressureDiastolic} mmHg`}
+                  />
+                  <BaRow
+                    label="Nhịp thở"
+                    value={vitals.respiratoryRate ? `${vitals.respiratoryRate} lần/phút` : '—'}
+                  />
+                  <BaRow label="Cân nặng" value={vitals.weightKg ? `${vitals.weightKg} kg` : '—'} />
+                </div>
+              ) : (
+                <p className="mb-2 pl-4 text-[#707882]">Chưa ghi nhận sinh hiệu.</p>
+              )}
+              <BaParagraph label="2. Thương tổn da" value={ca.skinLesionDescription} />
+              <BaParagraph
+                label="3. Các bộ phận khác"
+                value="Tim đều, phổi trong, bụng mềm, không sờ chạm gan lách."
+              />
+            </BaSection>
 
             <BaSection title="V. Tổng kết bệnh án">
               <p className="leading-[1.6]">{summary}</p>
@@ -263,7 +354,8 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
               </div>
               <div>
                 <p className="italic">
-                  Ngày {admittedAt.getDate()} tháng {admittedAt.getMonth() + 1} năm {admittedAt.getFullYear()}
+                  Ngày {admittedAt.getDate()} tháng {admittedAt.getMonth() + 1} năm{' '}
+                  {admittedAt.getFullYear()}
                 </p>
                 <p className="font-bold">Trưởng khoa</p>
                 <p className="text-[11px] italic">(Ký và ghi rõ họ tên)</p>
@@ -289,7 +381,13 @@ function MedicalRecordModal({ onClose, record }: { onClose: () => void; record: 
 }
 
 function BaBlank({ value, width }: { value: string; width: string }) {
-  return <span className={cn('inline-block border-b border-dotted border-[#555] px-1 text-[12.5px]', width)}>{value}</span>;
+  return (
+    <span
+      className={cn('inline-block border-b border-dotted border-[#555] px-1 text-[12.5px]', width)}
+    >
+      {value}
+    </span>
+  );
 }
 
 function BaSection({ children, title }: { children: ReactNode; title: string }) {
@@ -314,7 +412,8 @@ function BaParagraph({ label, value }: { label: string; value: string | null }) 
   return (
     <div className="mb-1">
       <p>
-        <span className="font-bold">{label}:</span> {value || <span className="text-[#8a8f96]">Chưa ghi nhận.</span>}
+        <span className="font-bold">{label}:</span>{' '}
+        {value || <span className="text-[#8a8f96]">Chưa ghi nhận.</span>}
       </p>
     </div>
   );
@@ -344,9 +443,13 @@ export function StepTabs({
             onClick={() => onChangeScreen(step.id)}
             type="button"
           >
-            <span className={cn(styles.stepNumber, active && styles.stepNumberActive)}>{index + 1}</span>
+            <span className={cn(styles.stepNumber, active && styles.stepNumberActive)}>
+              {index + 1}
+            </span>
             {step.label}
-            {step.id === 'results' && hasNewResult && <span className="h-1.5 w-1.5 rounded-full bg-[#fbbf24]" />}
+            {step.id === 'results' && hasNewResult && (
+              <span className="h-1.5 w-1.5 rounded-full bg-[#fbbf24]" />
+            )}
             {index < steps.length - 1 && <span className="ml-1 text-[#bfc7d2]">›</span>}
           </button>
         );
@@ -367,9 +470,12 @@ export function EmptyState({ onStart }: { onStart: () => void }) {
       <div className={styles.emptyIconWrap}>
         <AssetIcon className="h-[94px] w-[94px]" name="icon-empty-medical.svg" />
       </div>
-      <h2 className="mt-5 text-base font-bold leading-6 text-[#171c1f]">Sẵn sàng tiếp nhận bệnh nhân</h2>
+      <h2 className="mt-5 text-base font-bold leading-6 text-[#171c1f]">
+        Sẵn sàng tiếp nhận bệnh nhân
+      </h2>
       <p className="mt-4 max-w-[448px] text-center text-base leading-[26px] text-[#41474f]">
-        Vui lòng chọn một bệnh nhân từ danh sách hàng đợi bên trái để bắt đầu quá trình khám lâm sàng.
+        Vui lòng chọn một bệnh nhân từ danh sách hàng đợi bên trái để bắt đầu quá trình khám lâm
+        sàng.
       </p>
       <div className="mt-5 flex w-full max-w-[400px] flex-col gap-4">
         {cards.map(([number, title, description]) => (
@@ -380,7 +486,11 @@ export function EmptyState({ onStart }: { onStart: () => void }) {
           </article>
         ))}
       </div>
-      <button className={cn(styles.primaryButton, 'mt-6 px-6 text-base font-bold')} onClick={onStart} type="button">
+      <button
+        className={cn(styles.primaryButton, 'mt-6 px-6 text-base font-bold')}
+        onClick={onStart}
+        type="button"
+      >
         <AssetIcon className="h-4 w-[22px] brightness-0 invert" name="icon-call-next.svg" />
         Gọi bệnh nhân kế tiếp
       </button>

@@ -5,9 +5,9 @@ export interface PrescriptionItemInput {
   medicineId: string;
   quantity: number;
   days: number;
-  dosePerUse?: string;
+  dosePerUse: string;
   usesPerDay?: number;
-  useTiming?: string;
+  useTiming: string;
   dosageInstruction: string;
 }
 

@@ -4,17 +4,19 @@ import { findIcd10ByCode } from '../constants/icd10-catalog';
 import {
   createLabTestOrders,
   diagnoseRecord,
+  findActivePrescriptionForRecord,
   findActiveLabTestType,
   findMedicalRecordById,
-  snapshotVitalSigns,
+  saveVitalSignsAndAssessment,
   updateClinicalAssessment as updateClinicalAssessmentRepo,
 } from '../repositories/medical-record.repository';
-import { createVitalSignLog } from '../repositories/vital-sign.repository';
+import { createVitalSignLogAndSnapshot } from '../repositories/vital-sign.repository';
 import type {
   ClinicalAssessmentInput,
   DiagnoseRecordInput,
   OrderLabTestsInput,
   VitalSignsInput,
+  VitalSignsWithAssessmentInput,
 } from '../types/medical-record.types';
 
 async function loadAssignedOpenRecord(recordId: string, doctorId: string) {
@@ -35,33 +37,49 @@ async function loadAssignedOpenRecord(recordId: string, doctorId: string) {
  * @access doctor, nurse
  * @throws {AppError} 400 RECORD_ALREADY_CLOSED, 404 MEDICAL_RECORD_NOT_FOUND
  */
-export async function recordVitalSigns(recordId: string, recordedBy: string, input: VitalSignsInput) {
+export async function recordVitalSigns(
+  recordId: string,
+  recordedBy: string,
+  input: VitalSignsInput,
+) {
   const record = await findMedicalRecordById(recordId);
   if (!record) throw AppError.notFound('MEDICAL_RECORD_NOT_FOUND', 'Không tìm thấy hồ sơ khám.');
   if (record.status === 'closed') {
     throw AppError.badRequest('RECORD_ALREADY_CLOSED', 'Hồ sơ khám đã đóng.');
   }
 
-  const log = await createVitalSignLog(recordId, recordedBy, input);
-  await snapshotVitalSigns(
-    recordId,
-    {
-      pulse: input.pulse,
-      temperatureC: input.temperatureC ?? null,
-      bloodPressureSystolic: input.bloodPressureSystolic,
-      bloodPressureDiastolic: input.bloodPressureDiastolic,
-      respiratoryRate: input.respiratoryRate ?? null,
-      spo2: input.spo2,
-      weightKg: input.weightKg ?? null,
-    },
-    recordedBy,
-  );
+  const log = await createVitalSignLogAndSnapshot(recordId, recordedBy, input);
 
   return {
     vitalSignId: log.id,
     recordId,
     measuredAt: log.measuredAt,
     recordedBy,
+    latestSnapshotUpdated: true,
+  };
+}
+
+/**
+ * Lưu toàn bộ form khám bác sĩ bằng một transaction để không tạo hồ sơ nửa vời.
+ * Chỉ route có quyền clinical assessment gọi được hàm này; nurse vẫn dùng API vital riêng.
+ */
+export async function recordVitalSignsAndAssessment(
+  recordId: string,
+  doctorId: string,
+  input: VitalSignsWithAssessmentInput,
+) {
+  await loadAssignedOpenRecord(recordId, doctorId);
+
+  const result = await saveVitalSignsAndAssessment(recordId, doctorId, input, input);
+  if (!result) {
+    throw AppError.conflict('VERSION_CONFLICT', 'Hồ sơ đã bị thay đổi bởi thao tác khác.');
+  }
+
+  return {
+    vitalSignId: result.log.id,
+    recordId,
+    measuredAt: result.log.measuredAt,
+    recordedBy: doctorId,
     latestSnapshotUpdated: true,
   };
 }
@@ -79,7 +97,12 @@ export async function updateClinicalAssessment(
 ) {
   await loadAssignedOpenRecord(recordId, doctorId);
 
-  const updated = await updateClinicalAssessmentRepo(recordId, input.expectedVersion, input);
+  const updated = await updateClinicalAssessmentRepo(
+    recordId,
+    doctorId,
+    input.expectedVersion,
+    input,
+  );
   if (!updated) {
     throw AppError.conflict('VERSION_CONFLICT', 'Hồ sơ đã bị thay đổi bởi thao tác khác.');
   }
@@ -106,7 +129,10 @@ export async function orderLabTests(recordId: string, doctorId: string, input: O
   for (const item of input.items) {
     const type = await findActiveLabTestType(item.labTestTypeId);
     if (!type) {
-      throw AppError.badRequest('LAB_TEST_TYPE_INACTIVE', 'Loại xét nghiệm không tồn tại hoặc đã ngừng hoạt động.');
+      throw AppError.badRequest(
+        'LAB_TEST_TYPE_INACTIVE',
+        'Loại xét nghiệm không tồn tại hoặc đã ngừng hoạt động.',
+      );
     }
     resolvedTypes.set(item.labTestTypeId, { testName: type.name, fee: type.price.toString() });
   }
@@ -151,7 +177,17 @@ export async function diagnoseMedicalRecord(
     throw AppError.badRequest('INVALID_ICD_CODE', 'Mã ICD-10 không hợp lệ.');
   }
 
-  await loadAssignedOpenRecord(recordId, doctorId);
+  const currentRecord = await loadAssignedOpenRecord(recordId, doctorId);
+
+  if (currentRecord.treatmentType === 'outpatient' && input.treatmentType === 'inpatient') {
+    const activePrescription = await findActivePrescriptionForRecord(recordId);
+    if (activePrescription) {
+      throw AppError.badRequest(
+        'PRESCRIPTION_EXISTS_CANNOT_CHANGE_TREATMENT_TYPE',
+        'Đã có đơn thuốc ngoại trú được ký, không thể đổi sang nội trú. Vui lòng hủy đơn thuốc trước.',
+      );
+    }
+  }
 
   const record = await diagnoseRecord(recordId, doctorId, input);
   if (!record) {

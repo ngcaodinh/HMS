@@ -38,9 +38,9 @@ interface ItemToCreate {
   dosageSnapshot: string | null;
   quantity: number;
   days: number;
-  dosePerUse?: string;
+  dosePerUse: string;
   usesPerDay?: number;
-  useTiming?: string;
+  useTiming: string;
   dosageInstruction: string;
   longTermReason?: string;
   unitPrice: string;
@@ -52,10 +52,28 @@ export async function createDraftPrescription(
   prescribedBy: string,
   roundNumber: number,
   prescriptionType: 'C' | 'N' | 'H',
+  expectedRecordVersion: number,
   items: ItemToCreate[],
   allergyOverrideReason: string | undefined,
 ) {
   return prisma.$transaction(async (tx) => {
+    // Tăng version hồ sơ cùng transaction với draft để đổi treatmentType không thể
+    // ghi đè một request kê đơn đang chạy đồng thời.
+    const recordUpdate = await tx.medicalRecord.updateMany({
+      where: {
+        id: recordId,
+        doctorId: prescribedBy,
+        version: expectedRecordVersion,
+        deletedAt: null,
+        status: 'diagnosed',
+        treatmentType: 'outpatient',
+      },
+      data: { version: { increment: 1 } },
+    });
+    if (recordUpdate.count !== 1) {
+      throw AppError.conflict('VERSION_CONFLICT', 'Hồ sơ đã bị thay đổi bởi thao tác khác.');
+    }
+
     const existingCount = await tx.prescription.count();
     const prescriptionCode = `RX-${new Date().getFullYear()}-${String(existingCount + 1).padStart(4, '0')}`;
 
@@ -111,9 +129,31 @@ export async function signPrescriptionTx(
     });
     if (!prescription) return null;
 
+    // Khóa logic hồ sơ trong cùng transaction với việc ký để không thể ký draft
+    // sau khi một request đồng thời đã chuyển hồ sơ sang nội trú hoặc đóng hồ sơ.
+    const recordGuard = await tx.medicalRecord.updateMany({
+      where: {
+        id: prescription.recordId,
+        doctorId: signedBy,
+        deletedAt: null,
+        status: 'diagnosed',
+        treatmentType: 'outpatient',
+      },
+      data: { version: { increment: 1 } },
+    });
+    if (recordGuard.count !== 1) {
+      throw AppError.badRequest(
+        'RECORD_NOT_OUTPATIENT',
+        'Hồ sơ chưa chẩn đoán hướng ngoại trú hoặc đã đóng.',
+      );
+    }
+
     const inventoryItems = prescription.prescriptionItems.map((item) => {
       if (!item.medicineId) {
-        throw AppError.badRequest('INVALID_PRESCRIPTION', 'Dòng đơn thuốc thiếu mã thuốc để trừ tồn FEFO.');
+        throw AppError.badRequest(
+          'INVALID_PRESCRIPTION',
+          'Dòng đơn thuốc thiếu mã thuốc để trừ tồn FEFO.',
+        );
       }
       return {
         medicineId: item.medicineId,
@@ -159,7 +199,9 @@ export async function signPrescriptionTx(
           throw AppError.conflict('INVENTORY_CHANGED', 'Tồn kho đã thay đổi trong lúc ký đơn.');
         }
 
-        const updatedBatch = await tx.medicineBatch.findUniqueOrThrow({ where: { id: allocation.batchId } });
+        const updatedBatch = await tx.medicineBatch.findUniqueOrThrow({
+          where: { id: allocation.batchId },
+        });
         await tx.stockMovement.create({
           data: {
             id: randomUUID(),
@@ -213,7 +255,10 @@ export async function cancelPrescriptionTx(
     });
     if (!prescription) return null;
     if (prescription.dispensedAt) {
-      throw AppError.conflict('PRESCRIPTION_ALREADY_DISPENSED', 'Đơn thuốc đã cấp phát, không thể hủy.');
+      throw AppError.conflict(
+        'PRESCRIPTION_ALREADY_DISPENSED',
+        'Đơn thuốc đã cấp phát, không thể hủy.',
+      );
     }
 
     const signedMovements = await tx.stockMovement.findMany({
@@ -227,7 +272,9 @@ export async function cancelPrescriptionTx(
         where: { id: movement.batchId },
         data: { quantity: { increment: restoredQuantity }, version: { increment: 1 } },
       });
-      const updatedBatch = await tx.medicineBatch.findUniqueOrThrow({ where: { id: movement.batchId } });
+      const updatedBatch = await tx.medicineBatch.findUniqueOrThrow({
+        where: { id: movement.batchId },
+      });
       await tx.stockMovement.create({
         data: {
           id: randomUUID(),
@@ -248,7 +295,13 @@ export async function cancelPrescriptionTx(
 
     const result = await tx.prescription.updateMany({
       where: { id: prescriptionId, version: expectedVersion, status: { not: 'cancelled' } },
-      data: { status: 'cancelled', cancelledBy, cancelledAt: new Date(), cancelReason, version: { increment: 1 } },
+      data: {
+        status: 'cancelled',
+        cancelledBy,
+        cancelledAt: new Date(),
+        cancelReason,
+        version: { increment: 1 },
+      },
     });
     if (result.count !== 1) {
       throw AppError.conflict('VERSION_CONFLICT', 'Đơn thuốc đã bị thay đổi bởi thao tác khác.');
@@ -257,10 +310,19 @@ export async function cancelPrescriptionTx(
   });
 }
 
-export async function markXmlExportedTx(prescriptionId: string, expectedVersion: number, xmlFilePath: string) {
+export async function markXmlExportedTx(
+  prescriptionId: string,
+  expectedVersion: number,
+  xmlFilePath: string,
+) {
   const result = await prisma.prescription.updateMany({
     where: { id: prescriptionId, version: expectedVersion, status: 'active' },
-    data: { status: 'xml_exported', xmlExportedAt: new Date(), xmlFilePath, version: { increment: 1 } },
+    data: {
+      status: 'xml_exported',
+      xmlExportedAt: new Date(),
+      xmlFilePath,
+      version: { increment: 1 },
+    },
   });
   if (result.count !== 1) return null;
   return prisma.prescription.findUniqueOrThrow({ where: { id: prescriptionId } });
@@ -325,9 +387,15 @@ export function findDispensablePrescriptions(filters: {
   ]);
 }
 
-export type DispensablePrescription = Awaited<ReturnType<typeof findDispensablePrescriptions>>[0][number];
+export type DispensablePrescription = Awaited<
+  ReturnType<typeof findDispensablePrescriptions>
+>[0][number];
 
-export async function dispensePrescriptionTx(prescriptionId: string, expectedVersion: number, dispensedBy: string) {
+export async function dispensePrescriptionTx(
+  prescriptionId: string,
+  expectedVersion: number,
+  dispensedBy: string,
+) {
   const result = await prisma.prescription.updateMany({
     where: {
       id: prescriptionId,
@@ -346,7 +414,10 @@ export function findIdempotencyResult<T>(key: string, route: string): Promise<T 
   return prisma.idempotencyRequest.findUnique({ where: { key } }).then((cached) => {
     if (!cached) return null;
     if (cached.route !== route) {
-      throw AppError.conflict('IDEMPOTENCY_KEY_REUSED', 'Idempotency-Key đã được dùng cho thao tác khác.');
+      throw AppError.conflict(
+        'IDEMPOTENCY_KEY_REUSED',
+        'Idempotency-Key đã được dùng cho thao tác khác.',
+      );
     }
     return cached.responseJson as T;
   });

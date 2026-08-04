@@ -495,7 +495,8 @@ model MedicalRecord {
   diagnosisSignedBy        String?                                   @db.VarChar(36)
   diagnosisSignedAt        DateTime?
   diagnosisSignatureMethod medical_records_diagnosisSignatureMethod?
-  treatmentType            TreatmentType                             @default(outpatient)
+  // Chỉ có giá trị sau khi bác sĩ ký chẩn đoán; hồ sơ mới phải giữ NULL.
+  treatmentType            TreatmentType?
   bedId                    String?                                   @db.VarChar(36)
   notes                    String?                                   @db.Text
   closedAt                 DateTime?
@@ -989,15 +990,15 @@ model VitalSignLog {
   recordId               String   @db.VarChar(36)
   treatmentOrderId       String?  @db.VarChar(36)
   measuredAt             DateTime @default(now())
-  pulse                  Int?
-  temperatureC           Decimal? @db.Decimal(4, 1)
-  bloodPressureSystolic  Int?
-  bloodPressureDiastolic Int?
+  pulse                  Int
+  temperatureC           Decimal? @db.Decimal(3, 1)
+  bloodPressureSystolic  Int
+  bloodPressureDiastolic Int
   respiratoryRate        Int?
-  spo2                   Int?
+  spo2                   Int
   weightKg               Decimal? @db.Decimal(5, 1)
   note                   String?  @db.VarChar(500)
-  recordedBy             String?  @db.VarChar(36)
+  recordedBy             String   @db.VarChar(36)
   createdAt              DateTime @default(now())
 
   medicalRecord MedicalRecord @relation(fields: [recordId], references: [id])
