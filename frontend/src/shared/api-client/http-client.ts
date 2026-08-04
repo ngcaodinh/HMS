@@ -4,7 +4,7 @@ import { ApiError, type FieldErrors } from './error';
 
 type ApiErrorDetail = {
   field?: string;
-  message?: string;
+  rule?: string;
 };
 
 type EnvelopeError = {
@@ -25,8 +25,8 @@ const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
     const field = detail.field;
     if (typeof field !== 'string') return currentFields;
 
-    const message = 'message' in detail && typeof detail.message === 'string'
-      ? detail.message
+    const message = 'rule' in detail && typeof detail.rule === 'string'
+      ? detail.rule
       : 'Dữ liệu không hợp lệ';
 
     return {
