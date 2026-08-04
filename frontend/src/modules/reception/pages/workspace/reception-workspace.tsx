@@ -174,6 +174,65 @@ function CheckIcon({ className }: IconProps) {
   );
 }
 
+/**
+ * Icon cảnh báo dạng hình tròn với dấu chấm cảm (SVG).
+ */
+function AlertCircleIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 8v4m0 4h.01" stroke="currentColor" strokeLinecap="round" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
+/**
+ * Icon cảnh báo hình tam giác dành cho lỗi dữ liệu hoặc sự cố (SVG).
+ */
+function AlertTriangleIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <path
+        d="M12 3.25 2.5 19.75h19L12 3.25zM12 9v4m0 3.5h.01"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Icon thông tin hướng dẫn màu xanh blue (SVG).
+ */
+function InfoCircleIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 16v-4m0-4h.01" stroke="currentColor" strokeLinecap="round" strokeWidth="2.2" />
+    </svg>
+  );
+}
+
+/**
+ * Icon chiếc khiên cảnh báo dành cho thẻ BHYT (SVG).
+ */
+function ShieldAlertIcon({ className }: IconProps) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
+      <path
+        d="M12 3s7 3.5 7 10c0 5-4.5 8-7 9-2.5-1-7-4-7-9 0-6.5 7-10 7-10zM12 8v4m0 3.5h.01"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+
 function Sidebar({
   mode,
   onChangeMode,
@@ -620,10 +679,16 @@ function QueueTicketPanel({
           Bốc số tại quầy
         </button>
         {actionError ? (
-          <p className="mt-2 text-[11px] font-medium text-[#ba1a1a]">{actionError}</p>
+          <div className={styles.actionErrorBadge}>
+            <AlertCircleIcon className="h-4 w-4 shrink-0 text-[#c62828]" />
+            <span>{actionError}</span>
+          </div>
         ) : null}
         {deskMessage ? (
-          <p className="mt-2 text-[11px] font-medium text-[#006096]">{deskMessage}</p>
+          <div className={styles.actionSuccessBadge}>
+            <CheckIcon className="h-4 w-4 shrink-0 text-[#006096]" />
+            <span>{deskMessage}</span>
+          </div>
         ) : null}
       </section>
 
@@ -993,19 +1058,19 @@ function PatientReceptionForm({
         </div>
 
         {!canComplete ? (
-          <div className="mb-3 rounded-lg border border-[#ffcdd2] bg-[#fff5f5] px-3 py-2 text-[12px] font-medium text-[#c62828]">
-            Chỉ tiếp nhận bệnh nhân có số <strong>đang được gọi</strong> theo đúng thứ tự hàng đợi.
-            Bấm <strong>Gọi số tiếp theo</strong> bên trái để mở form nhập liệu.
+          <div className={styles.alertInfo} role="status">
+            <InfoCircleIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#006096]" />
+            <div>
+              Chỉ tiếp nhận bệnh nhân có số <strong>đang được gọi</strong> theo đúng thứ tự hàng đợi.
+              Bấm <strong>Gọi số tiếp theo</strong> bên trái để mở form nhập liệu.
+            </div>
           </div>
         ) : null}
 
         {formError ? (
-          <div
-            aria-live="polite"
-            className="mb-3 rounded-lg border border-[#ffcdd2] bg-[#fff5f5] px-3 py-2 text-[12px] font-medium text-[#c62828]"
-            role="alert"
-          >
-            {formError}
+          <div aria-live="polite" className={styles.alertError} role="alert">
+            <AlertTriangleIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#c62828]" />
+            <div>{formError}</div>
           </div>
         ) : null}
 
@@ -1212,10 +1277,13 @@ function PatientReceptionForm({
             />
           </div>
           {shouldShowInsuranceExpiredWarning ? (
-            <p className="mt-3 rounded-lg bg-[#ffeccc] px-3 py-2 text-[11px] font-medium text-[#895500]">
-              Thẻ BHYT đã hết hạn — hệ thống sẽ tự động chuyển sang diện tự chi trả (không hưởng
-              BHYT).
-            </p>
+            <div className={styles.alertWarning} role="status">
+              <ShieldAlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div>
+                Thẻ BHYT đã hết hạn — hệ thống sẽ tự động chuyển sang diện tự chi trả (không hưởng
+                BHYT).
+              </div>
+            </div>
           ) : null}
         </div>
 
@@ -1412,9 +1480,14 @@ function EmergencyWorkspace({
         </p>
 
         {error ? (
-          <p className="mt-3 w-full rounded-lg border border-[#ffcdd2] bg-[#fff5f5] px-3 py-2 text-center text-[12px] font-medium text-[#c62828]">
-            {error}
-          </p>
+          <div
+            aria-live="polite"
+            className="mt-3 flex w-full items-center justify-center gap-2.5 rounded-xl border border-[#ffcdd2] bg-[#fff0ef] px-4 py-3 text-center text-[12.5px] font-semibold text-[#c62828] shadow-sm animate-in fade-in"
+            role="alert"
+          >
+            <AlertCircleIcon className="h-5 w-5 shrink-0 text-[#c62828]" />
+            <span>{error}</span>
+          </div>
         ) : null}
 
         <div className={styles.emergencySection}>

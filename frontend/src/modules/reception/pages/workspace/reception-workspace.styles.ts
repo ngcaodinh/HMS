@@ -116,4 +116,16 @@ export const receptionWorkspaceStyles = {
     'bg-[#c62828] shadow-[0_10px_15px_-3px_rgba(198,40,40,0.25),0_4px_6px_-4px_rgba(198,40,40,0.2)] hover:-translate-y-0.5 hover:bg-[#b42121] hover:shadow-[0_14px_22px_-4px_rgba(198,40,40,0.35),0_6px_10px_-6px_rgba(198,40,40,0.25)] active:translate-y-0 active:scale-[0.99]',
   emergencyNote:
     'mt-3 w-full rounded-[10px] border border-[rgba(198,40,40,0.15)] bg-[rgba(198,40,40,0.05)] px-4 py-3 text-[11.5px] font-medium leading-[18.4px] text-[#3f4851]',
+
+  // Style thông báo & banner alert trên giao diện Lễ tân
+  alertError:
+    'mb-3 flex items-start gap-3 rounded-xl border border-rose-200 border-l-4 border-l-[#c62828] bg-rose-50/90 p-3.5 text-xs font-medium text-[#991b1b] shadow-sm transition-all duration-200 animate-in fade-in',
+  alertWarning:
+    'mt-3 flex items-start gap-3 rounded-xl border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50/90 p-3.5 text-xs font-medium text-[#844d00] shadow-sm transition-all duration-200 animate-in fade-in',
+  alertInfo:
+    'mb-3 flex items-start gap-3 rounded-xl border border-[#96ccff] border-l-4 border-l-[#006096] bg-[#f0f7fd] p-3.5 text-xs font-medium text-[#004a75] shadow-sm transition-all duration-200 animate-in fade-in',
+  actionErrorBadge:
+    'mt-2 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[11.5px] font-semibold text-[#c62828]',
+  actionSuccessBadge:
+    'mt-2 flex items-center gap-2 rounded-lg border border-[#96ccff] bg-[#f0f7fd] px-3 py-2 text-[11.5px] font-semibold text-[#006096]',
 } as const;

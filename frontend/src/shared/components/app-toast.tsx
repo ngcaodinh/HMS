@@ -1,13 +1,52 @@
 'use client';
 
 type AppToastProps = {
+  /** Có căn giữa màn hình dạng Popup modal hay hiển thị góc dưới bên phải */
   centered?: boolean;
+  /** Nội dung thông báo (null nếu không hiển thị) */
   message: string | null;
+  /** Sắc thái thông báo: thành công (success) hoặc lỗi (error) */
   tone?: 'success' | 'error';
 };
 
 /**
- * Hiển thị thông báo thao tác ở dạng toast hoặc popup căn giữa tùy ngữ cảnh sử dụng.
+ * Biểu tượng chiếc khiên xác thực y tế chuẩn HMS (SVG dạng khối đặc cao cấp).
+ *
+ * @param props Props tùy chỉnh className cho SVG
+ */
+function MedicalSuccessBadge({ className = 'h-7 w-7' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M12.516 2.17a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.942 4.064 10.933 9.563 12.348a.749.749 0 00.374 0c5.499-1.415 9.563-6.406 9.563-12.348 0-1.39-.223-2.73-.635-3.985a.75.75 0 00-.722-.516l-.143.001c-2.996 0-5.717-1.17-7.734-3.08zm3.094 8.01a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.74-5.25z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+/**
+ * Biểu tượng khiên cảnh báo sự cố y tế (SVG dạng khối đặc cao cấp).
+ *
+ * @param props Props tùy chỉnh className cho SVG
+ */
+function MedicalErrorBadge({ className = 'h-7 w-7' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zm-1.72 6.97a.75.75 0 10-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 101.06 1.06L12 13.06l1.72 1.72a.75.75 0 101.06-1.06L13.06 12l1.72-1.72a.75.75 0 10-1.06-1.06L12 10.94l-1.72-1.72z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+/**
+ * Component Popup thông báo trung tâm / Toast góc màn hình.
+ * Được thiết kế đồng nhất theo màu sắc hiện tại của Lễ tân (Dark Navy #004a75 - #006096, Accent Teal #55d7ed).
+ *
+ * @param props Các thuộc tính điều khiển popup
+ * @returns Modal Popup căn giữa hoặc Toast ở góc
  */
 export function AppToast({ centered = false, message, tone = 'success' }: AppToastProps) {
   if (!message) {
@@ -15,37 +54,101 @@ export function AppToast({ centered = false, message, tone = 'success' }: AppToa
   }
 
   const isSuccess = tone === 'success';
-  const wrapperClass = centered
-    ? 'fixed inset-0 z-[100] flex items-center justify-center bg-[#0d293c]/20 px-4'
-    : 'fixed bottom-6 right-6 z-[100] flex max-w-md items-center px-5 py-3';
-  const cardClass = centered
-    ? `flex w-full max-w-[520px] items-start gap-3 rounded-[14px] border bg-white px-5 py-4 text-[#171c1f] shadow-[0_18px_45px_rgba(13,41,60,0.2)] ${
-        isSuccess ? 'border-[#96ccff]' : 'border-[#ffcdd2]'
-      }`
-    : `flex max-w-md items-center gap-3 rounded-xl text-sm font-semibold text-white shadow-2xl ${
-        isSuccess
-          ? 'border border-emerald-700/40 bg-slate-900'
-          : 'border border-red-700/40 bg-slate-900'
-      }`;
 
+  if (centered) {
+    // Tách chuỗi thông báo nếu có định dạng `Nội dung · Mã BN · Mã BA`
+    const parts = message.split(' · ');
+    const mainMessage = parts[0];
+    const details = parts.slice(1);
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0d293c]/40 px-4 backdrop-blur-md transition-all duration-300 animate-in fade-in">
+        <div
+          aria-live="polite"
+          className={`relative flex w-full max-w-[480px] flex-col overflow-hidden rounded-2xl border-2 bg-white text-[#171c1f] transition-all duration-200 animate-in zoom-in-95 ${
+            isSuccess
+              ? 'border-[#96ccff] shadow-[0_25px_60px_-15px_rgba(0,96,150,0.3)]'
+              : 'border-[#ffcdd2] shadow-[0_25px_60px_-15px_rgba(198,40,40,0.3)]'
+          }`}
+          role={isSuccess ? 'status' : 'alert'}
+        >
+          {/* Thanh tiêu đề Header Popup */}
+          <div
+            className={`flex items-center justify-between px-5 py-3.5 text-white ${
+              isSuccess
+                ? 'bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc]'
+                : 'bg-gradient-to-r from-[#800000] via-[#c62828] to-[#e53935]'
+            }`}
+          >
+            <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
+              {isSuccess ? 'THÔNG BÁO TIẾP NHẬN' : 'CẢNH BÁO THAO TÁC'}
+            </span>
+            <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-white uppercase">
+              BỆNH VIỆN HMS
+            </span>
+          </div>
+
+          {/* Nội dung Popup */}
+          <div className="flex items-start gap-4.5 bg-white p-6">
+            <div
+              className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ring-4 ${
+                isSuccess
+                  ? 'bg-gradient-to-br from-[#cee5ff] to-[#96ccff]/60 text-[#006096] ring-[#cee5ff]/50 shadow-[0_4px_14px_rgba(0,96,150,0.25)]'
+                  : 'bg-gradient-to-br from-[#fff0ef] to-[#ffcdd2]/60 text-[#c62828] ring-[#fff0ef]/50 shadow-[0_4px_14px_rgba(198,40,40,0.25)]'
+              }`}
+            >
+              {isSuccess ? <MedicalSuccessBadge className="h-8 w-8" /> : <MedicalErrorBadge className="h-8 w-8" />}
+            </div>
+
+            <div className="min-w-0 flex-1 pt-0.5">
+              <h4 className="text-[15px] font-bold leading-snug text-[#171c1f]">
+                {mainMessage}
+              </h4>
+
+              {/* Các thẻ chi tiết nếu có mã bệnh nhân, mã bệnh án */}
+              {details.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {details.map((item, index) => (
+                    <span
+                      key={index}
+                      className={`inline-flex items-center rounded-lg border px-3 py-1 text-xs font-bold shadow-xs ${
+                        isSuccess
+                          ? 'border-[#96ccff] bg-[#f0f7fd] text-[#006096]'
+                          : 'border-[#ffcdd2] bg-[#fff5f5] text-[#c62828]'
+                      }`}
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Chế độ Toast góc màn hình (dành cho các ngữ cảnh ngoài popup)
   return (
-    <div className={wrapperClass}>
-      <div className={cardClass} role={isSuccess ? 'status' : 'alert'}>
-        <span
-          aria-hidden="true"
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-            centered
-              ? isSuccess
-                ? 'bg-[#cee5ff] text-[#006096]'
-                : 'bg-[#fff0ef] text-[#ba1a1a]'
-              : isSuccess
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'bg-red-500/20 text-red-400'
+    <div className="fixed bottom-6 right-6 z-[100] flex max-w-md items-center px-4 py-2 transition-all duration-200 animate-in slide-in-from-bottom-5">
+      <div
+        aria-live="polite"
+        className={`flex max-w-md items-center gap-3.5 rounded-xl border px-4 py-3.5 text-sm font-semibold shadow-2xl backdrop-blur-md ${
+          isSuccess
+            ? 'border-[#006096]/50 bg-[#0d293c]/95 text-white'
+            : 'border-[#c62828]/50 bg-[#2b0000]/95 text-white'
+        }`}
+        role={isSuccess ? 'status' : 'alert'}
+      >
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            isSuccess ? 'bg-[#55d7ed]/20 text-[#55d7ed]' : 'bg-[#ffcdd2]/20 text-[#ffcdd2]'
           }`}
         >
-          {isSuccess ? 'OK' : '!'}
-        </span>
-        <span className="leading-snug">{message}</span>
+          {isSuccess ? <MedicalSuccessBadge className="h-5 w-5" /> : <MedicalErrorBadge className="h-5 w-5" />}
+        </div>
+        <span className="leading-snug text-white/95">{message}</span>
       </div>
     </div>
   );
