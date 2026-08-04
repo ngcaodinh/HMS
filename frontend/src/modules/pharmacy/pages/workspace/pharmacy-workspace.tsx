@@ -22,16 +22,12 @@ import { StockImportScreen } from '../../components/StockImportScreen';
 import { NationalXmlScreen } from '../../components/NationalXmlScreen';
 import { StockReportScreen } from '../../components/StockReportScreen';
 import { PharmacyModals } from '../../components/PharmacyModals';
+import { escapeHtml } from '../../components/print-label';
+
+import { mockStockReceipt } from '../../constants/pharmacy-mock.data';
 
 import {
-  mockInventoryItems,
-  mockNationalXmlString,
-  mockPharmacyKpi,
-  mockStockMovementLogs,
-  mockStockReceipt,
-} from '../../constants/pharmacy-mock.data';
-
-import {
+  fetchPrescriptionXmlContent,
   downloadPrescriptionXmlFile,
   useDispensablePrescriptions,
   useDispensePrescription,
@@ -41,17 +37,17 @@ import {
 
 import {
   usePharmacyInventory,
+  usePharmacyInventorySummary,
   usePharmacyStockMovements,
   usePharmacyWarehouses,
 } from '../../services/pharmacy-inventory-api';
 
 import type {
-  InventoryItem,
   PharmacyScreen,
   Prescription,
-  StockMovementLog,
   StockReceipt,
 } from '../../types/pharmacy.types';
+import type { StockMovementType } from '../../types/pharmacy-inventory.schema';
 
 import { pharmacyWorkspaceStyles as styles } from './pharmacy-workspace.styles';
 
@@ -89,6 +85,10 @@ function getApiErrorMessage(error: unknown): string {
   return error instanceof ApiError ? error.message : 'Yêu cầu không thành công. Vui lòng thử lại.';
 }
 
+function getApiFieldError(error: unknown, field: string): string | undefined {
+  return error instanceof ApiError ? error.fields?.[field]?.[0] : undefined;
+}
+
 /**
  * Component Không gian làm việc chính của Dược sĩ (Pharmacy Workspace).
  * Điều phối dữ liệu API thực tế, trạng thái tab màn hình, modal xác nhận và phản hồi Toast.
@@ -112,11 +112,19 @@ export function PharmacyWorkspace() {
   const [selectedPrescriptionId, setSelectedPrescriptionId] = useState<string>('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>('all');
   const [isDownloadingXml, setIsDownloadingXml] = useState(false);
+  const [isLoadingXml, setIsLoadingXml] = useState(false);
+  const [xmlContent, setXmlContent] = useState<string | null>(null);
+  const [prescriptionSearchQuery, setPrescriptionSearchQuery] = useState('');
+  const [inventorySearchQuery, setInventorySearchQuery] = useState('');
+  const [reportFrom, setReportFrom] = useState('');
+  const [reportTo, setReportTo] = useState('');
+  const [reportMovementType, setReportMovementType] = useState<StockMovementType | ''>('');
+  const [reportDateError, setReportDateError] = useState<string | undefined>();
+  const [rejectServerError, setRejectServerError] = useState<string | undefined>();
+  const [blockingWorkflowError, setBlockingWorkflowError] = useState<string | undefined>();
 
   // Trạng thái phiếu nhập kho & danh sách báo cáo
   const [stockReceipt, setStockReceipt] = useState<StockReceipt>(mockStockReceipt);
-  const [inventoryItems] = useState<InventoryItem[]>(mockInventoryItems);
-  const [stockLogs] = useState<StockMovementLog[]>(mockStockMovementLogs);
 
   // Thông báo Toast
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -124,15 +132,29 @@ export function PharmacyWorkspace() {
   // Tải dữ liệu đơn thuốc thực tế từ API backend nếu có
   const prescriptionsQuery = useDispensablePrescriptions({
     dispensed: false,
-    keyword: '',
+    keyword: prescriptionSearchQuery.trim(),
     page: 1,
     pageSize: 50,
     warehouseId: selectedWarehouseId === 'all' ? undefined : selectedWarehouseId,
   });
 
   // API query tồn kho & nhật ký chuyển kho thực tế từ backend (để duy trì hook hoạt động)
-  usePharmacyInventory({ page: 1, pageSize: 20 });
-  usePharmacyStockMovements({ page: 1, pageSize: 20 });
+  const inventoryQuery = usePharmacyInventory({
+    keyword: inventorySearchQuery.trim(),
+    page: 1,
+    pageSize: 20,
+    warehouseId: selectedWarehouseId === 'all' ? undefined : selectedWarehouseId,
+  });
+  const inventorySummaryQuery = usePharmacyInventorySummary(
+    selectedWarehouseId === 'all' ? undefined : selectedWarehouseId,
+  );
+  const stockMovementsQuery = usePharmacyStockMovements({
+    from: reportDateError ? undefined : reportFrom || undefined,
+    page: 1,
+    pageSize: 50,
+    to: reportDateError ? undefined : reportTo || undefined,
+    movementType: reportMovementType || undefined,
+  });
   const warehousesQuery = usePharmacyWarehouses();
 
   // API mutations thực tế
@@ -169,8 +191,8 @@ export function PharmacyWorkspace() {
         department: item.department?.name ?? 'Chưa cập nhật khoa',
         signedAt: formatDateTimeVN(item.signedAt),
         isSigned: true,
-        invoiceStatus: 'paid',
-        invoiceId: undefined,
+        invoiceStatus: item.invoice?.status === 'paid' ? 'paid' : 'unpaid',
+        invoiceId: item.invoice?.invoiceId,
         hasAllergyWarning: Boolean(item.patient.allergies),
         allergyWarningText: item.patient.allergies ? `Dị ứng: ${item.patient.allergies}` : undefined,
         allergyOverrideReason: item.allergyOverrideReason ?? undefined,
@@ -226,6 +248,31 @@ export function PharmacyWorkspace() {
     );
   }, [prescriptions, selectedPrescriptionId]);
 
+  useEffect(() => {
+    const prescriptionId = selectedPrescription?.backendPrescriptionId;
+    if (activeScreen !== 'national-xml' || !prescriptionId || !selectedPrescription?.xmlExportedAt) {
+      setXmlContent(null);
+      return undefined;
+    }
+
+    let isCancelled = false;
+    setIsLoadingXml(true);
+    void fetchPrescriptionXmlContent(prescriptionId)
+      .then((content) => {
+        if (!isCancelled) setXmlContent(content);
+      })
+      .catch(() => {
+        if (!isCancelled) setXmlContent(null);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingXml(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [activeScreen, selectedPrescription?.backendPrescriptionId, selectedPrescription?.xmlExportedAt]);
+
   /**
    * Hiển thị thông báo dạng Toast nổi ở góc dưới màn hình
    *
@@ -245,6 +292,14 @@ export function PharmacyWorkspace() {
    */
   const handleConfirmDispense = () => {
     if (!selectedPrescription) return;
+    if (selectedPrescription.status !== 'pending' || selectedPrescription.invoiceStatus !== 'paid') {
+      setBlockingWorkflowError('Bệnh nhân chưa thanh toán viện phí hoặc đơn thuốc không còn ở trạng thái chờ phát.');
+      return;
+    }
+    if (selectedPrescription.items.some((item) => !item.isStockSufficient)) {
+      setBlockingWorkflowError('Một hoặc nhiều dòng thuốc không đủ tồn kho FEFO.');
+      return;
+    }
     const prescriptionId = selectedPrescription.backendPrescriptionId ?? selectedPrescription.id;
     const expectedVersion = selectedPrescription.backendVersion ?? 1;
 
@@ -252,7 +307,13 @@ export function PharmacyWorkspace() {
       { expectedVersion, prescriptionId },
       {
         onError: (error) => {
+          if (error instanceof ApiError && ['INVOICE_NOT_PAID', 'INVOICE_GENERATED'].includes(error.code)) {
+            setBlockingWorkflowError(error.message);
+          }
           showToast(getApiErrorMessage(error), 'error');
+          if (error instanceof ApiError && ['VERSION_CONFLICT', 'PRESCRIPTION_ALREADY_DISPENSED'].includes(error.code)) {
+            void prescriptionsQuery.refetch();
+          }
         },
         onSuccess: (result) => {
           setPrescriptions((prev) =>
@@ -279,6 +340,10 @@ export function PharmacyWorkspace() {
    */
   const handleConfirmReject = (reason: string) => {
     if (!selectedPrescription) return;
+    if (selectedPrescription.status !== 'pending') {
+      setBlockingWorkflowError('Đơn thuốc đã phát, không thể từ chối hoặc trả đơn.');
+      return;
+    }
     const prescriptionId = selectedPrescription.backendPrescriptionId ?? selectedPrescription.id;
     const expectedVersion = selectedPrescription.backendVersion ?? 1;
 
@@ -286,7 +351,14 @@ export function PharmacyWorkspace() {
       { cancelReason: reason, expectedVersion, prescriptionId },
       {
         onError: (error) => {
+          if (error instanceof ApiError && ['INVOICE_NOT_PAID', 'INVOICE_GENERATED'].includes(error.code)) {
+            setBlockingWorkflowError(error.message);
+          }
+          setRejectServerError(getApiFieldError(error, 'cancelReason') ?? getApiErrorMessage(error));
           showToast(getApiErrorMessage(error), 'error');
+          if (error instanceof ApiError && ['VERSION_CONFLICT', 'PRESCRIPTION_ALREADY_DISPENSED'].includes(error.code)) {
+            void prescriptionsQuery.refetch();
+          }
         },
         onSuccess: () => {
           setPrescriptions((prev) => prev.filter((rx) => rx.id !== selectedPrescription.id));
@@ -318,7 +390,17 @@ export function PharmacyWorkspace() {
    * Xử lý đồng bộ chỉ số tồn kho FEFO
    */
   const handleConfirmFefoSync = () => {
-    showToast('Đã đồng bộ lại chỉ số hạn dùng (FEFO) và thứ tự gán lô tự động cho toàn kho.', 'info');
+    showToast('Tính năng đồng bộ FEFO đang được phát triển.', 'info');
+  };
+
+  const handleReportDateChange = (from: string, to: string) => {
+    setReportFrom(from);
+    setReportTo(to);
+    if (from && to && from > to) {
+      setReportDateError('Ngày bắt đầu phải trước ngày kết thúc.');
+      return;
+    }
+    setReportDateError(undefined);
   };
 
   /**
@@ -342,11 +424,11 @@ export function PharmacyWorkspace() {
       .map(
         (item) => `
           <section class="label">
-            <strong>${item.drugName}</strong>
-            <div>${item.dosageInstruction}</div>
+            <strong>${escapeHtml(item.drugName)}</strong>
+            <div>${escapeHtml(item.dosageInstruction)}</div>
             <div>Số lượng: ${item.quantity} ${item.unit}</div>
-            <div>Lô FEFO: ${item.fefoLotNumber} - HSD: ${item.expiryDate}</div>
-            <small>${rx.patientName} (${rx.patientId}) - ${rx.prescriptionCode ?? rx.id}</small>
+            <div>Lô FEFO: ${escapeHtml(item.fefoLotNumber)} - HSD: ${escapeHtml(item.expiryDate)}</div>
+            <small>${escapeHtml(rx.patientName)} (${escapeHtml(rx.patientId)}) - ${escapeHtml(rx.prescriptionCode ?? rx.id)}</small>
           </section>
         `,
       )
@@ -355,7 +437,7 @@ export function PharmacyWorkspace() {
     printWindow.document.write(`
       <html>
         <head>
-          <title>In nhãn thuốc ${rx.prescriptionCode ?? rx.id}</title>
+          <title>In nhãn thuốc ${escapeHtml(rx.prescriptionCode ?? rx.id)}</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 16px; color: #171c1f; }
             .label { border: 1px solid #171c1f; margin-bottom: 10px; padding: 10px; width: 320px; }
@@ -429,12 +511,26 @@ export function PharmacyWorkspace() {
 
         {/* Nội dung thay đổi theo Screen Tab đang chọn */}
         <main className={styles.contentArea}>
+          {blockingWorkflowError && (
+            <div className={`${styles.alert} ${styles.alertError} mb-6`} role="alert">
+              {blockingWorkflowError}
+              <button
+                type="button"
+                className="ml-3 underline"
+                onClick={() => setBlockingWorkflowError(undefined)}
+              >
+                Đóng
+              </button>
+            </div>
+          )}
           {/* Màn hình 1: Cấp phát thuốc theo đơn */}
           {activeScreen === 'dispense' && (
             <PrescriptionDispenseScreen
               isDownloadingXml={isDownloadingXml}
               isExportingXml={exportXmlMutation.isPending}
               isLoading={prescriptionsQuery.isLoading || prescriptionsQuery.isFetching}
+              searchQuery={prescriptionSearchQuery}
+              onSearchQueryChange={(value) => setPrescriptionSearchQuery(value.slice(0, 100))}
               onDownloadXml={handleDownloadXml}
               onExportXml={handleExportXml}
               onOpenDispenseModal={(rx) => {
@@ -462,8 +558,18 @@ export function PharmacyWorkspace() {
           {/* Màn hình 2: Quản lý kho thuốc & Lô FEFO */}
           {activeScreen === 'inventory' && (
             <PharmacyInventoryScreen
-              inventoryItems={inventoryItems}
-              kpi={mockPharmacyKpi}
+              inventoryItems={inventoryQuery.data?.data ?? []}
+              kpi={inventorySummaryQuery.data ?? {
+                expiredBatches: 0,
+                expiringSoonBatches: 0,
+                lowStockBatches: 0,
+                totalBatches: 0,
+                totalQuantity: 0,
+              }}
+              isLoading={inventoryQuery.isLoading || inventorySummaryQuery.isLoading}
+              isError={inventoryQuery.isError || inventorySummaryQuery.isError}
+              searchQuery={inventorySearchQuery}
+              onSearchQueryChange={(value) => setInventorySearchQuery(value.slice(0, 100))}
               onNavigateToStockImport={() => setActiveScreen('stock-import')}
             />
           )}
@@ -487,20 +593,28 @@ export function PharmacyWorkspace() {
           {/* Màn hình 4: Đơn thuốc & XML Quốc gia */}
           {activeScreen === 'national-xml' && (
             <NationalXmlScreen
-              onDownloadXml={() =>
-                showToast('Đã tải xuống tệp XML_DON_THUOC_20260891.xml thành công.', 'success')
-              }
-              xmlContent={mockNationalXmlString}
+              isDownloading={isDownloadingXml}
+              isLoading={isLoadingXml}
+              onDownloadXml={() => selectedPrescription && void handleDownloadXml(selectedPrescription)}
+              prescription={selectedPrescription}
+              xmlContent={xmlContent}
             />
           )}
 
           {/* Màn hình 5: Báo cáo biến động kho */}
           {activeScreen === 'reports' && (
             <StockReportScreen
-              logs={stockLogs}
-              onExportExcel={() =>
-                showToast('Đã xuất báo cáo biến động xuất nhập tồn ra tệp Excel.', 'success')
-              }
+              dateError={reportDateError}
+              from={reportFrom}
+              isError={stockMovementsQuery.isError}
+              isLoading={stockMovementsQuery.isLoading}
+              logs={stockMovementsQuery.data?.data ?? []}
+              movementType={reportMovementType}
+              onExportExcel={() => showToast('Tính năng xuất Excel đang được phát triển.', 'info')}
+              onFromChange={(value) => handleReportDateChange(value, reportTo)}
+              onMovementTypeChange={setReportMovementType}
+              onToChange={(value) => handleReportDateChange(reportFrom, value)}
+              to={reportTo}
             />
           )}
         </main>
@@ -511,7 +625,12 @@ export function PharmacyWorkspace() {
         activeModal={activeModal}
         isDispensing={dispenseMutation.isPending}
         isRejecting={rejectMutation.isPending}
-        onCloseModal={() => setActiveModal(null)}
+        rejectServerError={rejectServerError}
+        onClearRejectServerError={() => setRejectServerError(undefined)}
+        onCloseModal={() => {
+          setRejectServerError(undefined);
+          setActiveModal(null);
+        }}
         onConfirmDispense={handleConfirmDispense}
         onConfirmFefoSync={handleConfirmFefoSync}
         onConfirmLogout={handleConfirmLogout}

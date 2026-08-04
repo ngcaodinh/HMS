@@ -1,10 +1,11 @@
-# Lab Technician Validation TODO
+# Pharmacy Input Validation TODO
 
-- [x] C0: Chuẩn hóa API field errors và field components.
-- [x] C2-C4: Thêm validation helper cho các nhóm số.
-- [x] C5-C6: Thêm validation Vi sinh/GPB và field GPB còn thiếu.
-- [x] C0-C1: Kết nối panel, submit state và lỗi attachment/conclusion/report code.
-- [x] C7: Hoàn thiện validation reference range và RBAC admin-only.
-- [x] Backend: Zod, unique report code, GPB user/role.
-- [ ] Prisma: kiểm tra migration specimenCollectedAt và precision RBC (chờ BA/PO xác nhận).
-- [x] Chạy test, typecheck, lint frontend, build và code review.
+- [x] Backend: tighten Zod keyword, UUID params/filters, cancel reason and date range.
+- [x] Backend: enforce invoice guards for cancel/dispense and return real invoice data.
+- [x] Backend: add schema, invoice-guard and conflict-path regression tests.
+- [x] Frontend: validate search/reject input, show counters, field errors and safe action states.
+- [x] Frontend: escape HTML when printing labels; remove hard-coded invoice values.
+- [x] Frontend: connect real inventory, summary and stock-movement data with loading/error/filter states.
+- [x] Frontend: connect selected prescription XML preview/download; remove mock XML.
+- [x] Frontend: avoid fake success messages for features without APIs.
+- [x] Verification: tests, typecheck, lint, build and code review.

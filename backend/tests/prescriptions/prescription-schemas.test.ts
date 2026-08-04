@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  cancelPrescriptionSchema,
   dispensePrescriptionSchema,
   idempotencyKeySchema,
   listDispensablePrescriptionsQuerySchema,
+  prescriptionIdParamsSchema,
 } from '../../src/modules/prescriptions/schemas/prescription.schemas';
 
 describe('prescription dispense API schemas', () => {
@@ -17,6 +19,24 @@ describe('prescription dispense API schemas', () => {
     expect(listDispensablePrescriptionsQuerySchema.parse({ dispensed: 'false' }).dispensed).toBe(false);
     expect(listDispensablePrescriptionsQuerySchema.parse({ dispensed: 'true' }).dispensed).toBe(true);
     expect(listDispensablePrescriptionsQuerySchema.parse({}).dispensed).toBe(false);
+  });
+
+  it('limits search keywords and requires UUID warehouse and prescription identifiers', () => {
+    expect(() => listDispensablePrescriptionsQuerySchema.parse({ keyword: 'a'.repeat(101) })).toThrow();
+    expect(() => listDispensablePrescriptionsQuerySchema.parse({ warehouseId: 'warehouse-1' })).toThrow();
+    expect(() => prescriptionIdParamsSchema.parse({ prescriptionId: 'prescription-1' })).toThrow();
+  });
+
+  it('requires a meaningful bounded cancellation reason', () => {
+    expect(() => cancelPrescriptionSchema.parse({ expectedVersion: 1, cancelReason: 'ngắn' })).toThrow();
+    expect(() => cancelPrescriptionSchema.parse({
+      expectedVersion: 1,
+      cancelReason: 'a'.repeat(501),
+    })).toThrow();
+    expect(cancelPrescriptionSchema.parse({
+      expectedVersion: 1,
+      cancelReason: 'Đơn có tương tác thuốc cần bác sĩ điều chỉnh',
+    }).cancelReason).toContain('tương tác');
   });
 
   it('coerces pagination defaults and rejects unsafe page sizes', () => {

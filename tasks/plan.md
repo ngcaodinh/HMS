@@ -1,38 +1,61 @@
-# Implementation Plan: Lab Technician Validation
+# Implementation Plan: Pharmacy Input Validation
 
-## Phạm vi
+## Overview
 
-Hoàn thiện validation đầu vào cho màn `/lab-technician`, đưa lỗi field-level từ backend
-đến đúng ô nhập, bổ sung kiểm tra nghiệp vụ an toàn cho kết quả xét nghiệm và bảo vệ
-quyền quản lý trị số tham chiếu.
+Complete pharmacy input validation and workflow guards based on
+`doc/Plan/PLAN_pharmacy_input_validation.md`. Remove mock data from the inventory,
+XML and stock-report screens in scope. Stock import and the XML import modal remain
+outside this plan.
 
-## Giả định nghiệp vụ tạm thời
+## Architecture decisions
 
-- Giữ `in_progress` để không phá vỡ dữ liệu và luồng hiện có; cần BA/PO xác nhận lại
-  state machine theo workflow chính thức trước khi có migration loại bỏ trạng thái này.
-- Chỉ `admin` được quản lý reference range trong phiên bản này vì đây là quyền thay đổi
-  dữ liệu dùng chung và repo chưa có role `Trưởng khoa` riêng.
-- Giữ loại Hoá sinh máu và bảng reference range hiện tại vì chúng đã được code và API sử
-  dụng; việc đồng bộ lại tài liệu SQL là công việc dữ liệu/BA riêng.
-- Giữ precision `DECIMAL(6,2)` cho `rbc` theo Prisma hiện tại; plan đang có mâu thuẫn giữa
-  `(5,2)` và `(5,1)`, nên không tự ý migration khi chưa có SQL/BA chính thức.
+- Validate route params/query/body with Zod; services receive parsed input.
+- Check invoices in the same transaction as cancel/dispense commands.
+- Return the latest active invoice (`pending` or `paid`) from the dispense queue.
+- Use real API data and boundary schemas for inventory and stock movements.
+- Escape all free text before inserting it into the print window HTML.
 
-## Các lát triển khai
+## Task list
 
-1. Sửa chuẩn hóa lỗi `rule`, thêm test regression và field components accessible.
-2. Thêm helper validation thuần cho CBC, Hoá sinh, Nước tiểu, Vi sinh và GPB; thêm test
-   boundary/optional/abnormal-clinical-value.
-3. Kết nối helper với result-entry panel/forms, inline lỗi API/local, attachment và
-   conclusion; bổ sung các field GPB còn thiếu.
-4. Siết backend Zod, kiểm tra user/role GPB, map unique report code và validation
-   reference range; thêm migration `specimenCollectedAt`/precision RBC nếu Prisma hiện
-   tại có thể migrate an toàn.
-5. Kiểm tra RBAC, chạy typecheck/lint/test/build và review toàn bộ diff.
+### Phase 1: Backend contract and business guards
 
-## Tiêu chí nghiệm thu
+- [x] Add keyword, UUID, cancel-reason (10-500) and date-range validation.
+- [x] Block cancellation when an invoice is pending/paid.
+- [x] Block dispensing unless a paid invoice exists, inside the transaction.
+- [x] Return real invoice status/id in the dispense queue.
+- [x] Add schema and business-guard regression tests.
 
-- Field-level backend error giữ nguyên thông điệp tiếng Việt và hiển thị đúng field.
-- Mỗi nhóm số có test giá trị trống, ngoài ngưỡng và bất thường lâm sàng nhưng hợp lệ.
-- Không ghi nhận kết quả vi sinh thiếu kết luận hoặc GPB có userId không hợp lệ/không đúng role.
-- Không cho phép trùng `reportCode` và reference range có bound sai thứ tự.
-- Không để lỗi validation nhạy cảm lọt vào log hoặc response 500 chung.
+### Phase 2: Frontend dispense and security
+
+- [x] Limit search/reject input and display counters/API field errors.
+- [x] Disable invalid actions and refetch after version/conflict errors.
+- [x] Escape all dynamic values before `document.write` label printing.
+- [x] Use real invoice data and normalized error messages.
+
+### Phase 3: Real pharmacy data screens
+
+- [x] Connect inventory list/summary with loading/error and bounded search.
+- [x] Connect stock movements with date/type filters and `from <= to` validation.
+- [x] Connect XML screen to the selected prescription and real download endpoint.
+- [x] Remove fake success messages for export/FEFO sync without an endpoint.
+
+### Checkpoint: complete
+
+- [x] Frontend tests, typecheck, lint and build pass.
+- [x] Backend targeted tests, typecheck and build pass; full-suite DB blockers recorded.
+- [x] Review correctness, security, architecture, performance and dead-code impact.
+
+## Risks and mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Multiple invoices for one medical record | High | Select the latest active invoice; re-check in the command transaction. |
+| Inventory API lacks mock-only fields | Medium | Render only server-backed fields; do not invent data. |
+| XML endpoint returns binary | Medium | Use blob for download and text conversion for preview. |
+| Client state is stale or bypassed | High | Enforce guards on the backend and refetch after conflicts. |
+
+## Scope note
+
+The plan intentionally leaves the existing stock-import and XML-import flows unchanged,
+because their complete backend repository workflow is outside the requested validation
+scope.

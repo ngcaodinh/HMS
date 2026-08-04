@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 export const recordIdParamsSchema = z.object({ recordId: z.string().min(1) });
-export const prescriptionIdParamsSchema = z.object({ prescriptionId: z.string().min(1) });
+export const prescriptionIdParamsSchema = z.object({
+  prescriptionId: z.string().uuid('Mã đơn thuốc không hợp lệ.'),
+});
 export const idempotencyKeySchema = z.string().uuid();
 
 export const medicineQuerySchema = z.object({ keyword: z.string().optional() });
@@ -57,7 +59,11 @@ export const signPrescriptionSchema = z.object({
 
 export const cancelPrescriptionSchema = z.object({
   expectedVersion: z.number().int().positive(),
-  cancelReason: z.string().min(1).max(500),
+  cancelReason: z
+    .string()
+    .trim()
+    .min(10, 'Lý do từ chối tối thiểu 10 ký tự.')
+    .max(500, 'Lý do từ chối tối đa 500 ký tự.'),
 });
 
 export const exportPrescriptionXmlSchema = z.object({
@@ -65,8 +71,8 @@ export const exportPrescriptionXmlSchema = z.object({
 });
 
 export const listDispensablePrescriptionsQuerySchema = z.object({
-  keyword: z.string().optional(),
-  warehouseId: z.string().trim().optional(),
+  keyword: z.string().trim().max(100, 'Từ khóa tìm kiếm tối đa 100 ký tự.').optional(),
+  warehouseId: z.string().uuid('Mã kho không hợp lệ.').optional(),
   // z.coerce.boolean() would coerce the literal string "false" to `true` — match the string instead.
   dispensed: z
     .enum(['true', 'false'])

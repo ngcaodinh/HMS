@@ -31,6 +31,8 @@ interface PrescriptionDispenseScreenProps {
   isDownloadingXml?: boolean;
   isExportingXml?: boolean;
   isLoading?: boolean;
+  searchQuery?: string;
+  onSearchQueryChange?: (value: string) => void;
   selectedWarehouseId: string;
   warehouses: PharmacyWarehouse[];
   onSelectWarehouse: (warehouseId: string) => void;
@@ -140,22 +142,25 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
   isDownloadingXml = false,
   isExportingXml = false,
   isLoading = false,
+  searchQuery: controlledSearchQuery,
+  onSearchQueryChange,
   selectedWarehouseId,
   warehouses,
   onSelectWarehouse,
 }) => {
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [localSearchQuery, setLocalSearchQuery] = useState<string>('');
   const [activeChip, setActiveChip] = useState<PrescriptionChipFilter>('pending');
+  const searchQuery = controlledSearchQuery ?? localSearchQuery;
 
   // Lọc danh sách đơn thuốc theo từ khóa, kho và chip
   const filteredPrescriptions = useMemo(() => {
     return filterPrescriptionsByDispenseView({
       activeChip,
       prescriptions,
-      searchQuery,
+      searchQuery: searchQuery ?? localSearchQuery,
       selectedWarehouseId,
     });
-  }, [prescriptions, selectedWarehouseId, activeChip, searchQuery]);
+  }, [prescriptions, selectedWarehouseId, activeChip, searchQuery, localSearchQuery]);
 
   // Đơn thuốc đang được chọn chi tiết
   const selectedRx = useMemo(() => {
@@ -221,7 +226,12 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                 type="text"
                 className={styles.searchInput}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                maxLength={100}
+                onChange={(e) => {
+                  const value = e.target.value.slice(0, 100);
+                  onSearchQueryChange?.(value);
+                  if (!onSearchQueryChange) setLocalSearchQuery(value);
+                }}
                 placeholder="Tìm theo Mã đơn, Mã BN, Họ tên, Bác sĩ..."
                 aria-label="Tìm kiếm đơn thuốc"
               />
@@ -478,8 +488,10 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                 <label className="block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851] mb-1">
                   Trạng thái hóa đơn
                 </label>
-                <span className={`${styles.badge} ${styles.badgePaid}`}>
-                  Đã thanh toán viện phí ({selectedRx.invoiceId || '#INV-2026-0312'})
+                <span className={`${styles.badge} ${selectedRx.invoiceStatus === 'paid' ? styles.badgePaid : styles.badgePending}`}>
+                  {selectedRx.invoiceStatus === 'paid'
+                    ? `Đã thanh toán viện phí (${selectedRx.invoiceId ?? 'chưa có mã'})`
+                    : 'Chưa thanh toán viện phí'}
                 </span>
               </div>
             </div>
@@ -579,6 +591,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                 <button
                   type="button"
                   className={`${styles.btn} ${styles.btnErrorOutline}`}
+                  disabled={selectedRx.status !== 'pending'}
                   onClick={() => onOpenRejectModal(selectedRx)}
                   aria-label="Từ chối hoặc trả đơn thuốc cho bác sĩ"
                 >
@@ -630,6 +643,8 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
                   <button
                     type="button"
                     className={`${styles.btn} ${styles.btnPrimary} ${styles.btnLg}`}
+                    disabled={selectedRx.invoiceStatus !== 'paid' || selectedRx.items.some((item) => !item.isStockSufficient)}
+                    title={selectedRx.invoiceStatus !== 'paid' ? 'Bệnh nhân chưa thanh toán viện phí.' : undefined}
                     onClick={() => onOpenDispenseModal(selectedRx)}
                     aria-label="Xác nhận cấp phát thuốc và trừ kho FEFO"
                   >

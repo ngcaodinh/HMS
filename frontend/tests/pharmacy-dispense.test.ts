@@ -15,6 +15,7 @@ import {
   PharmacyModals,
   validateRejectReason,
 } from '../src/modules/pharmacy/components/PharmacyModals';
+import { escapeHtml } from '../src/modules/pharmacy/components/print-label';
 import {
   createIdempotencyKey,
   downloadPrescriptionXmlFile,
@@ -264,6 +265,12 @@ describe('pharmacy modals', () => {
     assert.equal(validateRejectReason('123456789'), 'Vui lòng nhập lý do từ chối tối thiểu 10 ký tự.');
     assert.equal(validateRejectReason('1234567890'), null);
     assert.equal(validateRejectReason('Thuoc tam het hang'), null);
+    assert.match(validateRejectReason('a'.repeat(501)) ?? '', /tối đa 500/);
+  });
+
+  it('escapes free text before it is inserted into print HTML', () => {
+    assert.equal(escapeHtml(`<img src=x onerror="alert(1)"> & 'x'`),
+      '&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &#39;x&#39;');
   });
 
   it('renders dispense modal with disabled pending confirmation', () => {

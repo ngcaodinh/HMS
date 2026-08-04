@@ -1,17 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  invoiceFindFirst: vi.fn(),
   medicalRecordUpdateMany: vi.fn(),
   prescriptionFindFirst: vi.fn(),
+  prescriptionFindUnique: vi.fn(),
+  prescriptionFindUniqueOrThrow: vi.fn(),
+  prescriptionUpdateMany: vi.fn(),
   transaction: vi.fn(),
 }));
 
 vi.mock('../../src/core/db/prisma-client', () => ({
-  prisma: { $transaction: mocks.transaction },
+  prisma: {
+    $transaction: mocks.transaction,
+    prescription: {
+      findUniqueOrThrow: mocks.prescriptionFindUniqueOrThrow,
+      updateMany: mocks.prescriptionUpdateMany,
+    },
+  },
 }));
 
 import {
+  cancelPrescriptionTx,
   createDraftPrescription,
+  dispensePrescriptionTx,
   signPrescriptionTx,
 } from '../../src/modules/prescriptions/repositories/prescription.repository';
 
@@ -25,8 +37,14 @@ describe('prescription repository concurrency guards', () => {
           count: vi.fn(),
           create: vi.fn(),
           findFirst: mocks.prescriptionFindFirst,
+          findUnique: mocks.prescriptionFindUnique,
+          findUniqueOrThrow: mocks.prescriptionFindUniqueOrThrow,
+          updateMany: mocks.prescriptionUpdateMany,
         },
         prescriptionItem: { create: vi.fn() },
+        invoice: { findFirst: mocks.invoiceFindFirst },
+        stockMovement: { findMany: vi.fn(), create: vi.fn() },
+        medicineBatch: { update: vi.fn(), findUniqueOrThrow: vi.fn() },
       }),
     );
   });
@@ -59,5 +77,22 @@ describe('prescription repository concurrency guards', () => {
         where: expect.objectContaining({ doctorId: 'doctor-1', status: 'diagnosed' }),
       }),
     );
+  });
+
+  it('blocks cancellation when an active invoice already exists', async () => {
+    mocks.prescriptionFindFirst.mockResolvedValue({ recordId: 'record-1', dispensedAt: null });
+    mocks.invoiceFindFirst.mockResolvedValue({ id: 'invoice-1', status: 'pending' });
+
+    await expect(cancelPrescriptionTx('prescription-1', 1, 'pharmacist-1', 'Lý do hợp lệ dài')).rejects
+      .toMatchObject({ code: 'INVOICE_GENERATED' });
+  });
+
+  it('blocks dispensing when the related invoice is not paid', async () => {
+    mocks.prescriptionFindUnique.mockResolvedValue({ recordId: 'record-1' });
+    mocks.invoiceFindFirst.mockResolvedValue(null);
+
+    await expect(dispensePrescriptionTx('prescription-1', 1, 'pharmacist-1')).rejects
+      .toMatchObject({ code: 'INVOICE_NOT_PAID' });
+    expect(mocks.prescriptionUpdateMany).not.toHaveBeenCalled();
   });
 });

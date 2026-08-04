@@ -97,3 +97,11 @@ export async function downloadPrescriptionXmlFile(prescriptionId: string): Promi
   anchor.click();
   URL.revokeObjectURL(url);
 }
+
+/** Đọc XML đã kết xuất để preview; endpoint vẫn trả blob nhằm giữ đúng content type tải file. */
+export async function fetchPrescriptionXmlContent(prescriptionId: string): Promise<string> {
+  const response = await httpClient.get<Blob>(`/prescriptions/${prescriptionId}/xml-file`, {
+    responseType: 'blob',
+  });
+  return response.data.text();
+}

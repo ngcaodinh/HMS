@@ -381,6 +381,12 @@ export async function cancelPrescription(
   if (prescription.status === 'cancelled') {
     throw AppError.conflict('INVALID_PRESCRIPTION_TRANSITION', 'Đơn thuốc đã bị hủy trước đó.');
   }
+  if (prescription.status !== 'active' && prescription.status !== 'xml_exported') {
+    throw AppError.badRequest(
+      'INVALID_PRESCRIPTION_TRANSITION',
+      'Chỉ được hủy đơn thuốc đã ký và chưa cấp phát.',
+    );
+  }
 
   const updated = await cancelPrescriptionTx(
     prescriptionId,
@@ -510,6 +516,7 @@ export async function downloadPrescriptionXml(prescriptionId: string, principal:
 
 function shapeDispensablePrescription(prescription: DispensablePrescription) {
   const record = prescription.medicalRecord;
+  const invoice = record.invoices[0] ?? null;
   const allocationsByItemId = prescription.stockMovements.reduce(
     (current, movement) => {
       if (!movement.prescriptionItemId) return current;
@@ -555,6 +562,9 @@ function shapeDispensablePrescription(prescription: DispensablePrescription) {
     allergyOverrideReason: prescription.allergyOverrideReason,
     allergyOverrideAt: prescription.allergyOverrideAt,
     xmlExportedAt: prescription.xmlExportedAt,
+    invoice: invoice
+      ? { invoiceId: invoice.id, status: invoice.status }
+      : null,
     warehouse: firstWarehouse
       ? { code: firstWarehouse.code, name: firstWarehouse.name, warehouseId: firstWarehouse.id }
       : null,
