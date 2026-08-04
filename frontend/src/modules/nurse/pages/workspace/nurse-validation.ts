@@ -60,10 +60,11 @@ export function getMissingRequiredVitalFields(
 
 /** Kiểm tra một chỉ số sinh hiệu theo cùng boundary mà backend áp dụng. */
 export function getVitalFieldError(key: VitalField, value: string): string | undefined {
-  if (!value) return undefined;
+  const normalizedValue = value.trim();
+  if (!normalizedValue) return undefined;
 
   const limit = VITAL_LIMITS[key];
-  const numberValue = Number(value);
+  const numberValue = Number(normalizedValue);
   const isInvalidInteger = 'integer' in limit && limit.integer && !Number.isInteger(numberValue);
   if (
     Number.isNaN(numberValue) ||
@@ -79,15 +80,72 @@ export function getVitalFieldError(key: VitalField, value: string): string | und
   return undefined;
 }
 
+export type VitalFieldValues = Partial<Record<VitalField, string>>;
+export type VitalFieldTouched = Partial<Record<VitalField, boolean>>;
+export type VitalFieldErrors = Partial<Record<VitalField, string>>;
+
+/**
+ * Chỉ hiển thị lỗi sinh hiệu sau khi người dùng rời khỏi field hoặc đã thử lưu.
+ *
+ * Quy tắc liên trường của huyết áp được áp dụng cho cả tâm thu và tâm trương để
+ * người dùng luôn biết cặp giá trị nào cần kiểm tra lại. Backend vẫn phải kiểm tra
+ * lại payload vì dữ liệu từ trình duyệt không được xem là đáng tin cậy.
+ */
+export function getVisibleVitalFieldErrors(
+  values: VitalFieldValues,
+  touchedFields: VitalFieldTouched,
+  attemptedSave = false,
+): VitalFieldErrors {
+  const errors: VitalFieldErrors = {};
+
+  (Object.keys(VITAL_LIMITS) as VitalField[]).forEach((field) => {
+    if (!attemptedSave && !touchedFields[field]) return;
+
+    const value = values[field] ?? '';
+    const formatError = getVitalFieldError(field, value);
+    if (formatError) {
+      errors[field] = formatError;
+      return;
+    }
+
+    if (
+      REQUIRED_VITAL_FIELDS.includes(field as (typeof REQUIRED_VITAL_FIELDS)[number]) &&
+      !value.trim()
+    ) {
+      errors[field] = 'Vui lòng nhập giá trị này';
+    }
+  });
+
+  const shouldValidateBloodPressure =
+    attemptedSave || touchedFields.bpSystolic || touchedFields.bpDiastolic;
+  const systolicValue = values.bpSystolic ?? '';
+  const diastolicValue = values.bpDiastolic ?? '';
+  const bloodPressureError =
+    shouldValidateBloodPressure &&
+    !getVitalFieldError('bpSystolic', systolicValue) &&
+    !getVitalFieldError('bpDiastolic', diastolicValue)
+      ? getBloodPressureRelationError(systolicValue, diastolicValue)
+      : undefined;
+
+  if (bloodPressureError) {
+    if (!errors.bpSystolic) errors.bpSystolic = bloodPressureError;
+    if (!errors.bpDiastolic) errors.bpDiastolic = bloodPressureError;
+  }
+
+  return errors;
+}
+
 /** Chặn huyết áp tâm thu nhỏ hơn hoặc bằng tâm trương để tránh nhập ngược. */
 export function getBloodPressureRelationError(
   systolic: string,
   diastolic: string,
 ): string | undefined {
-  if (!systolic || !diastolic) return undefined;
+  const normalizedSystolic = systolic.trim();
+  const normalizedDiastolic = diastolic.trim();
+  if (!normalizedSystolic || !normalizedDiastolic) return undefined;
 
-  const systolicValue = Number(systolic);
-  const diastolicValue = Number(diastolic);
+  const systolicValue = Number(normalizedSystolic);
+  const diastolicValue = Number(normalizedDiastolic);
   if (Number.isNaN(systolicValue) || Number.isNaN(diastolicValue)) return undefined;
 
   return systolicValue > diastolicValue
@@ -117,6 +175,8 @@ export type EmergencyIdentityInput = {
   guardianPhoneNumber: string;
   privacyConfirmed: boolean;
 };
+
+export type EmergencyIdentityTouched = Partial<Record<keyof EmergencyIdentityInput, boolean>>;
 
 /**
  * Validate form định danh cấp cứu ở client để phản hồi sớm; backend vẫn là nguồn chân lý cuối cùng.
@@ -169,6 +229,32 @@ export function validateEmergencyIdentity(input: EmergencyIdentityInput): Record
   }
 
   return errors;
+}
+
+/**
+ * Lọc lỗi định danh cấp cứu theo các field người dùng đã hoàn tất nhập.
+ * Lỗi lựa chọn CCCD hoặc người giám hộ được gắn với cả ba field liên quan để
+ * phản hồi xuất hiện ngay khi người dùng rời khỏi một phần của cặp thay thế.
+ */
+export function getVisibleEmergencyIdentityErrors(
+  input: EmergencyIdentityInput,
+  touchedFields: EmergencyIdentityTouched,
+  attemptedSubmit = false,
+): Record<string, string> {
+  const allErrors = validateEmergencyIdentity(input);
+  if (attemptedSubmit) return allErrors;
+
+  const identityAlternativeTouched =
+    touchedFields.identityCardNumber ||
+    touchedFields.guardianFullName ||
+    touchedFields.guardianPhoneNumber;
+
+  return Object.fromEntries(
+    Object.entries(allErrors).filter(([field]) => {
+      if (field === 'identityCardNumber') return identityAlternativeTouched;
+      return Boolean(touchedFields[field as keyof EmergencyIdentityInput]);
+    }),
+  );
 }
 
 /** Lấy message đã được chuẩn hóa từ mutation, không truy cập trực tiếp Axios response trong UI. */

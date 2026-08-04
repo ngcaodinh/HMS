@@ -56,6 +56,8 @@ import {
   getBloodPressureRelationError,
   getApiErrorMessage,
   getMissingRequiredVitalFields,
+  getVisibleEmergencyIdentityErrors,
+  getVisibleVitalFieldErrors,
   getVitalFieldError,
   validateEmergencyIdentity,
   VITAL_LIMITS,
@@ -429,6 +431,7 @@ function VitalInputField({
   unit,
   value,
   onChange,
+  onBlur,
   error,
   step,
   required,
@@ -437,6 +440,7 @@ function VitalInputField({
   unit: string;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   error?: string;
   step?: string;
   required?: boolean;
@@ -458,24 +462,19 @@ function VitalInputField({
           )}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          aria-invalid={Boolean(error)}
         />
         <span className={styles.fieldUnit}>{unit}</span>
       </span>
-      {error && <p className="mt-1 text-xs font-bold text-[#ba1a1a]">{error}</p>}
+      {error && (
+        <p className="mt-1 text-xs font-bold text-[#ba1a1a]" role="alert">
+          {error}
+        </p>
+      )}
     </label>
   );
 }
-
-const ALL_VITAL_FIELDS = [
-  'pulse',
-  'temperatureC',
-  'bpSystolic',
-  'bpDiastolic',
-  'respiratoryRate',
-  'spo2',
-  'heightCm',
-  'weightKg',
-] as const;
 
 function VitalsForm({
   selectedRecord,
@@ -498,33 +497,39 @@ function VitalsForm({
   bmiValue: string;
   attemptedSave: boolean;
 }) {
-  const missingOnSubmit = useMemo(() => {
-    return new Set(attemptedSave ? getMissingRequiredVitalFields(form) : []);
-  }, [attemptedSave, form]);
+  type VitalInputFieldName = Exclude<keyof VitalsFormState, 'allergyEnabled' | 'allergyNote'>;
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<VitalInputFieldName, boolean>>>(
+    {},
+  );
+  const [allergyTouched, setAllergyTouched] = useState(false);
 
-  const reminderFieldError = (key: (typeof ALL_VITAL_FIELDS)[number]): string | undefined =>
-    missingOnSubmit.has(key) ? 'Vui lòng nhập giá trị này' : undefined;
+  useEffect(() => {
+    setTouchedFields({});
+    setAllergyTouched(false);
+  }, [selectedRecord?.recordId]);
+
+  const handleVitalChange = (field: VitalInputFieldName, value: string) => {
+    setTouchedFields((previous) => {
+      if (field === 'bpSystolic' || field === 'bpDiastolic') {
+        return { ...previous, bpSystolic: false, bpDiastolic: false };
+      }
+      return { ...previous, [field]: false };
+    });
+    setForm((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const handleVitalBlur = (field: VitalInputFieldName) => {
+    setTouchedFields((previous) => {
+      if (field === 'bpSystolic' || field === 'bpDiastolic') {
+        return { ...previous, bpSystolic: true, bpDiastolic: true };
+      }
+      return { ...previous, [field]: true };
+    });
+  };
 
   const fieldErrors = useMemo(
-    () => ({
-      pulse: getVitalFieldError('pulse', form.pulse) || reminderFieldError('pulse'),
-      temperatureC:
-        getVitalFieldError('temperatureC', form.temperatureC) || reminderFieldError('temperatureC'),
-      bpSystolic:
-        getVitalFieldError('bpSystolic', form.bpSystolic) ||
-        getBloodPressureRelationError(form.bpSystolic, form.bpDiastolic) ||
-        reminderFieldError('bpSystolic'),
-      bpDiastolic:
-        getVitalFieldError('bpDiastolic', form.bpDiastolic) || reminderFieldError('bpDiastolic'),
-      respiratoryRate:
-        getVitalFieldError('respiratoryRate', form.respiratoryRate) ||
-        reminderFieldError('respiratoryRate'),
-      spo2: getVitalFieldError('spo2', form.spo2) || reminderFieldError('spo2'),
-      heightCm: getVitalFieldError('heightCm', form.heightCm) || reminderFieldError('heightCm'),
-      weightKg: getVitalFieldError('weightKg', form.weightKg) || reminderFieldError('weightKg'),
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [form, missingOnSubmit],
+    () => getVisibleVitalFieldErrors(form, touchedFields, attemptedSave),
+    [attemptedSave, form, touchedFields],
   );
   const hasFormatErrors = [
     getVitalFieldError('pulse', form.pulse),
@@ -544,7 +549,7 @@ function VitalsForm({
   const allergyNoteError = getAllergyNoteError(
     form.allergyEnabled,
     form.allergyNote,
-    attemptedSave,
+    attemptedSave || allergyTouched,
   );
   const allergyNoteTooLong = form.allergyNote.length > 1000;
 
@@ -577,7 +582,8 @@ function VitalsForm({
             required
             value={form.pulse}
             error={fieldErrors.pulse}
-            onChange={(v) => setForm((prev) => ({ ...prev, pulse: v }))}
+            onChange={(v) => handleVitalChange('pulse', v)}
+            onBlur={() => handleVitalBlur('pulse')}
           />
 
           <VitalInputField
@@ -586,7 +592,8 @@ function VitalsForm({
             step="0.1"
             value={form.temperatureC}
             error={fieldErrors.temperatureC}
-            onChange={(v) => setForm((prev) => ({ ...prev, temperatureC: v }))}
+            onChange={(v) => handleVitalChange('temperatureC', v)}
+            onBlur={() => handleVitalBlur('temperatureC')}
           />
 
           <VitalInputField
@@ -595,7 +602,8 @@ function VitalsForm({
             required
             value={form.bpSystolic}
             error={fieldErrors.bpSystolic}
-            onChange={(v) => setForm((prev) => ({ ...prev, bpSystolic: v }))}
+            onChange={(v) => handleVitalChange('bpSystolic', v)}
+            onBlur={() => handleVitalBlur('bpSystolic')}
           />
 
           <VitalInputField
@@ -604,7 +612,8 @@ function VitalsForm({
             required
             value={form.bpDiastolic}
             error={fieldErrors.bpDiastolic}
-            onChange={(v) => setForm((prev) => ({ ...prev, bpDiastolic: v }))}
+            onChange={(v) => handleVitalChange('bpDiastolic', v)}
+            onBlur={() => handleVitalBlur('bpDiastolic')}
           />
 
           <VitalInputField
@@ -612,7 +621,8 @@ function VitalsForm({
             unit="lần/ph"
             value={form.respiratoryRate}
             error={fieldErrors.respiratoryRate}
-            onChange={(v) => setForm((prev) => ({ ...prev, respiratoryRate: v }))}
+            onChange={(v) => handleVitalChange('respiratoryRate', v)}
+            onBlur={() => handleVitalBlur('respiratoryRate')}
           />
 
           <VitalInputField
@@ -621,7 +631,8 @@ function VitalsForm({
             required
             value={form.spo2}
             error={fieldErrors.spo2}
-            onChange={(v) => setForm((prev) => ({ ...prev, spo2: v }))}
+            onChange={(v) => handleVitalChange('spo2', v)}
+            onBlur={() => handleVitalBlur('spo2')}
           />
 
           <VitalInputField
@@ -629,7 +640,8 @@ function VitalsForm({
             unit="cm"
             value={form.heightCm}
             error={fieldErrors.heightCm}
-            onChange={(v) => setForm((prev) => ({ ...prev, heightCm: v }))}
+            onChange={(v) => handleVitalChange('heightCm', v)}
+            onBlur={() => handleVitalBlur('heightCm')}
           />
 
           <VitalInputField
@@ -638,7 +650,8 @@ function VitalsForm({
             step="0.1"
             value={form.weightKg}
             error={fieldErrors.weightKg}
-            onChange={(v) => setForm((prev) => ({ ...prev, weightKg: v }))}
+            onChange={(v) => handleVitalChange('weightKg', v)}
+            onBlur={() => handleVitalBlur('weightKg')}
           />
 
           <label>
@@ -710,6 +723,7 @@ function VitalsForm({
                 disabled={!form.allergyEnabled}
                 value={form.allergyNote}
                 onChange={(e) => setForm((prev) => ({ ...prev, allergyNote: e.target.value }))}
+                onBlur={() => setAllergyTouched(true)}
                 placeholder="Nhập mô tả chi tiết: tên thuốc, loại thức ăn gây dị ứng và biểu hiện dị ứng... Ví dụ: Penicillin → nổi mề đay toàn thân"
                 maxLength={1000}
               />
@@ -1776,6 +1790,7 @@ function TransferReasonModal({
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState('');
+  const [reasonTouched, setReasonTouched] = useState(false);
   const trimmedLen = reason.trim().length;
   const isTooLong = reason.length > 255;
   const isValid = trimmedLen >= 10 && !isTooLong;
@@ -1801,11 +1816,12 @@ function TransferReasonModal({
           className={cn(styles.input, 'h-24 w-full text-xs')}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
+          onBlur={() => setReasonTouched(true)}
           placeholder="Nhập lý do chuyển giường..."
           autoFocus
           maxLength={255}
         />
-        {!isValid && reason.length > 0 && (
+        {!isValid && (reasonTouched || reason.length > 0) && (
           <p className="mt-1 text-[10px] text-red-600">
             {isTooLong
               ? 'Lý do tối đa 255 ký tự.'
@@ -2197,10 +2213,11 @@ function CancelOrderModal({
   onConfirm: (reason: string) => void;
 }) {
   const [reason, setReason] = useState('');
+  const [reasonTouched, setReasonTouched] = useState(false);
   const [attemptedConfirm, setAttemptedConfirm] = useState(false);
   const isTooLong = reason.length > 500;
   const isValid = reason.trim().length > 0 && !isTooLong;
-  const showError = (attemptedConfirm || isTooLong) && !isValid;
+  const showError = (reasonTouched || attemptedConfirm || isTooLong) && !isValid;
 
   return (
     <div
@@ -2222,6 +2239,7 @@ function CancelOrderModal({
           )}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
+          onBlur={() => setReasonTouched(true)}
           placeholder="Nhập lý do hủy y lệnh..."
           autoFocus
           maxLength={500}
@@ -2642,7 +2660,18 @@ function EmergencyScreen() {
 
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [form, setForm] = useState<EmergencyIdentityFormState>(emptyEmergencyForm);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  type EmergencyFieldName =
+    | 'fullName'
+    | 'dateOfBirth'
+    | 'phoneNumber'
+    | 'identityCardNumber'
+    | 'guardianFullName'
+    | 'guardianPhoneNumber'
+    | 'privacyConfirmed';
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<EmergencyFieldName, boolean>>>(
+    {},
+  );
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const patients = useMemo(() => unidentifiedPatients ?? [], [unidentifiedPatients]);
@@ -2661,23 +2690,70 @@ function EmergencyScreen() {
 
   const selectedPatient = patients.find((p) => p.patientId === selectedPatientId) ?? null;
 
+  const errors = useMemo(
+    () => getVisibleEmergencyIdentityErrors(form, touchedFields, attemptedSubmit),
+    [attemptedSubmit, form, touchedFields],
+  );
+
+  const handleFieldChange = <FieldName extends keyof EmergencyIdentityFormState>(
+    field: FieldName,
+    value: EmergencyIdentityFormState[FieldName],
+  ) => {
+    setTouchedFields((previous) => {
+      if (
+        field === 'identityCardNumber' ||
+        field === 'guardianFullName' ||
+        field === 'guardianPhoneNumber'
+      ) {
+        return {
+          ...previous,
+          identityCardNumber: false,
+          guardianFullName: false,
+          guardianPhoneNumber: false,
+        };
+      }
+      return { ...previous, [field]: false };
+    });
+    setForm((previous) => ({ ...previous, [field]: value }));
+  };
+
+  const handleFieldBlur = (field: EmergencyFieldName) => {
+    setTouchedFields((previous) => {
+      if (
+        field === 'identityCardNumber' ||
+        field === 'guardianFullName' ||
+        field === 'guardianPhoneNumber'
+      ) {
+        return {
+          ...previous,
+          identityCardNumber: true,
+          guardianFullName: true,
+          guardianPhoneNumber: true,
+        };
+      }
+      return { ...previous, [field]: true };
+    });
+  };
+
   const handleSelectPatient = (patientId: string) => {
     setSelectedPatientId(patientId);
     setForm(emptyEmergencyForm);
-    setErrors({});
+    setTouchedFields({});
+    setAttemptedSubmit(false);
   };
 
   const handleReset = () => {
     setForm(emptyEmergencyForm);
-    setErrors({});
+    setTouchedFields({});
+    setAttemptedSubmit(false);
   };
 
   const handleSubmit = () => {
     if (!selectedPatient || isPending) return;
 
+    setAttemptedSubmit(true);
     const nextErrors = validateEmergencyIdentity(form);
 
-    setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
     standardizeIdentity(
@@ -2698,7 +2774,8 @@ function EmergencyScreen() {
         onSuccess: () => {
           setToast({ type: 'success', message: 'Đã chuẩn hóa danh tính bệnh nhân thành công!' });
           setForm(emptyEmergencyForm);
-          setErrors({});
+          setTouchedFields({});
+          setAttemptedSubmit(false);
           setSelectedPatientId('');
         },
         onError: (error) => {
@@ -2844,7 +2921,8 @@ function EmergencyScreen() {
                   label="Họ và tên thật"
                   required
                   value={form.fullName}
-                  onChange={(v) => setForm((prev) => ({ ...prev, fullName: v.toUpperCase() }))}
+                  onChange={(v) => handleFieldChange('fullName', v.toUpperCase())}
+                  onBlur={() => handleFieldBlur('fullName')}
                   placeholder="NHẬP HỌ TÊN (TỰ CHUYỂN HOA CÓ DẤU)"
                   error={errors.fullName}
                   maxLength={255}
@@ -2854,7 +2932,8 @@ function EmergencyScreen() {
                   required
                   type="date"
                   value={form.dateOfBirth}
-                  onChange={(v) => setForm((prev) => ({ ...prev, dateOfBirth: v }))}
+                  onChange={(v) => handleFieldChange('dateOfBirth', v)}
+                  onBlur={() => handleFieldBlur('dateOfBirth')}
                   error={errors.dateOfBirth}
                 />
                 <div>
@@ -2895,8 +2974,9 @@ function EmergencyScreen() {
                   required
                   value={form.phoneNumber}
                   onChange={(v) =>
-                    setForm((prev) => ({ ...prev, phoneNumber: v.replace(/\D/g, '').slice(0, 10) }))
+                    handleFieldChange('phoneNumber', v.replace(/\D/g, '').slice(0, 10))
                   }
+                  onBlur={() => handleFieldBlur('phoneNumber')}
                   placeholder="0901234567"
                   error={errors.phoneNumber}
                 />
@@ -2904,11 +2984,9 @@ function EmergencyScreen() {
                   label="Số CCCD (12 chữ số)"
                   value={form.identityCardNumber}
                   onChange={(v) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      identityCardNumber: v.replace(/\D/g, '').slice(0, 12),
-                    }))
+                    handleFieldChange('identityCardNumber', v.replace(/\D/g, '').slice(0, 12))
                   }
+                  onBlur={() => handleFieldBlur('identityCardNumber')}
                   placeholder="001234567890"
                   error={errors.identityCardNumber}
                 />
@@ -2929,7 +3007,8 @@ function EmergencyScreen() {
                 <Field
                   label="Họ tên người bảo hộ / liên hệ"
                   value={form.guardianFullName}
-                  onChange={(v) => setForm((prev) => ({ ...prev, guardianFullName: v }))}
+                  onChange={(v) => handleFieldChange('guardianFullName', v)}
+                  onBlur={() => handleFieldBlur('guardianFullName')}
                   placeholder="Họ và tên người thân"
                   error={errors.guardianFullName}
                   maxLength={255}
@@ -2938,11 +3017,9 @@ function EmergencyScreen() {
                   label="Số điện thoại người giám hộ / đại diện"
                   value={form.guardianPhoneNumber}
                   onChange={(v) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      guardianPhoneNumber: v.replace(/\D/g, '').slice(0, 10),
-                    }))
+                    handleFieldChange('guardianPhoneNumber', v.replace(/\D/g, '').slice(0, 10))
                   }
+                  onBlur={() => handleFieldBlur('guardianPhoneNumber')}
                   placeholder="0912345678"
                   error={errors.guardianPhoneNumber}
                   maxLength={10}
@@ -2953,9 +3030,8 @@ function EmergencyScreen() {
                   className="mt-0.5 h-4 w-4 rounded border-gray-500"
                   type="checkbox"
                   checked={form.privacyConfirmed}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, privacyConfirmed: e.target.checked }))
-                  }
+                  onChange={(e) => handleFieldChange('privacyConfirmed', e.target.checked)}
+                  onBlur={() => handleFieldBlur('privacyConfirmed')}
                 />
                 <span>
                   Xác nhận bệnh nhân/người nhà đã đồng ý cung cấp thông tin và ký bản cam kết bảo
@@ -2993,6 +3069,7 @@ function Field({
   required = false,
   value,
   onChange,
+  onBlur,
   placeholder,
   type = 'text',
   error,
@@ -3002,6 +3079,7 @@ function Field({
   required?: boolean;
   value: string;
   onChange: (value: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   type?: string;
   error?: string;
@@ -3018,12 +3096,17 @@ function Field({
           error && 'border-red-400 text-[#ba1a1a] focus:border-red-500 focus:ring-red-500/10',
         )}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         type={type}
         value={value}
         maxLength={maxLength}
       />
-      {error && <p className="mt-1 text-xs font-bold text-[#ba1a1a]">{error}</p>}
+      {error && (
+        <p className="mt-1 text-xs font-bold text-[#ba1a1a]" role="alert">
+          {error}
+        </p>
+      )}
     </label>
   );
 }
