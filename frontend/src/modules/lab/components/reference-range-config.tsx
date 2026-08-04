@@ -109,9 +109,11 @@ function HourlyChart({ period }: { period: 'today' | 'week' | 'month' }) {
 }
 
 function EditableRow({
+  canManage,
   onNotify,
   row,
 }: {
+  canManage: boolean;
   onNotify: (message: string) => void;
   row: ReferenceRangeRow;
 }) {
@@ -191,14 +193,16 @@ function EditableRow({
         )}
       </td>
       <td className={styles.td}>
-        {isEditing ? (
+        {canManage && isEditing ? (
           <input className={styles.input} onChange={(e) => setUnit(e.target.value)} value={unit} />
-        ) : (
+        ) : canManage ? (
           (row.unit ?? '—')
+        ) : (
+          '—'
         )}
       </td>
       <td className={styles.td}>
-        {isEditing ? (
+        {canManage && isEditing ? (
           <div>
             <input
               aria-invalid={Boolean(errors.lowerBound)}
@@ -216,7 +220,7 @@ function EditableRow({
         )}
       </td>
       <td className={styles.td}>
-        {isEditing ? (
+        {canManage && isEditing ? (
           <div>
             <input
               aria-invalid={Boolean(errors.upperBound)}
@@ -235,7 +239,7 @@ function EditableRow({
       </td>
       <td className={styles.td}>{CONDITION_LABELS[row.condition]}</td>
       <td className={styles.td}>
-        {isEditing ? (
+        {canManage && isEditing ? (
           <div className="flex gap-2">
             <button
               className={styles.mutedButton}
@@ -253,7 +257,7 @@ function EditableRow({
               {updateMutation.isPending ? 'Đang lưu...' : 'Lưu'}
             </button>
           </div>
-        ) : (
+        ) : canManage ? (
           <div className="flex gap-2">
             <button
               className={styles.outlineButton}
@@ -275,6 +279,8 @@ function EditableRow({
               Xoá
             </button>
           </div>
+        ) : (
+          '—'
         )}
       </td>
     </tr>
@@ -458,7 +464,7 @@ function CreateRangeForm({
   );
 }
 
-export function ReferenceRangeConfig() {
+export function ReferenceRangeConfig({ canManage }: { canManage: boolean }) {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [keyword, setKeyword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -517,17 +523,21 @@ export function ReferenceRangeConfig() {
               placeholder="Tìm chỉ số..."
               value={keyword}
             />
-            <button
-              className={styles.primaryButton}
-              onClick={() => setIsCreating((v) => !v)}
-              type="button"
-            >
-              + Cập nhật trị số
-            </button>
+            {canManage && (
+              <button
+                className={styles.primaryButton}
+                onClick={() => setIsCreating((v) => !v)}
+                type="button"
+              >
+                + Cập nhật trị số
+              </button>
+            )}
           </div>
         </div>
 
-        {isCreating && <CreateRangeForm onDone={() => setIsCreating(false)} onNotify={showPopup} />}
+        {isCreating && canManage && (
+          <CreateRangeForm onDone={() => setIsCreating(false)} onNotify={showPopup} />
+        )}
 
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -559,7 +569,12 @@ export function ReferenceRangeConfig() {
               )}
               {!isLoading &&
                 rows.map((row) => (
-                  <EditableRow key={row.referenceRangeId} onNotify={showPopup} row={row} />
+                  <EditableRow
+                    canManage={canManage}
+                    key={row.referenceRangeId}
+                    onNotify={showPopup}
+                    row={row}
+                  />
                 ))}
             </tbody>
           </table>

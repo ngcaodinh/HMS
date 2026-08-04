@@ -2,16 +2,24 @@ import { Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const repositoryMocks = vi.hoisted(() => ({
+  createReferenceRange: vi.fn(),
   findAttachmentById: vi.fn(),
   findLabTestById: vi.fn(),
+  findLabTestTypeById: vi.fn(),
+  findReferenceRangeById: vi.fn(),
   findUserForPathology: vi.fn(),
   recordLabResultTx: vi.fn(),
+  updateReferenceRangeDetail: vi.fn(),
 }));
 
 vi.mock('../src/modules/lab-tests/repositories/lab-test.repository', () => repositoryMocks);
 vi.mock('../src/modules/audit/services/audit.service', () => ({ recordAuditLog: vi.fn() }));
 
-import { recordLabResult } from '../src/modules/lab-tests/services/lab-test.service';
+import {
+  createNewReferenceRange,
+  recordLabResult,
+  updateReferenceRangeById,
+} from '../src/modules/lab-tests/services/lab-test.service';
 
 const principal = {
   authVersion: 1,
@@ -115,5 +123,50 @@ describe('recordLabResult', () => {
         principal,
       ),
     ).rejects.toMatchObject({ code: 'PATHOLOGY_DOCTOR_ROLE_INVALID', httpStatus: 422 });
+  });
+});
+
+describe('reference range target validation', () => {
+  const adminPrincipal = { ...principal, roleCodes: ['admin'] };
+  const labTestType = {
+    id: 'type-1',
+    isActive: true,
+    resultTableKey: 'xn_cong_thuc_mau',
+  };
+
+  it('rejects a field that is not part of the selected result table', async () => {
+    repositoryMocks.findLabTestTypeById.mockResolvedValue(labTestType);
+
+    await expect(
+      createNewReferenceRange(
+        {
+          labTestTypeId: 'type-1',
+          fieldKey: 'secretField',
+          code: 'WBC',
+          label: 'WBC',
+          condition: 'all',
+        },
+        adminPrincipal,
+      ),
+    ).rejects.toMatchObject({ code: 'REFERENCE_RANGE_FIELD_INVALID', httpStatus: 422 });
+    expect(repositoryMocks.createReferenceRange).not.toHaveBeenCalled();
+  });
+
+  it('validates the target table when an existing range is moved to another type', async () => {
+    repositoryMocks.findReferenceRangeById.mockResolvedValue({
+      id: 'range-1',
+      labTestTypeId: 'type-1',
+      fieldKey: 'wbc',
+    });
+    repositoryMocks.findLabTestTypeById.mockResolvedValue({
+      ...labTestType,
+      id: 'type-2',
+      resultTableKey: 'xn_nuoc_tieu',
+    });
+
+    await expect(
+      updateReferenceRangeById('range-1', { labTestTypeId: 'type-2' }, adminPrincipal),
+    ).rejects.toMatchObject({ code: 'REFERENCE_RANGE_FIELD_INVALID', httpStatus: 422 });
+    expect(repositoryMocks.updateReferenceRangeDetail).not.toHaveBeenCalled();
   });
 });

@@ -10,7 +10,9 @@ import {
   findAttachmentById,
   findAttachmentsForLabTest,
   findLabTestById,
+  findLabTestTypeById,
   findLabTestsForStats,
+  findReferenceRangeById,
   findPendingLabTests,
   findReferenceRangesByType,
   findUserForPathology,
@@ -393,8 +395,115 @@ function shapeReferenceRangeRow(range: ReferenceRangeWithType) {
 }
 
 /**
+ * Danh sách field được phép cấu hình theo bảng kết quả.
+ * Không dựa vào dropdown của frontend vì request có thể được gọi trực tiếp ngoài trình duyệt.
+ */
+const REFERENCE_RANGE_FIELDS: Record<string, readonly string[]> = {
+  xn_cong_thuc_mau: [
+    'wbc',
+    'neu',
+    'lym',
+    'mono',
+    'eos',
+    'baso',
+    'rbc',
+    'hgb',
+    'hct',
+    'mcv',
+    'mch',
+    'mchc',
+    'rdw',
+    'plt',
+    'mpv',
+    'pdw',
+    'pct',
+  ],
+  xn_hoa_sinh_mau: [
+    'ure',
+    'glucose',
+    'creatinin',
+    'acidUric',
+    'bilirubinTP',
+    'bilirubinTT',
+    'bilirubinGT',
+    'proteinTP',
+    'albumin',
+    'globulin',
+    'tyLeAG',
+    'fibrinogen',
+    'cholesterol',
+    'triglycerid',
+    'hdlCho',
+    'ldlCho',
+    'natri',
+    'kali',
+    'clorua',
+    'calci',
+    'calciIon',
+    'phospho',
+    'sat',
+    'magie',
+    'ast',
+    'alt',
+    'amylase',
+    'ck',
+    'ckMb',
+    'ldh',
+    'ggt',
+    'cholinesterase',
+    'phosphataseKiem',
+    'phDongMach',
+    'pco2',
+    'po2DongMach',
+    'hco3Chuan',
+    'kiemDu',
+  ],
+  xn_nuoc_tieu: [
+    'ph',
+    'tyTrong',
+    'nt24TheTich',
+    'nt24Protein',
+    'nt24Glucose',
+    'nt24Ure',
+    'nt24Creatinin',
+    'nt24AcidUric',
+    'nt24Amylase',
+    'nt24Na',
+    'nt24K',
+    'dntProtein',
+    'dntGlucose',
+    'dntClorua',
+    'dichViHClTuDo',
+    'dichViHClToanPhan',
+    'dcdProtein',
+  ],
+  xn_vi_sinh: [],
+  xn_mo_benh_hoc: [],
+};
+
+async function validateReferenceRangeTarget(labTestTypeId: string, fieldKey: string) {
+  const labTestType = await findLabTestTypeById(labTestTypeId);
+  if (!labTestType || !labTestType.isActive) {
+    throw AppError.notFound(
+      'LAB_TEST_TYPE_NOT_FOUND',
+      'Không tìm thấy loại xét nghiệm đang hoạt động.',
+    );
+  }
+
+  if (!(REFERENCE_RANGE_FIELDS[labTestType.resultTableKey] ?? []).includes(fieldKey)) {
+    throw AppError.unprocessable(
+      'REFERENCE_RANGE_FIELD_INVALID',
+      'Chỉ số không thuộc bảng kết quả của loại xét nghiệm đã chọn.',
+      [{ field: 'fieldKey', rule: 'field_not_allowed_for_result_table' }],
+    );
+  }
+
+  return labTestType;
+}
+
+/**
  * @route GET /api/v1/lab-tests/reference-ranges
- * @access admin
+ * @access lab_tech, admin (read-only)
  */
 export async function listReferenceRangesForConfig(query: ListReferenceRangesQuery) {
   const [ranges, totalItems] = await listReferenceRanges(query);
@@ -413,6 +522,8 @@ export async function createNewReferenceRange(
   input: CreateReferenceRangeInput,
   principal: Principal,
 ) {
+  await validateReferenceRangeTarget(input.labTestTypeId, input.fieldKey);
+
   try {
     const created = await createReferenceRange({
       id: randomUUID(),
@@ -456,6 +567,17 @@ export async function updateReferenceRangeById(
   input: UpdateReferenceRangeDetailInput,
   principal: Principal,
 ) {
+  const existing = await findReferenceRangeById(referenceRangeId);
+  if (!existing)
+    throw AppError.notFound('REFERENCE_RANGE_NOT_FOUND', 'Không tìm thấy trị số tham chiếu.');
+
+  if (input.fieldKey !== undefined || input.labTestTypeId !== undefined) {
+    await validateReferenceRangeTarget(
+      input.labTestTypeId ?? existing.labTestTypeId,
+      input.fieldKey ?? existing.fieldKey,
+    );
+  }
+
   const updated = await updateReferenceRangeDetail(referenceRangeId, {
     ...(input.labTestTypeId !== undefined ? { labTestTypeId: input.labTestTypeId } : {}),
     ...(input.fieldKey !== undefined ? { fieldKey: input.fieldKey } : {}),

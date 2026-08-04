@@ -9,7 +9,9 @@ interface PathologyFormProps {
 }
 
 function field(value: string | number | null | undefined): string {
-  return value === null || value === undefined ? '' : String(value);
+  return value === null || value === undefined || (typeof value === 'number' && Number.isNaN(value))
+    ? ''
+    : String(value);
 }
 
 const BIOPSY_METHOD_OPTIONS = [
@@ -28,7 +30,9 @@ const CONCORDANCE_OPTIONS = [
 
 export function PathologyForm({ errors, onChange, onFieldBlur, value }: PathologyFormProps) {
   function set<K extends keyof PathologyResult>(key: K, next: PathologyResult[K]) {
-    onChange({ ...value, [key]: next || undefined });
+    // Giữ số 0/NaN để validator phản hồi ngay; chỉ chuẩn hóa chuỗi rỗng thành undefined.
+    const normalized = typeof next === 'string' ? next.trim() || undefined : (next ?? undefined);
+    onChange({ ...value, [key]: normalized });
   }
 
   const isFinal = value.trangThai === 'da_co_ket_qua';

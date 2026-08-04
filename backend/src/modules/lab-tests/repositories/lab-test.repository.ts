@@ -62,6 +62,14 @@ export function findLabTestById(labTestId: string) {
 
 export type LabTestWithDetails = NonNullable<Awaited<ReturnType<typeof findLabTestById>>>;
 
+export function findLabTestTypeById(labTestTypeId: string) {
+  return prisma.labTestType.findUnique({ where: { id: labTestTypeId } });
+}
+
+export function findReferenceRangeById(referenceRangeId: string) {
+  return prisma.labReferenceRange.findUnique({ where: { id: referenceRangeId } });
+}
+
 export function findAttachmentsForLabTest(labTestId: string) {
   return prisma.attachment.findMany({
     where: { ownerType: 'lab_test', ownerId: labTestId },
