@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiDelete, apiGet, apiGetPaginated, apiPatch, apiPost, apiPostMultipart, apiPut } from '@/shared/api-client';
+import {
+  apiDelete,
+  apiGet,
+  apiGetPaginated,
+  apiPatch,
+  apiPost,
+  apiPostMultipart,
+  apiPut,
+} from '@/shared/api-client';
 import type {
   LabActivityStats,
   LabTestAttachment,
@@ -16,13 +24,17 @@ const QUEUE_QUERY_KEY = ['lab-tests', 'queue'] as const;
 const DETAIL_QUERY_KEY = (labTestId: string) => ['lab-tests', 'detail', labTestId] as const;
 
 /** `status` bỏ trống trả về cả 3 trạng thái (khớp tab "Tất cả" trong ảnh mẫu). */
-export function usePendingLabTests(filters: { status?: LabTestStatus; isUrgent?: boolean }) {
+export function usePendingLabTests(
+  filters: { status?: LabTestStatus; isUrgent?: boolean },
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: [...QUEUE_QUERY_KEY, filters.status ?? 'all', filters.isUrgent],
     queryFn: () =>
       apiGetPaginated<LabTestQueueItem>('/lab-tests', {
         params: { status: filters.status, isUrgent: filters.isUrgent, pageSize: 100 },
       }),
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -79,8 +91,17 @@ export function useRecordLabResult() {
 export function useSavePathologyDraft() {
   const invalidate = useInvalidateLabTestLists();
   return useMutation({
-    mutationFn: ({ labTestId, structuredResult }: { labTestId: string; structuredResult: StructuredResult }) =>
-      apiPut(`/lab-tests/${labTestId}/pathology-workup`, { resultTableKey: 'xn_mo_benh_hoc', structuredResult }),
+    mutationFn: ({
+      labTestId,
+      structuredResult,
+    }: {
+      labTestId: string;
+      structuredResult: StructuredResult;
+    }) =>
+      apiPut(`/lab-tests/${labTestId}/pathology-workup`, {
+        resultTableKey: 'xn_mo_benh_hoc',
+        structuredResult,
+      }),
     onSuccess: (_data, variables) => invalidate(variables.labTestId),
   });
 }
@@ -92,7 +113,10 @@ export function useUploadAttachment() {
       formData.append('ownerType', 'lab_test');
       formData.append('ownerId', ownerId);
       formData.append('file', file);
-      return apiPostMultipart<LabTestAttachment & { attachmentId: string }>('/attachments', formData);
+      return apiPostMultipart<LabTestAttachment & { attachmentId: string }>(
+        '/attachments',
+        formData,
+      );
     },
   });
 }
@@ -111,8 +135,13 @@ export function useLabTestTypes() {
 export function useUpdateReferenceRange() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ labTestTypeId, referenceRange }: { labTestTypeId: string; referenceRange: string }) =>
-      apiPatch(`/lab-test-types/${labTestTypeId}/reference-range`, { referenceRange }),
+    mutationFn: ({
+      labTestTypeId,
+      referenceRange,
+    }: {
+      labTestTypeId: string;
+      referenceRange: string;
+    }) => apiPatch(`/lab-test-types/${labTestTypeId}/reference-range`, { referenceRange }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['lab-test-types'] }),
   });
 }
@@ -124,7 +153,11 @@ export function useReferenceRanges(filters: { labTestTypeId?: string; keyword?: 
     queryKey: [...REFERENCE_RANGES_QUERY_KEY, filters.labTestTypeId, filters.keyword],
     queryFn: () =>
       apiGetPaginated<ReferenceRangeRow>('/lab-tests/reference-ranges', {
-        params: { labTestTypeId: filters.labTestTypeId, keyword: filters.keyword || undefined, pageSize: 100 },
+        params: {
+          labTestTypeId: filters.labTestTypeId,
+          keyword: filters.keyword || undefined,
+          pageSize: 100,
+        },
       }),
   });
 }
@@ -172,12 +205,16 @@ export function useUpdateReferenceRangeDetail() {
 export function useDeleteReferenceRange() {
   const invalidate = useInvalidateReferenceRanges();
   return useMutation({
-    mutationFn: (referenceRangeId: string) => apiDelete(`/lab-tests/reference-ranges/${referenceRangeId}`),
+    mutationFn: (referenceRangeId: string) =>
+      apiDelete(`/lab-tests/reference-ranges/${referenceRangeId}`),
     onSuccess: invalidate,
   });
 }
 
-export function useLabActivityStats(filters: { period: 'today' | 'week' | 'month'; date?: string }) {
+export function useLabActivityStats(filters: {
+  period: 'today' | 'week' | 'month';
+  date?: string;
+}) {
   return useQuery({
     queryKey: ['lab-tests', 'stats', filters.period, filters.date],
     queryFn: () => apiGet<LabActivityStats>('/lab-tests/stats', { params: filters }),

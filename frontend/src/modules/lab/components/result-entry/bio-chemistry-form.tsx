@@ -3,6 +3,8 @@ import { findReferenceRangeHint } from '../reference-range-hint';
 import { NumericField, TextAreaField, TextField } from '../shared';
 
 interface BioChemistryFormProps {
+  errors: Record<string, string>;
+  onFieldBlur: (field: string) => void;
   onChange: (value: BioChemistryResult) => void;
   patientGender?: 'male' | 'female';
   referenceRanges: ReferenceRange[];
@@ -13,7 +15,10 @@ function field(value: string | null | undefined): string {
   return value ?? '';
 }
 
-const SECTIONS: Array<{ fields: Array<{ key: keyof BioChemistryResult; label: string; unit?: string }>; title: string }> = [
+const SECTIONS: Array<{
+  fields: Array<{ key: keyof BioChemistryResult; label: string; unit?: string }>;
+  title: string;
+}> = [
   {
     title: 'Chức năng thận & chuyển hoá cơ bản',
     fields: [
@@ -84,7 +89,14 @@ const SECTIONS: Array<{ fields: Array<{ key: keyof BioChemistryResult; label: st
   },
 ];
 
-export function BioChemistryForm({ onChange, patientGender, referenceRanges, value }: BioChemistryFormProps) {
+export function BioChemistryForm({
+  errors,
+  onChange,
+  onFieldBlur,
+  patientGender,
+  referenceRanges,
+  value,
+}: BioChemistryFormProps) {
   function set(key: keyof BioChemistryResult, next: string) {
     onChange({ ...value, [key]: next || undefined });
   }
@@ -92,19 +104,31 @@ export function BioChemistryForm({ onChange, patientGender, referenceRanges, val
   return (
     <div>
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
-        <TextField label="Máy xét nghiệm" onChange={(v) => set('mayXetNghiem', v)} value={field(value.mayXetNghiem)} />
-        <TextField label="Mẫu bệnh phẩm" onChange={(v) => set('mauBenhPham', v)} value={field(value.mauBenhPham)} />
+        <TextField
+          label="Máy xét nghiệm"
+          onChange={(v) => set('mayXetNghiem', v)}
+          value={field(value.mayXetNghiem)}
+        />
+        <TextField
+          label="Mẫu bệnh phẩm"
+          onChange={(v) => set('mauBenhPham', v)}
+          value={field(value.mauBenhPham)}
+        />
       </div>
 
       {SECTIONS.map((section) => (
         <div key={section.title}>
-          <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.4px] text-[#004871]">{section.title}</p>
+          <p className="mb-3 text-[13px] font-bold uppercase tracking-[0.4px] text-[#004871]">
+            {section.title}
+          </p>
           <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {section.fields.map((fieldDef) => (
               <NumericField
+                error={errors[fieldDef.key]}
                 hint={findReferenceRangeHint(referenceRanges, fieldDef.key, patientGender)}
                 key={fieldDef.key}
                 label={fieldDef.label}
+                onBlur={() => onFieldBlur(fieldDef.key)}
                 onChange={(v) => set(fieldDef.key, v)}
                 unit={fieldDef.unit}
                 value={field(value[fieldDef.key])}
@@ -114,7 +138,11 @@ export function BioChemistryForm({ onChange, patientGender, referenceRanges, val
         </div>
       ))}
 
-      <TextAreaField label="Ghi chú chỉ số" onChange={(v) => set('ghiChuChiSo', v)} value={field(value.ghiChuChiSo)} />
+      <TextAreaField
+        label="Ghi chú chỉ số"
+        onChange={(v) => set('ghiChuChiSo', v)}
+        value={field(value.ghiChuChiSo)}
+      />
     </div>
   );
 }

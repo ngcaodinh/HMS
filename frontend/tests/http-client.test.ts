@@ -43,7 +43,7 @@ describe('httpClient', () => {
     );
   });
 
-  it('maps legacy error.details into field errors', async () => {
+  it('maps backend error.details rule messages into field errors', async () => {
     httpClient.defaults.adapter = async (config) => Promise.reject({
       config,
       isAxiosError: true,
@@ -53,7 +53,7 @@ describe('httpClient', () => {
           error: {
             code: 'VALIDATION_ERROR',
             details: [
-              { field: 'pulse', message: 'Mạch không hợp lệ' },
+                { field: 'pulse', rule: 'Mạch không hợp lệ' },
               { field: 'spo2' },
             ],
             message: 'Dữ liệu không hợp lệ',

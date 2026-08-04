@@ -9,6 +9,7 @@ import { AssetIcon, cn } from './shared';
 export type LabScreen = 'queue' | 'result-entry' | 'history' | 'config';
 
 interface SidebarProps {
+  isAdmin: boolean;
   onChangeScreen: (screen: LabScreen) => void;
   onLogout: () => void;
   pendingCount: number;
@@ -44,23 +45,34 @@ function renderNavIcon(iconName: string, isActive: boolean) {
   );
 }
 
-export function Sidebar({ onChangeScreen, onLogout, pendingCount, screen, technicianName }: SidebarProps) {
+export function Sidebar({
+  isAdmin,
+  onChangeScreen,
+  onLogout,
+  pendingCount,
+  screen,
+  technicianName,
+}: SidebarProps) {
   const sections: SidebarNavSectionConfig[] = [
-    {
-      id: 'lab',
-      label: 'Xét nghiệm',
-      items: LAB_NAV_ITEMS.map((item) => ({
-        id: item.id,
-        label: item.label,
-        icon: renderNavIcon(item.icon, screen === item.id),
-        isActive: screen === item.id,
-        onClick: () => onChangeScreen(item.id),
-        badge:
-          item.id === 'queue' && pendingCount > 0 ? (
-            <span className={sidebarStyles.navBadge}>{pendingCount}</span>
-          ) : undefined,
-      })),
-    },
+    ...(!isAdmin
+      ? [
+          {
+            id: 'lab',
+            label: 'Xét nghiệm',
+            items: LAB_NAV_ITEMS.map((item) => ({
+              id: item.id,
+              label: item.label,
+              icon: renderNavIcon(item.icon, screen === item.id),
+              isActive: screen === item.id,
+              onClick: () => onChangeScreen(item.id),
+              badge:
+                item.id === 'queue' && pendingCount > 0 ? (
+                  <span className={sidebarStyles.navBadge}>{pendingCount}</span>
+                ) : undefined,
+            })),
+          },
+        ]
+      : []),
     {
       id: 'manage',
       label: 'Quản lý',
@@ -78,14 +90,21 @@ export function Sidebar({ onChangeScreen, onLogout, pendingCount, screen, techni
     <SharedSidebar
       footer={
         <>
-          <div className={cn(styles.userAvatar, 'transition-transform duration-200 hover:scale-105')}>
-            <RoleIcon role="lab_tech" />
+          <div
+            className={cn(styles.userAvatar, 'transition-transform duration-200 hover:scale-105')}
+          >
+            <RoleIcon role={isAdmin ? 'admin' : 'lab_tech'} />
           </div>
           <div className="min-w-0">
             <p className={styles.userName}>{technicianName}</p>
-            <p className={styles.userRole}>Kỹ thuật viên</p>
+            <p className={styles.userRole}>{isAdmin ? 'Quản trị viên' : 'Kỹ thuật viên'}</p>
           </div>
-          <button aria-label="Đăng xuất" className={styles.iconButton} onClick={onLogout} type="button">
+          <button
+            aria-label="Đăng xuất"
+            className={styles.iconButton}
+            onClick={onLogout}
+            type="button"
+          >
             <AssetIcon className="h-4 w-4" name="icon-logout.svg" />
           </button>
         </>
