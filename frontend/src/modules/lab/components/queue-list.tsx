@@ -206,7 +206,7 @@ export function QueueList({
                     <div className={styles.actionCellRow}>
                       {getQueueActionVisibility(item.status).canEnterResult && (
                         <button
-                          className={styles.smallPrimaryButton}
+                          className={cn(styles.queueActionButton, styles.queueActionPrimary)}
                           onClick={() => onSelect(item.labTestId)}
                           type="button"
                         >
@@ -217,11 +217,11 @@ export function QueueList({
                       {getQueueActionVisibility(item.status).canPrint && (
                         <button
                           aria-label="In phiếu"
-                          className={styles.smallIconButton}
+                          className={cn(styles.queueActionButton, styles.queueActionSecondary)}
                           onClick={() => onPrint(item)}
                           type="button"
                         >
-                          <span className="text-[10px] font-bold">In</span>
+                          <span>In</span>
                         </button>
                       )}
                     </div>

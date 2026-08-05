@@ -50,3 +50,18 @@ test('lab queue filter buttons share one fixed width and centered content', () =
 
   assert.match(styles, /filterTab:\s*\n?\s*'[^']*w-36[^']*justify-center/);
 });
+
+test('lab queue row actions share one fixed button size', () => {
+  const styles = readFileSync(
+    join(process.cwd(), 'src/modules/lab/pages/workspace/lab-workspace.styles.ts'),
+    'utf8',
+  );
+  const queue = readFileSync(
+    join(process.cwd(), 'src/modules/lab/components/queue-list.tsx'),
+    'utf8',
+  );
+
+  assert.match(styles, /queueActionButton:\s*\n?\s*'[^']*h-9 w-24[^']*justify-center/);
+  assert.match(queue, /styles\.queueActionButton, styles\.queueActionPrimary/);
+  assert.match(queue, /styles\.queueActionButton, styles\.queueActionSecondary/);
+});

@@ -314,6 +314,12 @@ export function StepTabs({
   );
 }
 
+/**
+ * Hiển thị giao diện chờ tiếp nhận bệnh nhân tại trang làm việc bác sĩ.
+ * Sử dụng margin tự động (my-auto) để căn giữa theo chiều dọc khi đủ không gian
+ * và cho phép cuộn trang mượt mà khi chiều cao màn hình nhỏ, tránh bị khuất icon và nội dung.
+ * @param onStart - Callback khi nhấn nút gọi bệnh nhân tiếp theo.
+ */
 export function EmptyState({ onStart }: { onStart: () => void }) {
   const cards = [
     ['1', 'Chọn BN', 'Chọn bệnh nhân ở nhóm Chờ khám, hoặc có chấm nhấp nháy ở nhóm Có kết quả.'],

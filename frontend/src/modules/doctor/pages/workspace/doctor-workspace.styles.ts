@@ -35,7 +35,7 @@ export const doctorWorkspaceStyles = {
   topbarTimeStrong: 'whitespace-nowrap text-xs font-medium leading-[18px] text-[#3f4851]',
   topbarTime: 'whitespace-nowrap text-xs leading-[18px] text-[#3f4851]',
   body: 'min-h-0 flex-1 overflow-auto p-4 sm:p-5 lg:p-6',
-  bodyEmpty: 'flex items-center justify-center p-8',
+  bodyEmpty: 'flex flex-col items-center',
   patientCard:
     'mb-4 rounded-[12px] border border-[#c0c7d1] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
   patientGrid: 'grid gap-4 lg:grid-cols-[54px_1fr_220px]',
@@ -56,9 +56,10 @@ export const doctorWorkspaceStyles = {
   stepNumber:
     'flex h-5 w-5 items-center justify-center rounded-full bg-[#f2f3f8] text-[11px] font-bold text-[#707882]',
   stepNumberActive: 'bg-[#006096] text-white',
-  emptyState: 'mx-auto flex w-full max-w-[576px] flex-col items-center justify-center text-center',
+  emptyState:
+    'my-auto mx-auto flex w-full max-w-[576px] flex-col items-center text-center py-4',
   emptyIconWrap:
-    'flex h-48 w-48 items-center justify-center rounded-full border border-[rgba(0,72,113,0.1)] bg-[rgba(0,72,113,0.05)]',
+    'flex h-48 w-48 shrink-0 items-center justify-center rounded-full border border-[rgba(0,72,113,0.1)] bg-[rgba(0,72,113,0.05)]',
   emptyGuideCard:
     'rounded-[12px] border border-[#c0c7d1] bg-white p-[17px] text-center shadow-[0_1px_2px_rgba(0,0,0,0.03)]',
   emptyGuideNumber:

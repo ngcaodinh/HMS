@@ -82,6 +82,12 @@ export const labWorkspaceStyles = {
   statIconWrap: 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
   statValue: 'text-xl font-bold leading-6 text-[#171c1f]',
   statLabel: 'text-[11px] text-[#707882]',
+  queueActionButton:
+    'inline-flex h-9 w-24 shrink-0 items-center justify-center gap-1.5 rounded-md px-2.5 text-xs font-bold transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
+  queueActionPrimary:
+    'bg-[#006096] text-white hover:bg-[#00527f] focus-visible:ring-[#006096]/20',
+  queueActionSecondary:
+    'border border-[#c0c7d1] bg-white text-[#3f4851] hover:bg-[#f2f3f8] focus-visible:ring-[#006096]/20',
   smallIconButton:
     'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-[#c0c7d1] bg-white text-[#3f4851] transition hover:bg-[#f2f3f8] active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#006096]/20',
   actionCellRow: 'flex items-center gap-2',
