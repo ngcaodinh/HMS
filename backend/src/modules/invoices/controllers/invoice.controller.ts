@@ -3,6 +3,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { sendSuccess } from '../../../core/http/response';
 import {
   cancelInvoiceBodySchema,
+  accountingReportQuerySchema,
   createInvoiceBodySchema,
   invoiceIdParamSchema,
   listInvoiceCandidatesQuerySchema,
@@ -47,6 +48,21 @@ export class InvoiceController {
         pagination: result.pagination,
         meta: { requestId: req.requestId },
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * @route GET /api/v1/accounting-reports
+   * @desc Tổng hợp giao dịch thu phí, BHYT, tạm ứng và hoàn ứng theo ngày.
+   * @access Private (permission invoice.read)
+   */
+  async accountingReport(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const query = accountingReportQuerySchema.parse(req.query);
+      const data = await invoiceService.getAccountingReport(query);
+      sendSuccess(res, data, 200, req.requestId);
     } catch (error) {
       next(error);
     }

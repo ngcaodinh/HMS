@@ -8,6 +8,7 @@ import type { MedicalRecordDetail } from '../types/medical-record.types';
 import { DoctorFeedbackModal } from './doctor-feedback-modal';
 import { AssetIcon, cn } from './shared';
 import { FieldError, getFieldErrorMap } from './field-error';
+import { parseVitalNumber, validateBloodPressure, validateVitalField } from './vitals-validation';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
 
 interface VitalsFormState {
@@ -37,65 +38,15 @@ function toFormState(record: MedicalRecordDetail): VitalsFormState {
   };
 }
 
-/** Kiểm tra một field sinh hiệu tại thời điểm blur, gồm cả bắt buộc, kiểu số và khoảng hợp lý. */
-function validateField(field: FieldKey, rawValue: string): string {
-  const value = rawValue.trim();
-  const isRequired =
-    field === 'pulse' ||
-    field === 'bloodPressureSystolic' ||
-    field === 'bloodPressureDiastolic' ||
-    field === 'spo2' ||
-    field === 'chiefComplaint';
-  if (!value)
-    return isRequired
-      ? field === 'chiefComplaint'
-        ? 'Vui lòng nhập lý do khám bệnh.'
-        : 'Trường này không được để trống.'
-      : '';
-
-  const num = Number(value);
-  if (!Number.isFinite(num)) return 'Vui lòng nhập một số hợp lệ.';
-  if (field === 'pulse' && value && (num < 30 || num > 220)) return 'Mạch thường 30–220 bpm.';
-  if (field === 'temperatureC' && value && (num < 34 || num > 43))
-    return 'Nhiệt độ hợp lệ khoảng 34–43 °C.';
-  if (field === 'bloodPressureSystolic' && value && (num < 50 || num > 280))
-    return 'Huyết áp tâm thu không hợp lệ.';
-  if (field === 'bloodPressureDiastolic' && value && (num < 20 || num > 180))
-    return 'Huyết áp tâm trương không hợp lệ.';
-  if (field === 'respiratoryRate' && value && (num < 1 || num > 80))
-    return 'Nhịp thở hợp lệ khoảng 1–80 lần/phút.';
-  if (field === 'spo2' && value && (num < 50 || num > 100)) return 'SpO2 trong khoảng 50–100%.';
-  if (field === 'weightKg' && value && (num < 1 || num > 300)) return 'Cân nặng không hợp lệ.';
-  if (field === 'heightCm' && value && (num < 40 || num > 250)) return 'Chiều cao không hợp lệ.';
-  return '';
-}
-
-/** Kiểm tra quan hệ huyết áp và trả lỗi cho cả hai ô để người dùng biết cặp giá trị đang sai. */
-function validateBloodPressure(form: VitalsFormState): Partial<Record<FieldKey, string>> {
-  const systolic = Number(form.bloodPressureSystolic);
-  const diastolic = Number(form.bloodPressureDiastolic);
-  if (
-    !form.bloodPressureSystolic ||
-    !form.bloodPressureDiastolic ||
-    !Number.isFinite(systolic) ||
-    !Number.isFinite(diastolic)
-  ) {
-    return {};
-  }
-  if (systolic > diastolic) return {};
-
-  const message = 'Huyết áp tâm thu phải lớn hơn huyết áp tâm trương.';
-  return { bloodPressureSystolic: message, bloodPressureDiastolic: message };
-}
-
 function computeBmi(
   weightKg: string,
   heightCm: string,
 ): { value: string; label: string; tone: string } | null {
-  const weight = Number(weightKg);
-  const height = Number(heightCm) / 100;
-  if (!weight || !height) return null;
-  const bmi = weight / (height * height);
+  const weight = parseVitalNumber(weightKg);
+  const height = parseVitalNumber(heightCm);
+  if (weight === null || height === null || !weight || !height) return null;
+  const heightInMeters = height / 100;
+  const bmi = weight / (heightInMeters * heightInMeters);
   const value = (Math.round(bmi * 10) / 10).toFixed(1);
   if (bmi < 18.5) return { value, label: 'Thiếu cân', tone: 'text-[#a05c00]' };
   if (bmi < 25) return { value, label: 'Bình thường', tone: 'text-[#1b6e3f]' };
@@ -150,28 +101,41 @@ export function VitalsScreen({
   function updateField(field: keyof VitalsFormState) {
     return (event: React.ChangeEvent<HTMLInputElement>) => {
       const value = event.target.value;
-      // Cho phép xoá ô để sửa, nhưng không đưa chuỗi không phải số vào state gửi lên API.
-      if (value && !Number.isFinite(Number(value))) return;
       setForm((current) => ({ ...current, [field]: value }));
-      setFieldErrors((current) => ({ ...current, [field]: '' }));
+      setFieldErrors((current) =>
+        field === 'bloodPressureSystolic' || field === 'bloodPressureDiastolic'
+          ? { ...current, bloodPressureSystolic: '', bloodPressureDiastolic: '' }
+          : { ...current, [field]: '' },
+      );
     };
   }
 
   function handleBlur(field: FieldKey, value: string) {
+    const bloodPressureForm =
+      field === 'bloodPressureSystolic' || field === 'bloodPressureDiastolic'
+        ? { ...form, [field]: value }
+        : form;
     setFieldErrors((current) => ({
       ...current,
-      [field]: validateField(field, value),
+      [field]:
+        field === 'chiefComplaint'
+          ? validateChiefComplaint(value)
+          : validateVitalField(field, value),
       ...(field === 'bloodPressureSystolic' || field === 'bloodPressureDiastolic'
-        ? validateBloodPressure(form)
+        ? validateBloodPressure(bloodPressureForm)
         : {}),
     }));
+  }
+
+  function validateChiefComplaint(value: string): string {
+    return value.trim() ? '' : 'Vui lòng nhập lý do khám bệnh.';
   }
 
   function validateForm(): Partial<Record<FieldKey, string>> {
     const nextErrors: Partial<Record<FieldKey, string>> = {};
     for (const field of VITAL_FIELDS)
-      nextErrors[field.key] = validateField(field.key, form[field.key]);
-    nextErrors.chiefComplaint = validateField('chiefComplaint', chiefComplaint);
+      nextErrors[field.key] = validateVitalField(field.key, form[field.key]);
+    nextErrors.chiefComplaint = validateChiefComplaint(chiefComplaint);
     return { ...nextErrors, ...validateBloodPressure(form) };
   }
 
@@ -188,17 +152,30 @@ export function VitalsScreen({
 
     setErrorMessage(null);
     try {
+      const pulse = parseVitalNumber(form.pulse);
+      const bloodPressureSystolic = parseVitalNumber(form.bloodPressureSystolic);
+      const bloodPressureDiastolic = parseVitalNumber(form.bloodPressureDiastolic);
+      const spo2 = parseVitalNumber(form.spo2);
+      if (
+        pulse === null ||
+        bloodPressureSystolic === null ||
+        bloodPressureDiastolic === null ||
+        spo2 === null
+      ) {
+        return;
+      }
+
       await saveVitalsAndAssessment.mutateAsync({
-        pulse: Number(form.pulse),
-        temperatureC: form.temperatureC ? Number(form.temperatureC) : undefined,
-        bloodPressureSystolic: Number(form.bloodPressureSystolic),
-        bloodPressureDiastolic: Number(form.bloodPressureDiastolic),
-        respiratoryRate: form.respiratoryRate ? Number(form.respiratoryRate) : undefined,
-        spo2: Number(form.spo2),
-        weightKg: form.weightKg ? Number(form.weightKg) : undefined,
+        pulse,
+        temperatureC: parseVitalNumber(form.temperatureC) ?? undefined,
+        bloodPressureSystolic,
+        bloodPressureDiastolic,
+        respiratoryRate: parseVitalNumber(form.respiratoryRate) ?? undefined,
+        spo2,
+        weightKg: parseVitalNumber(form.weightKg) ?? undefined,
         expectedVersion: record.version,
         chiefComplaint,
-        heightCm: form.heightCm ? Number(form.heightCm) : undefined,
+        heightCm: parseVitalNumber(form.heightCm) ?? undefined,
         historyOfPresentIllness: history,
       });
       setIsLocked(true);
@@ -238,8 +215,9 @@ export function VitalsScreen({
                   min={field.min}
                   onBlur={(event) => handleBlur(field.key, event.target.value)}
                   onChange={updateField(field.key)}
+                  inputMode={field.step ? 'decimal' : 'numeric'}
                   step={field.step}
-                  type="number"
+                  type="text"
                   value={form[field.key]}
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[#707882]">

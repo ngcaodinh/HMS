@@ -5,6 +5,7 @@ import type { InputHTMLAttributes } from 'react';
 
 import { getApiErrorMessage } from '@/shared/api-client/api-client';
 import { AppToast } from '@/shared/components/app-toast';
+import { useAppToast } from '@/shared/hooks/use-app-toast';
 import {
   callNextQueueTicket,
   issueDeskTicket,
@@ -1568,8 +1569,7 @@ function EmergencyWorkspace({
 export function ReceptionWorkspacePage() {
   const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<WorkspaceMode>('queue');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastTone, setToastTone] = useState<'success' | 'error'>('success');
+  const { hideToast, showToast, toast } = useAppToast(4500);
 
   // Tránh hydration mismatch khi extension trình duyệt chèn attribute (vd. fdprocessedid) vào <button>.
   // Khóa scroll body chỉ khi ở màn tiếp nhận — không ảnh hưởng trang khác.
@@ -1583,14 +1583,6 @@ export function ReceptionWorkspacePage() {
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.body.style.overflow = previousBodyOverflow;
     };
-  }, []);
-
-  const showToast = useCallback((message: string, tone: 'success' | 'error' = 'success') => {
-    setToastMessage(message);
-    setToastTone(tone);
-    window.setTimeout(() => {
-      setToastMessage(null);
-    }, 4500);
   }, []);
 
   if (!mounted) {
@@ -1614,7 +1606,7 @@ export function ReceptionWorkspacePage() {
           {mode === 'emergency' && <EmergencyWorkspace onToast={showToast} />}
         </div>
       </section>
-      <AppToast centered message={toastMessage} tone={toastTone} />
+      <AppToast centered message={toast.message} onClose={hideToast} tone={toast.tone} />
     </main>
   );
 }

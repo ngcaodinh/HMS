@@ -11,6 +11,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 import { ApiError } from '@/shared/api-client';
+import { MedicalErrorBadge, MedicalSuccessBadge } from '@/shared/components/app-toast';
 import { useCurrentPrincipal } from '@/shared/hooks/use-current-principal';
 import { useLogout } from '@/shared/hooks/use-logout';
 
@@ -59,6 +60,79 @@ interface ToastMessage {
   text: string;
   type: 'success' | 'info' | 'warning' | 'error';
 }
+
+/** Biểu tượng thông tin (info) dùng cho Toast, cùng phong cách khối đặc với AppToast dùng chung. */
+function MedicalInfoBadge({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.341l.041-.021zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+/** Biểu tượng cảnh báo (warning) dùng cho Toast, cùng phong cách khối đặc với AppToast dùng chung. */
+function MedicalWarningBadge({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path
+        fillRule="evenodd"
+        d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
+/** Biểu tượng dấu X dùng cho nút đóng từng Toast, đồng bộ với nút đóng của AppToast dùng chung. */
+function ToastCloseIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+    </svg>
+  );
+}
+
+const TOAST_ICON_BY_TYPE: Record<ToastMessage['type'], (props: { className?: string }) => React.JSX.Element> = {
+  success: MedicalSuccessBadge,
+  info: MedicalInfoBadge,
+  warning: MedicalWarningBadge,
+  error: MedicalErrorBadge,
+};
+
+/** Bảng màu Toast theo từng sắc thái, đồng bộ ngôn ngữ thiết kế Dark Navy/Accent với AppToast dùng chung. */
+const TOAST_TONE_STYLES: Record<
+  ToastMessage['type'],
+  { border: string; chipBg: string; chipText: string; containerBg: string }
+> = {
+  success: {
+    border: 'border-[#1a7a4a]/50',
+    chipBg: 'bg-[#1a7a4a]/20',
+    chipText: 'text-[#4ade80]',
+    containerBg: 'bg-[#0d293c]/95',
+  },
+  info: {
+    border: 'border-[#006096]/50',
+    chipBg: 'bg-[#55d7ed]/20',
+    chipText: 'text-[#55d7ed]',
+    containerBg: 'bg-[#0d293c]/95',
+  },
+  warning: {
+    border: 'border-[#a05c00]/50',
+    chipBg: 'bg-[#a05c00]/25',
+    chipText: 'text-[#ffb84d]',
+    containerBg: 'bg-[#2b1400]/95',
+  },
+  error: {
+    border: 'border-[#c62828]/50',
+    chipBg: 'bg-[#ffcdd2]/20',
+    chipText: 'text-[#ffcdd2]',
+    containerBg: 'bg-[#2b0000]/95',
+  },
+};
 
 function formatDateVN(value?: string | null): string {
   if (!value) return 'Chưa ghi nhận';
@@ -635,25 +709,35 @@ export function PharmacyWorkspace() {
         prescription={selectedPrescription}
       />
 
-      {/* 4. Khung hiển thị thông báo dạng Toast nổi */}
+      {/* 4. Khung hiển thị thông báo dạng Toast nổi, đồng bộ giao diện với AppToast dùng chung */}
       <div className="pointer-events-none fixed bottom-6 right-6 z-50 flex flex-col gap-2">
-        {toasts.map((toast) => (
-          <div
-            className={`pointer-events-auto rounded-xl px-4 py-3 text-[13px] font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.18)] transition-all animate-fadeIn ${
-              toast.type === 'success'
-                ? 'bg-[#1a7a4a]'
-                : toast.type === 'warning'
-                  ? 'bg-[#a05c00]'
-                  : toast.type === 'error'
-                    ? 'bg-[#ba1a1a]'
-                    : 'bg-[#006096]'
-            }`}
-            key={toast.id}
-            role="status"
-          >
-            {toast.text}
-          </div>
-        ))}
+        {toasts.map((toast) => {
+          const ToastIcon = TOAST_ICON_BY_TYPE[toast.type];
+          const toneStyles = TOAST_TONE_STYLES[toast.type];
+
+          return (
+            <div
+              className={`pointer-events-auto flex max-w-md items-center gap-3 rounded-xl border px-4 py-3 text-[13px] font-semibold text-white shadow-2xl backdrop-blur-md transition-all animate-fadeIn ${toneStyles.border} ${toneStyles.containerBg}`}
+              key={toast.id}
+              role="status"
+            >
+              <div
+                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${toneStyles.chipBg} ${toneStyles.chipText}`}
+              >
+                <ToastIcon className="h-5 w-5" />
+              </div>
+              <span className="flex-1 leading-snug text-white/95">{toast.text}</span>
+              <button
+                aria-label="Đóng thông báo"
+                className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+                onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+                type="button"
+              >
+                <ToastCloseIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

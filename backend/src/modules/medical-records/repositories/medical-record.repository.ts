@@ -11,6 +11,10 @@ import type {
 
 const detailInclude = {
   patient: true,
+  doctor: { select: { fullName: true } },
+  department: { select: { name: true } },
+  bed: { select: { number: true } },
+  diagnosisSignedByUser: { select: { fullName: true } },
   labTests: { include: { labTestType: true } },
 } as const;
 

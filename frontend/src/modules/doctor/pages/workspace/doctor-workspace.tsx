@@ -127,7 +127,11 @@ export function DoctorWorkspacePage() {
 
           {currentScreen !== 'empty' && !isDetailLoading && record && (
             <>
-              <PatientSummary onCloseRecord={handleCloseRecord} record={record} worklistLabel={WORKLIST_LABEL[record.status] ?? record.status} />
+              <PatientSummary
+                onCloseRecord={handleCloseRecord}
+                record={record}
+                worklistLabel={WORKLIST_LABEL[record.status] ?? record.status}
+              />
               <StepTabs
                 currentScreen={activeStep}
                 hasNewResult={record.labTests.some((test) => test.status === 'resulted')}

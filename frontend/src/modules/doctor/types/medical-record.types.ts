@@ -120,10 +120,15 @@ export interface RecordDiagnosis {
 
 export interface MedicalRecordDetail {
   recordId: string;
+  recordCode: string;
   status: RecordStatus;
   version: number;
   patientId: string;
   doctorId: string;
+  doctor: { fullName: string } | null;
+  department: { name: string } | null;
+  bed: { number: string } | null;
+  diagnosisSigner: { fullName: string } | null;
   isEmergency: boolean;
   chiefComplaint: string | null;
   createdAt: string;

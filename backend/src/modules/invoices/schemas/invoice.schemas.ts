@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+/** Kiểm tra chuỗi ngày có đúng ngày lịch UTC hay chỉ là ngày được Date tự chuẩn hóa. */
+function isValidCalendarDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 export const createInvoiceBodySchema = z
   .object({
     recordId: z.string().uuid(),
@@ -47,6 +63,37 @@ export const listInvoiceCandidatesQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
 });
+
+export const accountingReportQuerySchema = z
+  .object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .superRefine((data, ctx) => {
+    if (!isValidCalendarDate(data.from)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ngày bắt đầu báo cáo không hợp lệ',
+        path: ['from'],
+      });
+    }
+
+    if (!isValidCalendarDate(data.to)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Ngày kết thúc báo cáo không hợp lệ',
+        path: ['to'],
+      });
+    }
+
+    if (data.from > data.to) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Khoảng ngày báo cáo không hợp lệ',
+        path: ['to'],
+      });
+    }
+  });
 
 export const writeOffInvoiceBodySchema = z.object({
   expectedVersion: z.number().int().positive(),

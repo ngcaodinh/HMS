@@ -10,7 +10,9 @@ const prisma = new PrismaClient();
 export class BedController {
   // GET /api/v1/beds
   static async getBeds(req: Request, res: Response) {
+    const departmentId = req.user?.departmentId;
     const beds = await prisma.bed.findMany({
+      where: departmentId ? { room: { departmentId } } : undefined,
       include: {
         room: true,
         bedAssignments: {

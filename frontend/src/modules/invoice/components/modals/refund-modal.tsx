@@ -93,16 +93,8 @@ export function RefundModal({
             type="button"
             disabled={reason.trim().length < 10}
             onClick={handleConfirm}
-            className="px-4 py-2 bg-[#1a7a4a] text-white rounded-md text-[13px] font-bold hover:bg-[#145c38] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+            className="px-4 py-2 bg-[#1a7a4a] text-white rounded-md text-[13px] font-bold hover:bg-[#145c38] active:scale-[0.97] transition-all duration-200 ease-out shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
             Xác nhận hoàn trả &amp; In phiếu
           </button>
         </div>

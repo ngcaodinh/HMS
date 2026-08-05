@@ -182,9 +182,61 @@ const seedDevelopmentItUser = async () => {
   });
 };
 
+/**
+ * Tạo tài khoản admin dev cục bộ để kiểm thử flow /admin ngoài production.
+ */
+const seedDevelopmentAdminUser = async () => {
+  if (config.app.env === 'production') return;
+  if (!config.auth.adminDevPassword) {
+    throw new Error('ADMIN_DEV_PASSWORD is required to seed the development admin account');
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: {
+      username: 'admin',
+    },
+  });
+
+  const user =
+    existing ??
+    (await prisma.user.create({
+      data: {
+        authVersion: 1,
+        dateOfBirth: new Date('1988-01-01T00:00:00.000Z'),
+        departmentId: 'it',
+        fullName: 'Admin Dev',
+        gender: 'male',
+        id: randomUUID(),
+        identityCardNumber: '001199000099',
+        isActive: true,
+        mustChangePassword: true,
+        password: await bcrypt.hash(config.auth.adminDevPassword, 12),
+        phoneNumber: '0909000099',
+        username: 'admin',
+      },
+    }));
+
+  await prisma.permission.upsert({
+    create: {
+      assignedBy: null,
+      id: randomUUID(),
+      roleCode: 'admin',
+      userId: user.id,
+    },
+    update: {},
+    where: {
+      userId_roleCode: {
+        roleCode: 'admin',
+        userId: user.id,
+      },
+    },
+  });
+};
+
 void seedRbacPolicy()
   .then(seedDevelopmentDepartments)
   .then(seedDevelopmentItUser)
+  .then(seedDevelopmentAdminUser)
   .finally(async () => {
     await prisma.$disconnect();
   });

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { MedicalRecordDetail } from '../types/medical-record.types';
+import { renderMedicalRecordTemplate } from './medical-record-template';
 import { AssetIcon, calculateAge, cn, formatDateVN, genderLabel } from './shared';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
 
@@ -159,14 +160,16 @@ export function PatientSummary({
       </div>
 
       {isRecordModalOpen && (
-        <MedicalRecordModal onClose={() => setIsRecordModalOpen(false)} record={record} />
+        <MedicalRecordModal
+          onClose={() => setIsRecordModalOpen(false)}
+          record={record}
+        />
       )}
     </section>
   );
 }
 
-/** Mẫu 08/BV-01 rút gọn — bố cục theo đúng ảnh tham chiếu Tailieu/PIC_CHAN_DOAN_LAM_SANG,
- * đổ dữ liệu thật thay vì iframe tĩnh benhan.html (file gốc không có hook data-ba để bind). */
+/** Hiển thị mẫu bệnh án chuẩn và chỉ gửi iframe tài liệu vào lệnh in. */
 function MedicalRecordModal({
   onClose,
   record,
@@ -174,22 +177,39 @@ function MedicalRecordModal({
   onClose: () => void;
   record: MedicalRecordDetail;
 }) {
-  const vitals = record.latestVitalSigns;
-  const ca = record.clinicalAssessment;
-  const admittedAt = new Date(record.createdAt);
-  const chiefComplaintLower = record.chiefComplaint
-    ? record.chiefComplaint.toLowerCase()
-    : 'lý do chưa ghi nhận';
-  const summaryParts: string[] = [
-    `Bệnh nhân ${genderLabel(record.patient.gender).toLowerCase()}, ${calculateAge(record.patient.dateOfBirth)} tuổi, vào viện vì ${chiefComplaintLower}.`,
-  ];
-  if (record.patient.allergies) summaryParts.push(`Tiền sử dị ứng: ${record.patient.allergies}.`);
-  summaryParts.push(
-    record.diagnosis
-      ? `Chẩn đoán: ${record.diagnosis.icd10} — ${record.diagnosis.diagnosisText}`
-      : 'Chưa có chẩn đoán xác định.',
-  );
-  const summary = summaryParts.join(' ');
+  const printFrameRef = useRef<HTMLIFrameElement>(null);
+  const [template, setTemplate] = useState<string | null>(null);
+  const [templateError, setTemplateError] = useState(false);
+  const [isTemplateReady, setIsTemplateReady] = useState(false);
+  const renderedTemplate = template
+    ? renderMedicalRecordTemplate(template, record)
+    : null;
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadTemplate() {
+      try {
+        const response = await fetch('/api/doctor/medical-record-template', {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Không thể tải mẫu bệnh án.');
+        setTemplate(await response.text());
+      } catch (error) {
+        if (!controller.signal.aborted) setTemplateError(true);
+      }
+    }
+
+    void loadTemplate();
+    return () => controller.abort();
+  }, []);
+
+  function handlePrint() {
+    const printFrame = printFrameRef.current?.contentWindow;
+    if (!printFrame) return;
+    printFrame.focus();
+    printFrame.print();
+  }
 
   return (
     <div
@@ -217,204 +237,40 @@ function MedicalRecordModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto bg-[#e4e9ed] px-4 py-6 print:bg-white print:p-0 sm:px-8">
-          <div
-            className="mx-auto max-w-[210mm] bg-white px-10 py-9 text-[13px] leading-[1.55] text-[#171c1f] shadow-[0_1px_8px_rgba(0,0,0,0.15)] print:shadow-none"
-            style={{ fontFamily: '"Times New Roman", Times, serif' }}
-          >
-            <div className="mb-2 flex items-start justify-between">
-              <div className="space-y-0.5 text-[12.5px]">
-                <p>
-                  Sở Y tế: <BaBlank value="TP. Hồ Chí Minh" width="w-32" />
-                </p>
-                <p>
-                  Bệnh viện: <BaBlank value="Da liễu" width="w-28" />
-                </p>
-                <p>
-                  Khoa: <BaBlank value="Da liễu" width="w-20" /> Giường:{' '}
-                  <BaBlank value={record.status === 'closed' ? '—' : 'NT'} width="w-10" />
-                </p>
-              </div>
-              <div className="pt-2 text-center">
-                <h1 className="text-[19px] font-bold uppercase tracking-[1.5px] text-[#1a56b0]">
-                  Bệnh án Da liễu
-                </h1>
-              </div>
-              <div className="text-right text-[12.5px] leading-[1.7]">
-                <p>
-                  MS: <strong>08/BV-01</strong>
-                </p>
-                <p>
-                  Số lưu trữ:{' '}
-                  <BaBlank value={record.recordId.slice(0, 8).toUpperCase()} width="w-24" />
-                </p>
-                <p>
-                  Mã YT: <BaBlank value={record.patient.patientCode} width="w-24" />
-                </p>
-              </div>
-            </div>
-
-            <hr className="my-2 border-t border-[#171c1f]" />
-
-            <BaSection title="I. Hành chính">
-              <BaRow
-                label="1. Họ và tên (Chữ in hoa)"
-                value={record.patient.fullName.toUpperCase()}
-              />
-              <div className="flex flex-wrap gap-x-6">
-                <BaRow label="2. Ngày sinh" value={formatDateVN(record.patient.dateOfBirth)} />
-                <BaRow label="3. Tuổi" value={String(calculateAge(record.patient.dateOfBirth))} />
-                <BaRow label="4. Giới tính" value={genderLabel(record.patient.gender)} />
-              </div>
-              <BaRow label="7. Địa chỉ" value={record.patient.address ?? 'Chưa ghi nhận'} />
-              <BaRow
-                label="10. Đối tượng"
-                value={
-                  record.patient.healthInsuranceCode
-                    ? `BHYT — hạn dùng ${formatDateVN(record.patient.healthInsuranceExpiryDate ?? '')}`
-                    : 'Thu phí'
-                }
-              />
-              {record.patient.healthInsuranceCode && (
-                <BaRow label="11. Số thẻ BHYT" value={record.patient.healthInsuranceCode} />
-              )}
-              <BaRow
-                label="12. Người nhà khi cần báo tin"
-                value={
-                  record.patient.emergencyContact
-                    ? `${record.patient.emergencyContact}${record.patient.emergencyPhoneNumber ? ' · SĐT: ' + record.patient.emergencyPhoneNumber : ''}`
-                    : 'Chưa ghi nhận'
-                }
-              />
-              <BaRow
-                label="13. Vào viện lúc"
-                value={`${admittedAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} ngày ${formatDateVN(record.createdAt)}`}
-              />
-            </BaSection>
-
-            <BaSection title="II. Quản lý người bệnh">
-              <BaRow
-                label="16. Chẩn đoán khi vào khoa điều trị"
-                value={
-                  record.diagnosis
-                    ? `${record.diagnosis.icd10} — ${record.diagnosis.diagnosisText}`
-                    : 'Chưa có chẩn đoán'
-                }
-              />
-            </BaSection>
-
-            <BaSection title="III. Bệnh lý">
-              <BaRow label="1. Lý do vào viện" value={record.chiefComplaint ?? 'Chưa ghi nhận'} />
-              <BaParagraph label="2. Quá trình bệnh lý" value={ca.historyOfPresentIllness} />
-              <BaRow
-                label="3. Tiền sử bệnh — Bản thân"
-                value={ca.pastMedicalHistory ?? record.patient.allergies ?? 'Chưa ghi nhận'}
-              />
-              <BaRow label="Tiền sử bệnh — Gia đình" value={ca.familyHistory ?? 'Chưa ghi nhận'} />
-            </BaSection>
-
-            <BaSection title="IV. Khám bệnh">
-              <p className="mb-1 font-bold">1. Toàn thân:</p>
-              {vitals ? (
-                <div className="mb-2 grid grid-cols-2 gap-x-6 gap-y-1 pl-4 sm:grid-cols-3">
-                  <BaRow label="Mạch" value={`${vitals.pulse} lần/phút`} />
-                  <BaRow
-                    label="Nhiệt độ"
-                    value={vitals.temperatureC ? `${vitals.temperatureC} °C` : '—'}
-                  />
-                  <BaRow
-                    label="Huyết áp"
-                    value={`${vitals.bloodPressureSystolic}/${vitals.bloodPressureDiastolic} mmHg`}
-                  />
-                  <BaRow
-                    label="Nhịp thở"
-                    value={vitals.respiratoryRate ? `${vitals.respiratoryRate} lần/phút` : '—'}
-                  />
-                  <BaRow label="Cân nặng" value={vitals.weightKg ? `${vitals.weightKg} kg` : '—'} />
-                </div>
-              ) : (
-                <p className="mb-2 pl-4 text-[#707882]">Chưa ghi nhận sinh hiệu.</p>
-              )}
-              <BaParagraph label="2. Thương tổn da" value={ca.skinLesionDescription} />
-              <BaParagraph
-                label="3. Các bộ phận khác"
-                value="Tim đều, phổi trong, bụng mềm, không sờ chạm gan lách."
-              />
-            </BaSection>
-
-            <BaSection title="V. Tổng kết bệnh án">
-              <p className="leading-[1.6]">{summary}</p>
-            </BaSection>
-
-            <div className="mt-10 flex justify-between text-center text-[12.5px]">
-              <div>
-                <p className="italic">Người lập bệnh án</p>
-                <p className="text-[11px] italic">(Ký và ghi rõ họ tên)</p>
-                <p className="mt-10 w-40 border-t border-dotted border-[#555]">&nbsp;</p>
-              </div>
-              <div>
-                <p className="italic">
-                  Ngày {admittedAt.getDate()} tháng {admittedAt.getMonth() + 1} năm{' '}
-                  {admittedAt.getFullYear()}
-                </p>
-                <p className="font-bold">Trưởng khoa</p>
-                <p className="text-[11px] italic">(Ký và ghi rõ họ tên)</p>
-              </div>
-            </div>
-            <p className="mt-8 border-t border-[#171c1f]/20 pt-2 text-center text-[10px] text-[#707882]">
-              Hệ thống quản lý bệnh viện điện tử HMS-VN · Bản in thử nghiệm
+        <div className="overflow-y-auto bg-[#e4e9ed] px-4 py-6 sm:px-8">
+          {renderedTemplate ? (
+            <iframe
+              className="mx-auto h-[calc(92vh-155px)] min-h-[720px] w-full max-w-[210mm] border-0 bg-white shadow-[0_1px_8px_rgba(0,0,0,0.15)]"
+              onLoad={() => setIsTemplateReady(true)}
+              ref={printFrameRef}
+              srcDoc={renderedTemplate}
+              title="Bản xem trước bệnh án"
+            />
+          ) : (
+            <p className="py-16 text-center text-sm text-[#707882]">
+              {templateError ? 'Không thể tải mẫu bệnh án. Vui lòng thử lại.' : 'Đang tải mẫu bệnh án...'}
             </p>
-          </div>
+          )}
         </div>
 
-        <div className="flex shrink-0 justify-end gap-2 border-t border-[#bfc7d2] bg-white px-6 py-4 print:hidden">
-          <button className={styles.mutedButton} onClick={onClose} type="button">
+        <div className="flex shrink-0 justify-end gap-3 border-t border-[#bfc7d2] bg-white px-6 py-4 print:hidden">
+          <button
+            className="inline-flex h-10 min-w-[115px] items-center justify-center rounded-md border border-[#c0c7d1] bg-[#f2f3f8] px-5 text-[13px] font-semibold text-[#707882] transition hover:bg-[#e4e9ed] hover:text-[#3f4851] focus:outline-none focus:ring-4 focus:ring-[#006096]/10 active:scale-[0.98]"
+            onClick={onClose}
+            type="button"
+          >
             Quay lại
           </button>
-          <button className={styles.primaryButton} onClick={() => window.print()} type="button">
+          <button
+            className="inline-flex h-10 min-w-[115px] items-center justify-center gap-2 rounded-md bg-[#006096] px-5 text-[13px] font-semibold text-white shadow-[0_3px_6px_rgba(0,96,150,0.22)] transition hover:bg-[#00527f] hover:shadow-[0_4px_10px_rgba(0,96,150,0.3)] focus:outline-none focus:ring-4 focus:ring-[#006096]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!renderedTemplate || !isTemplateReady}
+            onClick={handlePrint}
+            type="button"
+          >
             In Bệnh án
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-function BaBlank({ value, width }: { value: string; width: string }) {
-  return (
-    <span
-      className={cn('inline-block border-b border-dotted border-[#555] px-1 text-[12.5px]', width)}
-    >
-      {value}
-    </span>
-  );
-}
-
-function BaSection({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <div className="mb-3.5">
-      <p className="mb-1 text-[13px] font-bold uppercase">{title}</p>
-      <div className="space-y-1 pl-1">{children}</div>
-    </div>
-  );
-}
-
-function BaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <p>
-      <span className="italic">{label}: </span>
-      <span className="border-b border-dotted border-[#555]">{value}</span>
-    </p>
-  );
-}
-
-function BaParagraph({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div className="mb-1">
-      <p>
-        <span className="font-bold">{label}:</span>{' '}
-        {value || <span className="text-[#8a8f96]">Chưa ghi nhận.</span>}
-      </p>
     </div>
   );
 }

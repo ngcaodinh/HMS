@@ -18,10 +18,15 @@ describe('medical record detail contract', () => {
   it('preserves a null treatment type instead of implying outpatient care', async () => {
     repositoryMocks.findMedicalRecordById.mockResolvedValue({
       id: 'record-1',
+      recordCode: 'BA-001',
       status: 'open',
       version: 1,
       patientId: 'patient-1',
       doctorId: 'doctor-1',
+      doctor: { fullName: 'Bác sĩ Điều trị' },
+      department: { name: 'Khoa Da liễu' },
+      bed: { number: 'G-01' },
+      diagnosisSignedByUser: { fullName: 'Bác sĩ Ký' },
       isEmergency: false,
       chiefComplaint: null,
       createdAt: new Date('2026-08-04T00:00:00.000Z'),
@@ -73,5 +78,9 @@ describe('medical record detail contract', () => {
     } satisfies Principal);
 
     expect(result.record.diagnosis?.treatmentType).toBeNull();
+    expect(result.record.recordCode).toBe('BA-001');
+    expect(result.record.department).toEqual({ name: 'Khoa Da liễu' });
+    expect(result.record.bed).toEqual({ number: 'G-01' });
+    expect(result.record.diagnosisSigner).toEqual({ fullName: 'Bác sĩ Ký' });
   });
 });

@@ -51,3 +51,68 @@ export function benefitLevelToRateString(
       return '0.0000';
   }
 }
+
+export type HealthInsuranceLineInput = {
+  amount: Prisma.Decimal;
+  coveredByHealthInsurance: boolean;
+  ceilingPrice: Prisma.Decimal | null;
+};
+
+export type HealthInsuranceLineResult = {
+  coveredByHealthInsurance: boolean;
+  healthInsuranceBenefitRateSnapshot: string | null;
+  healthInsuranceEligibleAmount: Prisma.Decimal;
+  healthInsuranceCeilingAmount: Prisma.Decimal;
+  healthInsuranceFundAmount: Prisma.Decimal;
+  patientCoPayAmount: Prisma.Decimal;
+};
+
+export type HealthInsuranceCalculation = {
+  lines: HealthInsuranceLineResult[];
+  healthInsuranceBaseAmount: Prisma.Decimal;
+  healthInsuranceDiscountAmount: Prisma.Decimal;
+  totalPatientAmount: Prisma.Decimal;
+};
+
+/** Tính BHYT từng dòng bằng Decimal; mọi tỷ lệ và số tiền đều do server xác định. */
+export function calculateHealthInsurance(
+  benefitLevel: 'NO_COVERAGE' | 'RATE_80' | 'RATE_95' | 'RATE_100',
+  lines: HealthInsuranceLineInput[],
+): HealthInsuranceCalculation {
+  const zero = new Prisma.Decimal(0);
+  const rateString = benefitLevelToRateString(benefitLevel);
+  const rate = new Prisma.Decimal(rateString);
+  let healthInsuranceBaseAmount = zero;
+  let healthInsuranceDiscountAmount = zero;
+  let totalPatientAmount = zero;
+  const results = lines.map((line) => {
+    const amount = line.amount.toDecimalPlaces(2);
+    if (amount.lt(zero)) {
+      throw new Error('INVALID_MONEY_AMOUNT');
+    }
+    const isCovered = benefitLevel !== 'NO_COVERAGE' && line.coveredByHealthInsurance;
+    const ceiling = line.ceilingPrice && line.ceilingPrice.gt(zero)
+      ? line.ceilingPrice.toDecimalPlaces(2)
+      : amount;
+    const eligible = isCovered ? (ceiling.lt(amount) ? ceiling : amount) : zero;
+    const fund = isCovered ? eligible.mul(rate).toDecimalPlaces(2) : zero;
+    const copay = amount.sub(fund).toDecimalPlaces(2);
+    healthInsuranceBaseAmount = healthInsuranceBaseAmount.add(eligible);
+    healthInsuranceDiscountAmount = healthInsuranceDiscountAmount.add(fund);
+    totalPatientAmount = totalPatientAmount.add(copay);
+    return {
+      coveredByHealthInsurance: isCovered,
+      healthInsuranceBenefitRateSnapshot: isCovered ? rateString : null,
+      healthInsuranceEligibleAmount: eligible,
+      healthInsuranceCeilingAmount: isCovered ? ceiling : zero,
+      healthInsuranceFundAmount: fund,
+      patientCoPayAmount: copay,
+    };
+  });
+  return {
+    lines: results,
+    healthInsuranceBaseAmount: healthInsuranceBaseAmount.toDecimalPlaces(2),
+    healthInsuranceDiscountAmount: healthInsuranceDiscountAmount.toDecimalPlaces(2),
+    totalPatientAmount: totalPatientAmount.toDecimalPlaces(2),
+  };
+}

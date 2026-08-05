@@ -15,6 +15,7 @@ const envSchema = z.object({
   JWT_ISSUER: z.string().default('hms-vn'),
   JWT_AUDIENCE: z.string().default('hms-vn-staff'),
   IT_DEV_PASSWORD: z.string().default(''),
+  ADMIN_DEV_PASSWORD: z.string().default(''),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
   UPLOAD_ROOT: z.string().default('./uploads'),
   MOMO_ENDPOINT: z.string().default('https://test-payment.momo.vn'),
@@ -59,6 +60,7 @@ export const config = {
     jwtIssuer: env.JWT_ISSUER,
     jwtAudience: env.JWT_AUDIENCE,
     itDevPassword: env.IT_DEV_PASSWORD,
+    adminDevPassword: env.ADMIN_DEV_PASSWORD,
   },
   cors: {
     origins: env.CORS_ORIGINS.split(',').map((origin) => origin.trim()),

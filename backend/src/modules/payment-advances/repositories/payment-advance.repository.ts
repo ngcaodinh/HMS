@@ -43,17 +43,16 @@ export class PaymentAdvanceRepository {
         where: { recordId, type: 'refund' },
         _sum: { amount: true },
       }),
-      client.invoice.findFirst({
-        where: { recordId, status: { in: ['paid', 'write_off'] } },
-        orderBy: { createdAt: 'desc' },
-        select: { amountDue: true },
+      client.invoice.aggregate({
+        where: { recordId, status: { in: ['pending', 'paid', 'write_off'] } },
+        _sum: { advanceAppliedAmount: true },
       }),
     ]);
 
     const totalDeposited = deposits._sum.amount ?? new Prisma.Decimal(0);
     const totalRefunded = refunds._sum.amount ?? new Prisma.Decimal(0);
-    const finalInvoiceAmountDue = finalInvoice?.amountDue ?? new Prisma.Decimal(0);
-    const balance = totalDeposited.sub(totalRefunded).sub(finalInvoiceAmountDue);
+    const appliedAdvance = finalInvoice._sum.advanceAppliedAmount ?? new Prisma.Decimal(0);
+    const balance = totalDeposited.sub(totalRefunded).sub(appliedAdvance);
 
     return {
       totalDeposited,

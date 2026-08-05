@@ -220,7 +220,7 @@ export function AdvanceManagementScreen({
               onClick={handleCreateDeposit}
               className="w-full py-3 bg-[#006096] text-white rounded-md font-bold text-sm disabled:opacity-50 min-h-[44px]"
             >
-              {isSubmitting ? 'Đang lưu giao dịch…' : 'Thu tiền & In phiếu tạm ứng'}
+              {isSubmitting ? 'Đang lưu giao dịch…' : 'Thu tiền tạm ứng'}
             </button>
           </div>
           <AdvanceHistory summary={summary} isLoading={isLoading} />
@@ -239,7 +239,7 @@ export function AdvanceManagementScreen({
             onClick={onOpenRefundModal}
             className="w-full py-3 bg-[#1a7a4a] text-white rounded-md font-bold text-sm disabled:opacity-50 min-h-[44px]"
           >
-            {balance > 0 ? 'Xác nhận hoàn trả & In phiếu' : 'Không có số dư tạm ứng để hoàn trả'}
+            {balance > 0 ? 'Xác nhận hoàn trả' : 'Không có số dư tạm ứng để hoàn trả'}
           </button>
           <AdvanceHistory summary={summary} isLoading={isLoading} />
         </div>

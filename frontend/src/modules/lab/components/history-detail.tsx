@@ -2,7 +2,9 @@ import { labWorkspaceStyles as styles } from '../pages/workspace/lab-workspace.s
 import { downloadAttachmentUrl, useLabTestDetail } from '../services/lab-test-api';
 import { AssetIcon, calculateAge, cn, formatDateTimeVN, genderLabel, RESULT_TABLE_LABELS } from './shared';
 import { formatStructuredResultEntries } from './format-structured-result';
+import { createLabResultPrintHtml, printLabDocument } from './print-lab';
 
+/** Hiển thị kết quả xét nghiệm và mở bản in tối giản chỉ gồm nội dung báo cáo. */
 export function HistoryDetail({ labTestId }: { labTestId: string | null }) {
   const { data: detail, isLoading } = useLabTestDetail(labTestId);
 
@@ -152,7 +154,11 @@ export function HistoryDetail({ labTestId }: { labTestId: string | null }) {
             Tải tệp đính kèm
           </a>
         )}
-        <button className={styles.primaryButton} onClick={() => window.print()} type="button">
+        <button
+          className={styles.primaryButton}
+          onClick={() => printLabDocument(createLabResultPrintHtml(detail, entries))}
+          type="button"
+        >
           In kết quả xét nghiệm
         </button>
       </div>

@@ -1,6 +1,12 @@
 export type AccountingScreenId = 's1' | 's2' | 's3' | 's4' | 's5';
 
-export type PatientStatus = 'pending_payment' | 'advance_paid' | 'refunded' | 'settled';
+export type PatientStatus =
+  | 'pending_payment'
+  | 'advance_paid'
+  | 'refunded'
+  | 'settled'
+  | 'cancelled'
+  | 'write_off';
 
 export interface ServiceItem {
   id: string;
@@ -71,15 +77,17 @@ export interface ShiftSummary {
   advanceRefundedTotal: number;
   netRevenue: number;
   totalTransactionsCount: number;
+  healthInsuranceTotal?: number;
+  writeOffTotal?: number;
 }
 
 export interface TransactionLog {
   id: string;
   time: string;
-  type: 'invoice_payment' | 'advance_deposit' | 'advance_refund';
+  type: 'invoice_payment' | 'advance_deposit' | 'advance_refund' | 'write_off';
   patientName: string;
   patientCode: string;
-  method: 'cash' | 'vietqr' | 'momo';
+  method: 'cash' | 'vietqr' | 'momo' | 'write_off';
   amount: number;
   cashier: string;
   status: 'success' | 'pending' | 'failed';

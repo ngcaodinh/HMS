@@ -7,6 +7,11 @@ interface ShiftReportScreenProps {
   summary: ShiftSummary | null;
   logs: TransactionLog[];
   onExportReport: () => void;
+  fromDate: string;
+  toDate: string;
+  isLoading: boolean;
+  errorMessage: string | null;
+  onDateChange: (range: { from: string; to: string }) => void;
 }
 
 function formatVnd(value: number | undefined): string {
@@ -19,7 +24,16 @@ function formatLogDate(value: string): string {
 }
 
 /** Hiển thị báo cáo ca từ dữ liệu server; khi chưa có API sẽ hiển thị trạng thái rỗng minh bạch. */
-export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReportScreenProps) {
+export function ShiftReportScreen({
+  summary,
+  logs,
+  onExportReport,
+  fromDate,
+  toDate,
+  isLoading,
+  errorMessage,
+  onDateChange,
+}: ShiftReportScreenProps) {
   const [filterType, setFilterType] = useState<string>('all');
   const hasReportData = summary !== null || logs.length > 0;
 
@@ -28,6 +42,7 @@ export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReport
     if (filterType === 'hd') return l.type === 'invoice_payment';
     if (filterType === 'adv') return l.type === 'advance_deposit';
     if (filterType === 'refund') return l.type === 'advance_refund';
+    if (filterType === 'writeoff') return l.type === 'write_off';
     return true;
   });
 
@@ -49,16 +64,20 @@ export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReport
         <div className="flex items-center gap-2 flex-wrap">
           <input
             type="date"
+            value={fromDate}
+            onChange={(event) => onDateChange({ from: event.target.value, to: toDate })}
             className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
           />
           <input
             type="date"
+            value={toDate}
+            onChange={(event) => onDateChange({ from: fromDate, to: event.target.value })}
             className="h-9 px-3 border border-[#bfc7d2] rounded-md text-[13px] text-[#171c1f] outline-none transition-all duration-150 focus:border-[#006096] focus:ring-2 focus:ring-[#006096]/15"
           />
           <button
             type="button"
             onClick={onExportReport}
-            disabled={!hasReportData}
+            disabled={!hasReportData || isLoading}
             className="px-3.5 py-1.5 bg-[#1a7a4a] text-white rounded-md text-[12.5px] font-bold hover:bg-[#145c38] active:scale-[0.97] transition-all duration-200 ease-out flex items-center gap-1.5 min-h-[36px] shadow-[0_2px_8px_rgba(26,122,74,0.24)] hover:shadow-[0_4px_14px_rgba(26,122,74,0.3)] disabled:cursor-not-allowed disabled:bg-[#bfc7d2] disabled:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -94,9 +113,11 @@ export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReport
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Quỹ BHYT chi trả
           </div>
-          <div className="text-[24px] font-bold font-mono text-[#006096] leading-tight mb-1">—</div>
+          <div className="text-[24px] font-bold font-mono text-[#006096] leading-tight mb-1">
+            {formatVnd(summary?.healthInsuranceTotal)}
+          </div>
           <div className="text-[11.5px] text-[#707882]">
-            Chưa có dữ liệu quỹ BHYT từ API ca trực
+            Tổng quỹ BHYT theo hóa đơn đã thanh toán
           </div>
         </div>
 
@@ -116,9 +137,11 @@ export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReport
           <div className="text-[11.5px] font-bold uppercase tracking-wider text-[#707882] mb-1">
             Miễn giảm thất thu
           </div>
-          <div className="text-[24px] font-bold font-mono text-[#ba1a1a] leading-tight mb-1">—</div>
+          <div className="text-[24px] font-bold font-mono text-[#ba1a1a] leading-tight mb-1">
+            {formatVnd(summary?.writeOffTotal)}
+          </div>
           <div className="text-[11.5px] text-[#707882]">
-            Chưa có dữ liệu write-off từ API ca trực
+            Tổng giá trị hóa đơn miễn giảm thất thu
           </div>
         </div>
       </div>
@@ -186,7 +209,19 @@ export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReport
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f0f4f8]">
-              {filteredLogs.length === 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td className="px-4 py-12 text-center text-sm text-[#707882]" colSpan={7}>
+                    Đang tải báo cáo từ hệ thống…
+                  </td>
+                </tr>
+              ) : errorMessage ? (
+                <tr>
+                  <td className="px-4 py-12 text-center text-sm text-[#ba1a1a]" colSpan={7}>
+                    {errorMessage}
+                  </td>
+                </tr>
+              ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td className="px-4 py-12 text-center text-sm text-[#707882]" colSpan={7}>
                     Chưa có giao dịch thực tế trong khoảng thời gian đã chọn.
@@ -207,6 +242,7 @@ export function ShiftReportScreen({ summary, logs, onExportReport }: ShiftReport
                         {log.type === 'invoice_payment' && 'Thanh toán HĐ'}
                         {log.type === 'advance_deposit' && 'Thu tạm ứng'}
                         {log.type === 'advance_refund' && 'Hoàn ứng'}
+                        {log.type === 'write_off' && 'Write-off'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

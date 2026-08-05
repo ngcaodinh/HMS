@@ -111,6 +111,7 @@ describe('nurse lane 6 API response helpers', () => {
         tone: 'purple',
         orderType: 'medication',
         hasAllergyWarning: true,
+        executedByName: null,
       },
     );
     assert.equal(mapTreatmentOrderDto({ treatmentOrderId: 'order-2', status: 'unknown' }), null);

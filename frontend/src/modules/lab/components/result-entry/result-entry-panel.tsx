@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { ApiError } from '@/shared/api-client';
 import { AppToast } from '@/shared/components/app-toast';
+import { useAppToast } from '@/shared/hooks/use-app-toast';
 
 import { labWorkspaceStyles as styles } from '../../pages/workspace/lab-workspace.styles';
 import {
@@ -90,8 +91,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
   const [attachment, setAttachment] = useState<LabTestAttachment | null>(null);
   const [conclusion, setConclusion] = useState('');
   const [reportCode, setReportCode] = useState('');
-  const [popupMessage, setPopupMessage] = useState<string | null>(null);
-  const popupTimerRef = useRef<number | null>(null);
+  const { hideToast, showToast, toast } = useAppToast(4500);
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -136,13 +136,6 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail?.status, labTestId]);
 
-  useEffect(
-    () => () => {
-      if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
-    },
-    [],
-  );
-
   if (isLoading || !detail || !structuredResult) {
     return <p className="py-10 text-center text-sm text-[#707882]">Đang tải phiếu xét nghiệm...</p>;
   }
@@ -182,12 +175,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
 
   /** Hiển thị popup thống nhất của HMS cho lỗi thao tác, tự đóng sau một khoảng ngắn. */
   function showPopup(message: string) {
-    if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
-    setPopupMessage(message);
-    popupTimerRef.current = window.setTimeout(() => {
-      setPopupMessage(null);
-      popupTimerRef.current = null;
-    }, 4500);
+    showToast(message, 'error');
   }
 
   /** Đánh dấu field vừa thay đổi để lỗi xuất hiện ngay khi người dùng nhập dữ liệu sai. */
@@ -435,7 +423,7 @@ export function ResultEntryPanel({ labTestId, onDone }: ResultEntryPanelProps) {
           </div>
         </div>
       </div>
-      <AppToast centered message={popupMessage} tone="error" />
+      <AppToast centered message={toast.message} onClose={hideToast} tone={toast.tone} />
     </div>
   );
 }

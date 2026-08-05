@@ -20,7 +20,8 @@ type StaffPathRule = {
 };
 
 const roleHomeRules: RoleHomeRule[] = [
-  { homePath: '/it-technician', roleCodes: ['admin', 'it_tech'] },
+  { homePath: '/admin', roleCodes: ['admin'] },
+  { homePath: '/it-technician', roleCodes: ['it_tech'] },
   { homePath: '/director/dashboard', roleCodes: ['director'] },
   { homePath: '/reception', roleCodes: ['receptionist'] },
   { homePath: '/accounting', roleCodes: ['accountant'] },
@@ -31,6 +32,7 @@ const roleHomeRules: RoleHomeRule[] = [
 ];
 
 const staffPathRules: StaffPathRule[] = [
+  { pathPrefixes: ['/admin'], roleCodes: ['admin'] },
   { pathPrefixes: ['/it-technician'], roleCodes: ['admin', 'it_tech'] },
   { pathPrefixes: ['/director'], roleCodes: ['director'] },
   { pathPrefixes: ['/reception'], roleCodes: ['receptionist'] },

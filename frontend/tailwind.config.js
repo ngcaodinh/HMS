@@ -52,11 +52,16 @@ const config = {
           '0%': { opacity: '0', transform: 'scale(0.96) translateY(8px)' },
           '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
         },
+        toastSlideIn: {
+          '0%': { opacity: '0', transform: 'translateY(12px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
       },
       animation: {
         'blink-red': 'blink-red 0.9s ease-in-out infinite',
         fadeIn: 'fadeIn 0.18s ease-out',
         modalIn: 'modalIn 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+        toastSlideIn: 'toastSlideIn 0.25s ease-out',
       },
     },
   },

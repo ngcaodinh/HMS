@@ -18,6 +18,10 @@ invoiceRouter.get('/invoices', requirePermission('invoice.read'), (req, res, nex
   void invoiceController.list(req, res, next);
 });
 
+invoiceRouter.get('/accounting-reports', requirePermission('invoice.read'), (req, res, next) => {
+  void invoiceController.accountingReport(req, res, next);
+});
+
 invoiceRouter.get('/invoice-candidates', requirePermission('invoice.read'), (req, res, next) => {
   void invoiceController.listCandidates(req, res, next);
 });

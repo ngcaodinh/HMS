@@ -9,7 +9,7 @@ export const sidebarStyles = {
   asideDanger: 'border-[#7f1010] bg-[#1a0000]',
   header: 'flex h-[64px] shrink-0 items-center gap-3 border-b border-white/10 px-4',
   logoWrap:
-    'relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#006096] shadow-[0_2px_4px_rgba(0,96,150,0.3)]',
+    'relative flex h-[34px] w-[34px] shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#006096] shadow-[0_2px_4px_rgba(0,96,150,0.3)]',
   brandName: 'text-[15px] font-bold leading-[18.75px] text-white',
   brandSubtitle:
     'mt-0.5 whitespace-nowrap text-[10px] uppercase leading-[15px] tracking-[0.4px] text-white/55',

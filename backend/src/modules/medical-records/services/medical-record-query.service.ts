@@ -59,10 +59,17 @@ export async function getMedicalRecordDetail(recordId: string, principal: Princi
     viewType: 'doctor' as const,
     record: {
       recordId: record.id,
+      recordCode: record.recordCode,
       status: record.status,
       version: record.version,
       patientId: record.patientId,
       doctorId: record.doctorId,
+      doctor: record.doctor ? { fullName: record.doctor.fullName } : null,
+      department: record.department ? { name: record.department.name } : null,
+      bed: record.bed ? { number: record.bed.number } : null,
+      diagnosisSigner: record.diagnosisSignedByUser
+        ? { fullName: record.diagnosisSignedByUser.fullName }
+        : null,
       isEmergency: record.isEmergency,
       chiefComplaint: record.chiefComplaint,
       // Extension beyond the literal allow-list table: the assigned doctor already has full

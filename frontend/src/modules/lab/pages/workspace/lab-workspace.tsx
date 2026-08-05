@@ -8,6 +8,7 @@ import { HistoryScreen } from '../../components/history-screen';
 import { QueueList, type QueueFilterTab } from '../../components/queue-list';
 import { ReferenceRangeConfig } from '../../components/reference-range-config';
 import { ResultEntryScreen } from '../../components/result-entry/result-entry-screen';
+import { createLabOrderPrintHtml, printLabDocument } from '../../components/print-lab';
 import { Sidebar, type LabScreen } from '../../components/sidebar';
 import { Topbar } from '../../components/topbar';
 import { usePendingLabTests } from '../../services/lab-test-api';
@@ -29,6 +30,7 @@ const SECTION_COPY: Record<LabScreen, { subtitle: string; title: string }> = {
   },
 };
 
+/** Điều phối màn hình làm việc của KTV và tách phiếu chỉ định khỏi nội dung workspace khi in. */
 export function LabWorkspacePage() {
   const { data: principal, isLoading: isAuthLoading, isError: isAuthError } = useRequireAuth();
   const logout = useLogout();
@@ -94,7 +96,7 @@ export function LabWorkspacePage() {
               list={queueData?.data ?? []}
               onChangeFilterTab={setFilterTab}
               onChangeKeyword={setKeyword}
-              onPrint={() => window.print()}
+              onPrint={(item) => printLabDocument(createLabOrderPrintHtml(item))}
               onSelect={(labTestId) => {
                 setSelectedLabTestId(labTestId);
                 setScreen('result-entry');

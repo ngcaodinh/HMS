@@ -9,18 +9,17 @@ import { RoleIcon } from '@/shared/components/role-icon';
 import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
 import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 import { ApiError } from '@/shared/api-client/error';
+import { AppToast } from '@/shared/components/app-toast';
+import { useAppToast } from '@/shared/hooks/use-app-toast';
+import { useCurrentPrincipal } from '@/shared/hooks/use-current-principal';
 
 import {
   navItems,
   orderTypeLabels,
-  queuePatients,
   screenMeta,
-  vitalFields,
-  vitalStats,
   type IconName,
   type NurseScreen,
   type StatCard,
-  type VitalField,
 } from './nurse-workspace.data';
 import {
   useBeds,
@@ -47,7 +46,6 @@ import {
   type AdmissionBoardDto,
   type VitalsWorklistItemDto,
   type QueueTicketDto,
-  type VitalsQueueStatsDto,
   type SpecimenDto,
 } from '../../hooks/useLane6';
 import { nurseWorkspaceStyles as styles } from './nurse-workspace.styles';
@@ -114,6 +112,7 @@ function Sidebar({
   onChangeScreen: (screen: NurseScreen) => void;
 }) {
   const router = useRouter();
+  const { data: principal } = useCurrentPrincipal();
 
   const { data: vitalsQueueData } = useVitalsQueue();
   const { data: specimens = [] } = useSpecimens();
@@ -172,8 +171,12 @@ function Sidebar({
             </span>
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold leading-5 text-white">Nguyễn Thị Hương</p>
-            <p className="text-xs font-medium leading-4 text-white/50">Điều dưỡng</p>
+            <p className="truncate text-sm font-bold leading-5 text-white">
+              {principal?.fullName ?? 'Đang tải tài khoản'}
+            </p>
+            <p className="text-xs font-medium leading-4 text-white/50">
+              {principal?.roleCodes.includes('nurse') ? 'Điều dưỡng' : 'Nhân viên'}
+            </p>
           </div>
           <button
             aria-label="Đăng xuất"
@@ -193,6 +196,7 @@ function Sidebar({
 
 function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
   const meta = screenMeta[activeScreen];
+  const { data: vitalsQueue } = useVitalsQueue();
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
   useEffect(() => {
@@ -212,11 +216,15 @@ function Topbar({ activeScreen }: { activeScreen: NurseScreen }) {
     return `${displayHours}:${displayMinutes} ${ampm} ${day}/${month}/${year}`;
   }, [currentTime]);
 
-  const subtitlePrefix = useMemo(
-    () => meta.subtitle.split(' • ').slice(0, -1).join(' • '),
-    [meta.subtitle],
-  );
-  const subtitle = `${subtitlePrefix} • ${formattedTime}`;
+  const screenContext: Record<NurseScreen, string> = {
+    vitals: 'Tiếp nhận & sinh hiệu',
+    samples: 'Lấy mẫu & bàn giao',
+    beds: 'Toàn bộ buồng nội trú',
+    orders: 'Y lệnh & chăm sóc',
+    emergency: 'Chuẩn hóa cấp cứu',
+  };
+  const departmentName = vitalsQueue?.departmentName ?? 'Đang tải khoa/phòng';
+  const subtitle = `${departmentName} • ${screenContext[activeScreen]} • ${formattedTime}`;
 
   return (
     <header className={styles.topbar}>
@@ -600,7 +608,6 @@ function VitalsForm({
             Chưa chọn bệnh nhân — hãy gọi số và chọn bệnh nhân từ danh sách bên trái
           </div>
         )}
-
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <VitalInputField
             label="Mạch (lần/phút)"
@@ -820,15 +827,9 @@ function VitalsScreen() {
   const [selectedRecord, setSelectedRecord] = useState<VitalsWorklistItemDto | null>(null);
   const [calledOrder, setCalledOrder] = useState<string[]>([]);
   const [form, setForm] = useState<VitalsFormState>(emptyVitalsForm);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { hideToast, showToast, toast } = useAppToast(3000);
   const [attemptedSave, setAttemptedSave] = useState(false);
   const hydratedRef = useRef(false);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   const activeTicket = data?.ticketQueue.currentCalled ?? null;
   const worklist = data?.worklist ?? [];
@@ -852,10 +853,8 @@ function VitalsScreen() {
       if (parsed && parsed.date === today) {
         const validWorklist = data.worklist || [];
         const validIds = new Set(validWorklist.map((w) => w.recordId));
-
         const restoredCalledOrder = (parsed.calledOrder || []).filter((id) => validIds.has(id));
         setCalledOrder(restoredCalledOrder);
-
         if (parsed.selectedRecordId && validIds.has(parsed.selectedRecordId)) {
           const found = validWorklist.find((w) => w.recordId === parsed.selectedRecordId);
           if (found) {
@@ -921,11 +920,9 @@ function VitalsScreen() {
 
   const handleCallNext = useCallback(() => {
     if (hasUnsavedInput || isCalling) return;
-
     if ((data?.ticketQueue.waitingCount ?? 0) > 0) {
       callNext();
     }
-
     const currentWorklist = data?.worklist ?? [];
     if (currentWorklist.length === 0) return;
 
@@ -933,7 +930,6 @@ function VitalsScreen() {
     if (selectedRecord && !newCalledOrder.includes(selectedRecord.recordId)) {
       newCalledOrder.push(selectedRecord.recordId);
     }
-
     const newCalledSet = new Set(newCalledOrder);
     let nextRecord: VitalsWorklistItemDto | null = null;
 
@@ -962,7 +958,6 @@ function VitalsScreen() {
     } else {
       nextRecord = currentWorklist.find((item) => !newCalledSet.has(item.recordId)) ?? null;
     }
-
     setCalledOrder(newCalledOrder);
     selectRecordAndResetForm(nextRecord);
   }, [
@@ -1052,20 +1047,20 @@ function VitalsScreen() {
           if (selectedRecord) {
             setCalledOrder((prev) => prev.filter((id) => id !== selectedRecord.recordId));
           }
-          setToast({ type: 'success', message: 'Đã lưu kết quả sinh hiệu thành công!' });
+          showToast('Đã lưu kết quả sinh hiệu thành công!', 'success');
           setForm(emptyVitalsForm);
           setSelectedRecord(null);
           setAttemptedSave(false);
         },
         onError: (error) => {
-          setToast({
-            type: 'error',
-            message: error instanceof ApiError ? error.message : 'Lưu thất bại, vui lòng thử lại!',
-          });
+          showToast(
+            error instanceof ApiError ? error.message : 'Lưu thất bại, vui lòng thử lại!',
+            'error',
+          );
         },
       },
     );
-  }, [activeTicket, selectedRecord, isSaving, form, saveVitalSigns]);
+  }, [activeTicket, selectedRecord, isSaving, form, saveVitalSigns, showToast]);
 
   useEffect(() => {
     function handleKeydown(e: KeyboardEvent) {
@@ -1122,21 +1117,9 @@ function VitalsScreen() {
       </div>
     );
   }
-
   return (
     <div className="space-y-6">
-      {toast && (
-        <div
-          aria-live="polite"
-          role={toast.type === 'error' ? 'alert' : 'status'}
-          className={cn(
-            'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
-            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]',
-          )}
-        >
-          {toast.message}
-        </div>
-      )}
+      <AppToast message={toast.message} onClose={hideToast} tone={toast.tone} />
       <StatGrid stats={stats} />
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
         <PatientQueue
@@ -1227,18 +1210,12 @@ function SamplesScreen() {
   const printBarcodeMutation = usePrintSpecimenBarcode();
   const handoffSpecimenMutation = useHandoffSpecimen();
   const [barcodeSpecimen, setBarcodeSpecimen] = useState<SpecimenDto | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { hideToast, showToast, toast } = useAppToast(4000);
 
   const [activeTab, setActiveTab] = useState<'collect' | 'handoff'>('collect');
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [selectedPatientCode, setSelectedPatientCode] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!errorMessage) return undefined;
-    const timer = setTimeout(() => setErrorMessage(null), 4000);
-    return () => clearTimeout(timer);
-  }, [errorMessage]);
 
   // Compute stat cards from real data
   const pendingCount = specimens.filter((s) => s.status === 'pending').length;
@@ -1324,14 +1301,7 @@ function SamplesScreen() {
 
   return (
     <div className="space-y-5">
-      {errorMessage && (
-        <div
-          role="status"
-          className="fixed right-6 top-6 z-50 rounded-lg bg-red-100 px-4 py-3 text-sm font-bold text-[#ba1a1a] shadow-lg"
-        >
-          {errorMessage}
-        </div>
-      )}
+      <AppToast message={toast.message} onClose={hideToast} tone={toast.tone} />
       <StatGrid stats={stats} />
       <section className={cn(styles.card, 'overflow-hidden')}>
         <div className="flex border-b border-[#bfc7d2] bg-[#f0f4f8]">
@@ -1512,11 +1482,12 @@ function SamplesScreen() {
                                 {
                                   onSuccess: () => setBarcodeSpecimen(order),
                                   onError: (error) =>
-                                    setErrorMessage(
+                                    showToast(
                                       getApiErrorMessage(
                                         error,
                                         'Không thể in mã vạch mẫu bệnh phẩm.',
                                       ),
+                                      'error',
                                     ),
                                 },
                               );
@@ -1533,8 +1504,9 @@ function SamplesScreen() {
                                 { id: order.id },
                                 {
                                   onError: (error) =>
-                                    setErrorMessage(
+                                    showToast(
                                       getApiErrorMessage(error, 'Không thể ghi nhận lấy mẫu.'),
+                                      'error',
                                     ),
                                 },
                               )
@@ -1617,11 +1589,12 @@ function SamplesScreen() {
                             { id: spec.id, labReceiverName: 'Phòng Lab Central' },
                             {
                               onError: (error) =>
-                                setErrorMessage(
+                                showToast(
                                   getApiErrorMessage(
                                     error,
                                     'Không thể bàn giao mẫu cho phòng Lab.',
                                   ),
+                                  'error',
                                 ),
                             },
                           )
@@ -1984,23 +1957,16 @@ function BedsScreen() {
   const [transferTargetBed, setTransferTargetBed] = useState<BedDto | null>(null);
   const [roomFilter, setRoomFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { hideToast, showToast, toast } = useAppToast(4000);
 
   const bedsList: BedDto[] = apiBeds || [];
   const waitingPatients = admissionBoard || [];
   const sourceBedForModal = bedsList.find((b) => b.id === transferSourceBedId) ?? null;
-  const showErrorToast = (message: string) => setToast({ type: 'error', message });
-
-  useEffect(() => {
-    if (!toast) return undefined;
-    const timer = setTimeout(() => setToast(null), 4000);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const showErrorToast = (message: string) => showToast(message, 'error');
 
   if (isLoading) {
     return <div className="p-8 text-center text-[#3f4851]">Đang tải dữ liệu buồng giường...</div>;
   }
-
   const totalBeds = bedsList.length;
   const occupiedCount = bedsList.filter((b) => b.status === 'occupied').length;
   const availableCount = bedsList.filter((b) => b.status === 'available').length;
@@ -2057,15 +2023,7 @@ function BedsScreen() {
 
   return (
     <div className="space-y-6">
-      {toast && (
-        <div
-          aria-live="polite"
-          role="alert"
-          className="fixed right-6 top-6 z-50 rounded-lg bg-red-100 px-4 py-3 text-sm font-bold text-[#ba1a1a] shadow-lg"
-        >
-          {toast.message}
-        </div>
-      )}
+      <AppToast message={toast.message} onClose={hideToast} tone={toast.tone} />
       <StatGrid stats={stats} />
 
       {/* Action bar - Part B controls */}
@@ -2474,7 +2432,6 @@ function OrdersScreen() {
   if (isLoading) {
     return <div className="p-8 text-center text-[#3f4851]">Đang tải dữ liệu y lệnh...</div>;
   }
-
   const pendingCount = ordersList.filter(
     (o) => o.status === 'active' || o.status === 'pending',
   ).length;
@@ -2726,7 +2683,7 @@ function EmergencyScreen() {
     {},
   );
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const { hideToast, showToast, toast } = useAppToast(3000);
 
   const patients = useMemo(() => unidentifiedPatients ?? [], [unidentifiedPatients]);
 
@@ -2735,12 +2692,6 @@ function EmergencyScreen() {
       setSelectedPatientId(patients[0].patientId);
     }
   }, [patients, selectedPatientId]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
   const selectedPatient = patients.find((p) => p.patientId === selectedPatientId) ?? null;
 
@@ -2826,22 +2777,21 @@ function EmergencyScreen() {
       },
       {
         onSuccess: () => {
-          setToast({ type: 'success', message: 'Đã chuẩn hóa danh tính bệnh nhân thành công!' });
+          showToast('Đã chuẩn hóa danh tính bệnh nhân thành công!', 'success');
           setForm(emptyEmergencyForm);
           setTouchedFields({});
           setAttemptedSubmit(false);
           setSelectedPatientId('');
         },
         onError: (error) => {
-          setToast({
-            type: 'error',
-            message:
-              error instanceof ApiError && error.code === 'CONFLICT_ERROR'
-                ? 'Số CCCD này đã được dùng cho bệnh nhân khác trên hệ thống — vui lòng kiểm tra lại hoặc mở hồ sơ bệnh nhân hiện có'
-                : error instanceof ApiError
-                  ? error.message
-                  : 'Chuẩn hóa danh tính thất bại, vui lòng thử lại!',
-          });
+          showToast(
+            error instanceof ApiError && error.code === 'CONFLICT_ERROR'
+              ? 'Số CCCD này đã được dùng cho bệnh nhân khác trên hệ thống — vui lòng kiểm tra lại hoặc mở hồ sơ bệnh nhân hiện có'
+              : error instanceof ApiError
+                ? error.message
+                : 'Chuẩn hóa danh tính thất bại, vui lòng thử lại!',
+            'error',
+          );
         },
       },
     );
@@ -2854,21 +2804,9 @@ function EmergencyScreen() {
       </div>
     );
   }
-
   return (
     <div className="space-y-6">
-      {toast && (
-        <div
-          aria-live="polite"
-          role={toast.type === 'error' ? 'alert' : 'status'}
-          className={cn(
-            'fixed right-6 top-6 z-50 rounded-lg px-4 py-3 text-sm font-bold shadow-lg',
-            toast.type === 'success' ? 'bg-green-100 text-[#15803d]' : 'bg-red-100 text-[#ba1a1a]',
-          )}
-        >
-          {toast.message}
-        </div>
-      )}
+      <AppToast message={toast.message} onClose={hideToast} tone={toast.tone} />
 
       <section className="flex flex-wrap items-center gap-4 rounded-xl border border-[#ba1a1a] bg-rose-200 p-5">
         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white text-[#ba1a1a]">

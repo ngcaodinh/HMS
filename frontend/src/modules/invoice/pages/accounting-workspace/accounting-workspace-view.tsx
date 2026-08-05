@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getApiErrorCode, getApiErrorMessage } from '@/shared/api-client/api-client';
 import { performLogout } from '@/shared/auth/logout';
 import { AppToast } from '@/shared/components/app-toast';
+import { useAppToast } from '@/shared/hooks/use-app-toast';
 
 import { AccountingScreenId, Invoice, PatientRecord } from '../../types/invoice.types';
 import { AccountingHeader } from '../../components/accounting-header';
@@ -39,6 +40,7 @@ import {
   settleCashPayment,
   syncMomoPayment,
 } from '../../services/payment.api';
+import { getAccountingReport } from '../../services/accounting-report.api';
 
 const SS_INVOICE = 'hms_momo_invoice_id';
 const SS_ORDER = 'hms_momo_order_id';
@@ -46,6 +48,21 @@ const SS_ORDER = 'hms_momo_order_id';
 function moneyToNumber(value: string): number {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Trung hòa tiền tố công thức để mã bệnh nhân không bị Excel diễn giải khi mở CSV. */
+function toSafeCsvCell(value: string): string {
+  const safeValue = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return `"${safeValue.replaceAll('"', '""')}"`;
+}
+
+function getVietnamTodayInputValue(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 function mapInvoiceItemCategory(category: string): Invoice['items'][number]['category'] {
@@ -80,7 +97,9 @@ function mapApiInvoiceToView(dto: InvoiceApiDto, patient?: PatientRecord | null)
       quantity: moneyToNumber(item.quantity),
       unitPrice: moneyToNumber(item.unitPrice),
       totalPrice: moneyToNumber(item.amount),
-      bhytCoverRate: item.coveredByHealthInsurance ? 0.8 : 0,
+      bhytCoverRate: item.healthInsuranceBenefitRateSnapshot
+        ? moneyToNumber(item.healthInsuranceBenefitRateSnapshot)
+        : 0,
       bhytPays: moneyToNumber(item.healthInsuranceFundAmount),
       patientPays: moneyToNumber(item.patientCoPayAmount),
     })),
@@ -114,12 +133,19 @@ function mapInvoiceToPatient(dto: InvoiceApiDto, fallback?: PatientRecord | null
       'Chưa cập nhật',
     department: dto.patient?.department ?? fallback?.department ?? 'Chưa phân khoa',
     admissionDate: fallback?.admissionDate ?? 'Chưa cập nhật',
-    status: dto.status === 'paid' ? 'settled' : 'pending_payment',
+    status:
+      dto.status === 'paid'
+        ? 'settled'
+        : dto.status === 'cancelled'
+          ? 'cancelled'
+          : dto.status === 'write_off'
+            ? 'write_off'
+            : 'pending_payment',
     depositAmount: moneyToNumber(dto.advanceAppliedAmount),
     totalServicesAmount: moneyToNumber(dto.subtotal),
     bhytTotalPays: moneyToNumber(dto.healthInsuranceDiscountAmount),
     patientCoPayAmount: moneyToNumber(dto.amountDue),
-    remainingAmount: dto.status === 'paid' ? 0 : moneyToNumber(dto.amountDue),
+    remainingAmount: dto.status === 'pending' ? moneyToNumber(dto.amountDue) : 0,
     healthInsuranceExpiryDate: fallback?.healthInsuranceExpiryDate ?? null,
     treatmentType: dto.patient?.treatmentType,
     bedId: dto.patient?.bedId,
@@ -192,6 +218,12 @@ export function AccountingWorkspaceView() {
   const [momoPayUrl, setMomoPayUrl] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isRedirectingMomo, setIsRedirectingMomo] = useState(false);
+  const [reportFromDate, setReportFromDate] = useState(getVietnamTodayInputValue());
+  const [reportToDate, setReportToDate] = useState(getVietnamTodayInputValue());
+  const [reportSummary, setReportSummary] = useState<import('../../types/invoice.types').ShiftSummary | null>(null);
+  const [reportLogs, setReportLogs] = useState<import('../../types/invoice.types').TransactionLog[]>([]);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
   const pendingLoadSequenceRef = useRef(0);
   const advanceLoadSequenceRef = useRef(0);
 
@@ -201,32 +233,7 @@ export function AccountingWorkspaceView() {
   const [isWriteoffOpen, setIsWriteoffOpen] = useState(false);
   const [isRefundOpen, setIsRefundOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
-  const [notification, setNotification] = useState<{
-    message: string;
-    tone: 'success' | 'error';
-  } | null>(null);
-  const notificationTimerRef = useRef<number | null>(null);
-
-  /** Hiển thị thông báo dùng chung của HMS và tự đóng sau một khoảng thời gian ngắn. */
-  const showToast = useCallback((msg: string, tone: 'success' | 'error' = 'success') => {
-    if (notificationTimerRef.current !== null) {
-      window.clearTimeout(notificationTimerRef.current);
-    }
-    setNotification({ message: msg, tone });
-    notificationTimerRef.current = window.setTimeout(() => {
-      setNotification(null);
-      notificationTimerRef.current = null;
-    }, 4500);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (notificationTimerRef.current !== null) {
-        window.clearTimeout(notificationTimerRef.current);
-      }
-    },
-    [],
-  );
+  const { hideToast, showToast, toast: notification } = useAppToast(4500);
 
   /** Nạp danh sách hồ sơ và hóa đơn từ backend; lỗi được phản hồi rõ ràng thay vì hiển thị dữ liệu dựng sẵn. */
   const loadPendingFromApi = useCallback(async () => {
@@ -235,7 +242,8 @@ export function AccountingWorkspaceView() {
     setPatientsError(null);
     try {
       const [result, candidates] = await Promise.all([
-        listInvoices({ status: 'pending', pageSize: 50 }),
+        // Tải toàn bộ trạng thái để các bộ lọc Đã thanh toán/Đã hủy/Write-off hoạt động.
+        listInvoices({ pageSize: 100 }),
         listInvoiceCandidates({ pageSize: 50 }),
       ]);
       if (requestSequence !== pendingLoadSequenceRef.current) {
@@ -285,6 +293,27 @@ export function AccountingWorkspaceView() {
     [showToast],
   );
 
+  /** Tải lại báo cáo khi đổi ngày hoặc mở màn hình báo cáo. */
+  const loadAccountingReport = useCallback(async () => {
+    if (!reportFromDate || !reportToDate || reportFromDate > reportToDate) {
+      setReportError('Khoảng ngày báo cáo không hợp lệ.');
+      return;
+    }
+    setIsReportLoading(true);
+    setReportError(null);
+    try {
+      const result = await getAccountingReport(reportFromDate, reportToDate);
+      setReportSummary(result.summary);
+      setReportLogs(result.logs);
+    } catch (error) {
+      setReportSummary(null);
+      setReportLogs([]);
+      setReportError(getApiErrorMessage(error, 'Không tải được báo cáo ca trực'));
+    } finally {
+      setIsReportLoading(false);
+    }
+  }, [reportFromDate, reportToDate]);
+
   useEffect(() => {
     if (activeScreen !== 's4' || !selectedPatient?.recordId) {
       advanceLoadSequenceRef.current += 1;
@@ -294,6 +323,12 @@ export function AccountingWorkspaceView() {
     }
     void loadAdvanceSummary(selectedPatient.recordId);
   }, [activeScreen, loadAdvanceSummary, selectedPatient?.recordId]);
+
+  useEffect(() => {
+    if (activeScreen === 's5') {
+      void loadAccountingReport();
+    }
+  }, [activeScreen, loadAccountingReport]);
 
   const openInvoiceFromApi = useCallback(
     async (invoiceId: string, fallbackPatient?: PatientRecord | null) => {
@@ -348,7 +383,7 @@ export function AccountingWorkspaceView() {
       sessionStorage.removeItem(SS_ORDER);
       window.history.replaceState({}, '', '/accounting');
       if (dto.status === 'paid') {
-        showToast('Thanh toán Momo thành công — hóa đơn đã được lưu trên hệ thống');
+        showToast('Đã ghi nhận thanh toán MoMo.');
         void loadPendingFromApi();
       }
     };
@@ -371,11 +406,11 @@ export function AccountingWorkspaceView() {
         }, 2500);
       } else if (!cancelled) {
         await finishPaid(resumeId);
-        showToast('Chưa nhận IPN Momo — kiểm tra tunnel IPN hoặc bấm tải lại hóa đơn', 'error');
+        showToast('Chưa xác nhận được thanh toán MoMo. Vui lòng tải lại hóa đơn.', 'error');
       }
     };
 
-    showToast('Đang xác nhận thanh toán Momo…');
+    showToast('Đang xác nhận thanh toán MoMo…');
     void poll();
 
     return () => {
@@ -398,7 +433,7 @@ export function AccountingWorkspaceView() {
 
   const handleProceedToPayment = (dto: InvoiceApiDto) => {
     if (!selectedPatient) {
-      showToast('Không xác định được hồ sơ bệnh nhân để mở thanh toán.', 'error');
+      showToast('Không xác định được hồ sơ bệnh nhân.', 'error');
       return;
     }
     setApiInvoiceId(dto.invoiceId);
@@ -439,7 +474,7 @@ export function AccountingWorkspaceView() {
 
   const handleCashConfirm = async () => {
     if (!selectedPatient || !apiInvoiceId) {
-      showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.', 'error');
+      showToast('Chưa có hóa đơn. Vui lòng lập hóa đơn trước.', 'error');
       return;
     }
     try {
@@ -450,7 +485,7 @@ export function AccountingWorkspaceView() {
       setCurrentInvoice(mapApiInvoiceToView(refreshed, selectedPatient));
       setIsCashOpen(false);
       applyPaidUi();
-      showToast(`Thu tiền mặt OK · Phiếu ${result.receiptNumber}`);
+      showToast(`Đã thu tiền mặt · Phiếu ${result.receiptNumber}`);
     } catch (error) {
       showToast(getApiErrorMessage(error, 'Thu tiền mặt thất bại'), 'error');
     }
@@ -462,7 +497,7 @@ export function AccountingWorkspaceView() {
    */
   const handleOpenMomo = async () => {
     if (!apiInvoiceId) {
-      showToast('Cần hóa đơn đã lưu trên hệ thống để thanh toán Momo.', 'error');
+      showToast('Chưa có hóa đơn để thanh toán MoMo.', 'error');
       return;
     }
     setIsBusy(true);
@@ -475,7 +510,7 @@ export function AccountingWorkspaceView() {
       sessionStorage.setItem(SS_INVOICE, apiInvoiceId);
       sessionStorage.setItem(SS_ORDER, momo.momoOrderId);
       setMomoPayUrl(momo.payUrl);
-      showToast('Đang chuyển sang cổng thanh toán Momo…');
+      showToast('Đang chuyển đến cổng thanh toán MoMo…');
       // Trang Momo: QR / ví / ATM / Visa / Mastercard (payWithMethod)
       window.location.href = momo.payUrl;
     } catch (error) {
@@ -484,7 +519,7 @@ export function AccountingWorkspaceView() {
       showToast(
         getApiErrorMessage(
           error,
-          'Tạo thanh toán Momo thất bại — kiểm tra USE_MOMO_MOCK=false và credential sandbox',
+          'Không thể tạo giao dịch MoMo. Vui lòng thử lại.',
         ),
         'error',
       );
@@ -496,7 +531,7 @@ export function AccountingWorkspaceView() {
   const handleCancelInvoice = async (reason: string) => {
     if (!apiInvoiceId) {
       showToast(
-        'Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn trước khi hủy.',
+        'Chưa có hóa đơn để hủy.',
         'error',
       );
       return;
@@ -506,7 +541,7 @@ export function AccountingWorkspaceView() {
         expectedVersion: apiInvoiceVersion,
         cancelReason: reason,
       });
-      showToast(`Đã hủy hóa đơn. Lý do: ${reason}`);
+      showToast('Đã hủy hóa đơn.');
       void loadPendingFromApi();
     } catch (error) {
       if (
@@ -514,7 +549,7 @@ export function AccountingWorkspaceView() {
         getApiErrorCode(error) === 'INVOICE_NOT_PENDING'
       ) {
         void openInvoiceFromApi(apiInvoiceId);
-        showToast('Hóa đơn đã thay đổi; hệ thống đã tải lại dữ liệu mới nhất.', 'error');
+        showToast('Hóa đơn đã thay đổi. Dữ liệu đã được tải lại.', 'error');
         return;
       }
       showToast(getApiErrorMessage(error, 'Hủy hóa đơn thất bại'), 'error');
@@ -527,7 +562,7 @@ export function AccountingWorkspaceView() {
 
   const handleWriteoff = async (reason: string) => {
     if (!apiInvoiceId) {
-      showToast('Hóa đơn chưa được khởi tạo trên hệ thống — vui lòng lập lại hóa đơn.', 'error');
+      showToast('Chưa có hóa đơn để ghi nhận miễn giảm.', 'error');
       return;
     }
     try {
@@ -541,7 +576,7 @@ export function AccountingWorkspaceView() {
       setApiInvoiceId(null);
       void loadPendingFromApi();
       setActiveScreen('s1');
-      showToast('Đã ghi nhận write-off cấp cứu trên hệ thống.');
+      showToast('Đã ghi nhận miễn giảm.');
       return;
     } catch (error) {
       if (getApiErrorCode(error) === 'INVOICE_NOT_PENDING') {
@@ -554,13 +589,13 @@ export function AccountingWorkspaceView() {
 
   const handleRefundSuccess = async (reason: string) => {
     if (!selectedPatient) {
-      showToast('Chưa chọn hồ sơ bệnh nhân để hoàn tạm ứng.', 'error');
+      showToast('Chưa chọn hồ sơ bệnh nhân.', 'error');
       return;
     }
     const recordId = selectedPatient.recordId;
     const amount = advanceSummary ? moneyToNumber(advanceSummary.balance) : 0;
     if (!recordId || amount <= 0) {
-      showToast('Không có số dư tạm ứng để hoàn trả.');
+      showToast('Không có số dư tạm ứng để hoàn trả.', 'error');
       return;
     }
     setIsBusy(true);
@@ -568,7 +603,7 @@ export function AccountingWorkspaceView() {
       await createPaymentAdvanceRefund(recordId, { amountVnd: amount, reason });
       await loadAdvanceSummary(recordId);
       setIsRefundOpen(false);
-      showToast(`Đã hoàn ${amount.toLocaleString('vi-VN')} đ cho BN ${selectedPatient.fullName}.`);
+      showToast(`Đã hoàn tạm ứng · ${amount.toLocaleString('vi-VN')} đ`);
     } catch (error) {
       showToast(getApiErrorMessage(error, 'Hoàn tạm ứng thất bại'), 'error');
     } finally {
@@ -583,7 +618,31 @@ export function AccountingWorkspaceView() {
   };
 
   const handleExportReport = () => {
-    showToast('Chưa có API báo cáo ca trực để xuất dữ liệu.', 'error');
+    if (!reportSummary) {
+      showToast('Chưa có dữ liệu báo cáo để xuất.', 'error');
+      return;
+    }
+    const rows = [
+      ['Mã giao dịch', 'Mã bệnh nhân', 'Loại', 'Phương thức', 'Số tiền', 'Thời gian'],
+      ...reportLogs.map((log) => [
+        log.id,
+        log.patientCode,
+        log.type,
+        log.method,
+        String(log.amount),
+        log.time,
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map(toSafeCsvCell).join(','))
+      .join('\n');
+    const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bao-cao-ca-${reportFromDate}-${reportToDate}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('Đã xuất báo cáo ca trực.');
   };
 
   return (
@@ -660,7 +719,7 @@ export function AccountingWorkspaceView() {
                     ...(input.reason ? { reason: input.reason } : {}),
                   });
                   await loadAdvanceSummary(input.recordId);
-                  showToast('Đã lưu giao dịch tạm ứng trên hệ thống.');
+                  showToast('Đã lưu giao dịch tạm ứng.');
                 } catch (error) {
                   showToast(getApiErrorMessage(error, 'Thu tạm ứng thất bại'), 'error');
                 } finally {
@@ -672,7 +731,19 @@ export function AccountingWorkspaceView() {
           )}
 
           {activeScreen === 's5' && (
-            <ShiftReportScreen summary={null} logs={[]} onExportReport={handleExportReport} />
+            <ShiftReportScreen
+              summary={reportSummary}
+              logs={reportLogs}
+              onExportReport={handleExportReport}
+              fromDate={reportFromDate}
+              toDate={reportToDate}
+              isLoading={isReportLoading}
+              errorMessage={reportError}
+              onDateChange={({ from, to }) => {
+                setReportFromDate(from);
+                setReportToDate(to);
+              }}
+            />
           )}
         </main>
       </div>
@@ -705,7 +776,7 @@ export function AccountingWorkspaceView() {
                 setCurrentInvoice(mapApiInvoiceToView(dto, selectedPatient));
                 if (dto.status === 'paid') {
                   applyPaidUi();
-                  showToast('Đã đồng bộ thanh toán Momo');
+                  showToast('Đã đồng bộ thanh toán MoMo.');
                 }
               }
               setIsMomoOpen(false);
@@ -745,7 +816,7 @@ export function AccountingWorkspaceView() {
         onConfirmLogout={handleConfirmLogout}
       />
 
-      <AppToast centered message={notification?.message ?? null} tone={notification?.tone} />
+      <AppToast centered message={notification.message} onClose={hideToast} tone={notification.tone} />
     </div>
   );
 }

@@ -23,6 +23,7 @@ vi.mock('../src/core/ports/auditPort', () => ({
 
 import {
   cancelInvoiceBodySchema,
+  accountingReportQuerySchema,
   createInvoiceBodySchema,
   listInvoiceCandidatesQuerySchema,
   listInvoicesQuerySchema,
@@ -35,9 +36,18 @@ import {
   recordIdParamSchema,
 } from '../src/modules/payment-advances/schemas/payment-advance.schemas';
 import {
+  cashPaymentBodySchema,
+  idempotencyKeySchema,
+  momoPaymentRequestBodySchema,
+} from '../src/modules/payments/schemas/payment.schemas';
+import {
   isInpatientRecord,
   paymentAdvanceService,
 } from '../src/modules/payment-advances/services/payment-advance.service';
+import {
+  benefitLevelToRateString,
+  calculateHealthInsurance,
+} from '../src/modules/invoices/utils/money';
 
 describe('accounting input validation', () => {
   it('rejects a cancellation reason made only of whitespace or shorter than ten characters', () => {
@@ -163,6 +173,90 @@ describe('invoice request schemas', () => {
     expect(() => listInvoicesQuerySchema.parse({ page: 1.5 })).toThrow();
     expect(() => listInvoicesQuerySchema.parse({ pageSize: 101 })).toThrow();
   });
+
+  it('validates real calendar dates and the report range', () => {
+    expect(accountingReportQuerySchema.parse({ from: '2026-02-28', to: '2026-03-01' })).toEqual({
+      from: '2026-02-28',
+      to: '2026-03-01',
+    });
+    expect(() =>
+      accountingReportQuerySchema.parse({ from: '2026-02-29', to: '2026-03-01' }),
+    ).toThrow();
+    expect(() =>
+      accountingReportQuerySchema.parse({ from: '2026-04-01', to: '2026-03-31' }),
+    ).toThrow();
+  });
+});
+
+describe('health insurance calculation matrix', () => {
+  it.each([
+    ['NO_COVERAGE', '0.0000'],
+    ['RATE_80', '0.8000'],
+    ['RATE_95', '0.9500'],
+    ['RATE_100', '1.0000'],
+  ] as const)('maps benefit level %s to the server rate %s', (level, expected) => {
+    expect(benefitLevelToRateString(level)).toBe(expected);
+  });
+
+  it.each([
+    ['below ceiling', 100_000, 200_000, 80_000, 20_000],
+    ['equal to ceiling', 200_000, 200_000, 160_000, 40_000],
+    ['above ceiling', 500_000, 200_000, 160_000, 340_000],
+  ] as const)('handles a covered line %s', (_label, amount, ceiling, fund, copay) => {
+    const result = calculateHealthInsurance('RATE_80', [
+      {
+        amount: new Prisma.Decimal(amount),
+        coveredByHealthInsurance: true,
+        ceilingPrice: new Prisma.Decimal(ceiling),
+      },
+    ]);
+
+    expect(result.lines[0]).toMatchObject({
+      coveredByHealthInsurance: true,
+      healthInsuranceFundAmount: new Prisma.Decimal(fund),
+      patientCoPayAmount: new Prisma.Decimal(copay),
+    });
+  });
+
+  it.each([
+    ['null ceiling', null],
+    ['zero ceiling', 0],
+    ['negative ceiling', -1],
+  ] as const)('treats %s as no configured ceiling', (_label, ceiling) => {
+    const result = calculateHealthInsurance('RATE_95', [
+      {
+        amount: new Prisma.Decimal(100_000),
+        coveredByHealthInsurance: true,
+        ceilingPrice: ceiling === null ? null : new Prisma.Decimal(ceiling),
+      },
+    ]);
+
+    expect(result.lines[0]?.healthInsuranceEligibleAmount).toEqual(new Prisma.Decimal(100_000));
+    expect(result.lines[0]?.healthInsuranceFundAmount).toEqual(new Prisma.Decimal(95_000));
+  });
+
+  it('keeps non-covered lines fully self-paid and never creates a negative amount', () => {
+    const result = calculateHealthInsurance('RATE_100', [
+      {
+        amount: new Prisma.Decimal(100_000),
+        coveredByHealthInsurance: false,
+        ceilingPrice: new Prisma.Decimal(1),
+      },
+      {
+        amount: new Prisma.Decimal(0),
+        coveredByHealthInsurance: true,
+        ceilingPrice: new Prisma.Decimal(1),
+      },
+    ]);
+
+    expect(result.healthInsuranceDiscountAmount).toEqual(new Prisma.Decimal(0));
+    expect(result.totalPatientAmount).toEqual(new Prisma.Decimal(100_000));
+    expect(() =>
+      calculateHealthInsurance('RATE_80', [
+        { amount: new Prisma.Decimal(-1), coveredByHealthInsurance: true, ceilingPrice: null },
+      ]),
+    ).toThrow('INVALID_MONEY_AMOUNT');
+  });
 });
 
 describe('invoice reason and optimistic version boundaries', () => {
@@ -264,6 +358,27 @@ describe('payment advance request schemas', () => {
     expect(listPaymentAdvancesQuerySchema.parse({})).toEqual({ page: 1, pageSize: 50 });
     expect(() => listPaymentAdvancesQuerySchema.parse({ page: 0 })).toThrow();
     expect(() => listPaymentAdvancesQuerySchema.parse({ pageSize: 101 })).toThrow();
+  });
+});
+
+describe('payment request schemas', () => {
+  it('accepts optional cash paidAt and Momo returnUrl only in supported formats', () => {
+    expect(cashPaymentBodySchema.parse({})).toEqual({});
+    expect(cashPaymentBodySchema.parse({ paidAt: '2026-08-05T10:00:00.000Z' })).toEqual({
+      paidAt: '2026-08-05T10:00:00.000Z',
+    });
+    expect(momoPaymentRequestBodySchema.parse({ returnUrl: 'https://hms.test/accounting' })).toEqual({
+      returnUrl: 'https://hms.test/accounting',
+    });
+  });
+
+  it('rejects malformed payment request fields and idempotency keys', () => {
+    expect(() => cashPaymentBodySchema.parse({ paidAt: 123 })).toThrow();
+    expect(() => momoPaymentRequestBodySchema.parse({ returnUrl: 'not-a-url' })).toThrow();
+    expect(() => idempotencyKeySchema.parse('not-a-uuid')).toThrow();
+    expect(idempotencyKeySchema.parse('11111111-1111-4111-8111-111111111111')).toBe(
+      '11111111-1111-4111-8111-111111111111',
+    );
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PatientRecord } from '../types/invoice.types';
 
 interface PatientLookupScreenProps {
@@ -27,13 +27,14 @@ export function PatientLookupScreen({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedDept, setSelectedDept] = useState<string>('');
   const [activeFilterStatus, setActiveFilterStatus] = useState<string>('all');
+  const [page, setPage] = useState(1);
 
   const filteredPatients = patients.filter((p) => {
     if (activeFilterStatus !== 'all') {
       if (activeFilterStatus === 'pending' && p.status !== 'pending_payment') return false;
       if (activeFilterStatus === 'paid' && p.status !== 'settled') return false;
-      if (activeFilterStatus === 'cancelled' && p.status !== 'refunded') return false;
-      if (activeFilterStatus === 'writeoff' && p.status !== 'pending_payment') return false;
+      if (activeFilterStatus === 'cancelled' && p.status !== 'cancelled') return false;
+      if (activeFilterStatus === 'writeoff' && p.status !== 'write_off') return false;
     }
 
     if (
@@ -55,6 +56,14 @@ export function PatientLookupScreen({
 
     return true;
   });
+  const pageSize = 20;
+  const pageCount = Math.max(1, Math.ceil(filteredPatients.length / pageSize));
+  const safePage = Math.min(page, pageCount);
+  const visiblePatients = filteredPatients.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilterStatus, searchTerm, selectedDept]);
 
   return (
     <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s1">
@@ -202,7 +211,7 @@ export function PatientLookupScreen({
                   </td>
                 </tr>
               ) : (
-                filteredPatients.map((p) => {
+                visiblePatients.map((p) => {
                   const isNoiTru = p.department.includes('Nội trú');
                   const isCapCuu = p.department.includes('Cấp Cứu');
                   return (
@@ -246,6 +255,18 @@ export function PatientLookupScreen({
                             Đã hủy
                           </span>
                         )}
+                        {p.status === 'cancelled' && (
+                          <span className="px-2.5 py-1 rounded-full bg-[#f0f4f8] text-[#707882] font-bold text-[11px] inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#707882]" />
+                            Đã hủy
+                          </span>
+                        )}
+                        {p.status === 'write_off' && (
+                          <span className="px-2.5 py-1 rounded-full bg-[#ffdad6] text-[#ba1a1a] font-bold text-[11px] inline-flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#ba1a1a]" />
+                            Thất thu (Write-off)
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-[#171c1f]">
                         {p.totalServicesAmount.toLocaleString('vi-VN')} đ
@@ -273,7 +294,7 @@ export function PatientLookupScreen({
                             Lập hóa đơn
                           </button>
                         )}
-                        {p.status === 'settled' && (
+                        {p.status !== 'pending_payment' && p.status !== 'refunded' && (
                           <button
                             type="button"
                             onClick={() => onSelectPatientForInvoice(p)}
@@ -298,7 +319,7 @@ export function PatientLookupScreen({
                                 d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                               />
                             </svg>
-                            Xem / In lại
+                            {p.status === 'settled' ? 'Xem / In lại' : 'Xem bảng kê'}
                           </button>
                         )}
                         {p.status === 'refunded' && (
@@ -325,7 +346,9 @@ export function PatientLookupScreen({
           <div className="flex items-center gap-1">
             <button
               type="button"
-              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] transition-all duration-200 ease-out hover:border-[#006096] hover:text-[#006096] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+              disabled={safePage <= 1}
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] transition-all duration-200 ease-out hover:border-[#006096] hover:text-[#006096] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
             >
               &larr; Trước
             </button>
@@ -333,11 +356,13 @@ export function PatientLookupScreen({
               type="button"
               className="px-3 py-1.5 bg-[#006096] text-white border border-[#006096] rounded-md text-[12.5px] font-bold"
             >
-              1
+              {safePage} / {pageCount}
             </button>
             <button
               type="button"
-              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] transition-all duration-200 ease-out hover:border-[#006096] hover:text-[#006096] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+              disabled={safePage >= pageCount}
+              onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+              className="px-3 py-1.5 border border-[#bfc7d2] rounded-md text-[12.5px] font-medium text-[#707882] transition-all duration-200 ease-out hover:border-[#006096] hover:text-[#006096] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
             >
               Tiếp &rarr;
             </button>

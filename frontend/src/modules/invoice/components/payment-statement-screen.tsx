@@ -1,6 +1,10 @@
 'use client';
 
 import { Invoice, PatientRecord } from '../types/invoice.types';
+import {
+  createPaymentStatementPrintHtml,
+  printPaymentStatementDocument,
+} from './print-payment-statement';
 
 interface PaymentStatementScreenProps {
   patient: PatientRecord;
@@ -37,6 +41,10 @@ function getPaymentLabel(paymentMethod?: Invoice['paymentMethod']): string {
   return 'Chưa thanh toán';
 }
 
+function getPatientCopay(invoice: Invoice): number {
+  return invoice.items.reduce((total, item) => total + item.patientPays, 0);
+}
+
 /** Hiển thị bảng kê và thao tác thanh toán hoàn toàn theo invoice đã tải từ backend. */
 export function PaymentStatementScreen({
   patient,
@@ -49,6 +57,16 @@ export function PaymentStatementScreen({
 }: PaymentStatementScreenProps) {
   const isPaid = patient.status === 'settled' || invoice.status === 'paid';
   const canModifyInvoice = invoice.status === 'pending_payment';
+  const amountToCollect = canModifyInvoice ? invoice.finalAmount : 0;
+  const patientCopay = getPatientCopay(invoice);
+  const statusLabel =
+    invoice.status === 'paid'
+      ? 'Đã thanh toán'
+      : invoice.status === 'cancelled'
+        ? 'Đã hủy'
+        : invoice.status === 'write_off'
+          ? 'Miễn giảm thất thu'
+          : 'Chờ thanh toán';
 
   return (
     <div className="screen active space-y-4 font-sans select-none animate-fadeIn" id="s3">
@@ -73,7 +91,7 @@ export function PaymentStatementScreen({
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
-            {isPaid ? 'Đã thanh toán' : 'Chờ thanh toán'}
+            {statusLabel}
           </span>
           <button
             type="button"
@@ -178,7 +196,7 @@ export function PaymentStatementScreen({
                     {formatVnd(invoice.bhytDiscount)}
                   </td>
                   <td className="p-2 text-right font-mono border border-[#bfc7d2]">
-                    {formatVnd(invoice.finalAmount)}
+                    {formatVnd(patientCopay)}
                   </td>
                 </tr>
               </tbody>
@@ -214,7 +232,7 @@ export function PaymentStatementScreen({
           <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card text-center">
             <div className="text-[12px] text-[#707882] mb-1">Số tiền cần thu</div>
             <div className="text-[32px] font-bold font-mono text-[#006096] leading-tight">
-              {formatVnd(isPaid ? 0 : invoice.finalAmount)}
+              {formatVnd(amountToCollect)}
             </div>
           </div>
 
@@ -231,7 +249,7 @@ export function PaymentStatementScreen({
                   {invoice.receiptNumber ?? 'Đã ghi nhận trên hệ thống'}
                 </div>
               </div>
-            ) : (
+            ) : invoice.status === 'pending_payment' ? (
               <>
                 <button
                   type="button"
@@ -248,6 +266,10 @@ export function PaymentStatementScreen({
                   Thanh toán MoMo
                 </button>
               </>
+            ) : (
+              <div className="p-3 bg-[#f0f4f8] border border-[#bfc7d2] rounded-md text-center text-[12.5px] text-[#707882]">
+                Hóa đơn không còn ở trạng thái có thể thu tiền.
+              </div>
             )}
           </div>
 
@@ -276,7 +298,9 @@ export function PaymentStatementScreen({
           <div className="bg-white rounded-xl border border-[#bfc7d2] p-4 shadow-hms-card">
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={() =>
+                printPaymentStatementDocument(createPaymentStatementPrintHtml(patient, invoice))
+              }
               className="w-full py-2 border border-[#006096] bg-[#cee5ff] text-[#006096] rounded-md font-bold text-[12.5px]"
             >
               In bảng kê 01/KBCB

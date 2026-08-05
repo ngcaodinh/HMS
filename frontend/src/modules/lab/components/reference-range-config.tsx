@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
 import { AppToast } from '@/shared/components/app-toast';
+import { useAppToast } from '@/shared/hooks/use-app-toast';
 
 import { labWorkspaceStyles as styles } from '../pages/workspace/lab-workspace.styles';
 import {
@@ -468,26 +469,13 @@ export function ReferenceRangeConfig({ canManage }: { canManage: boolean }) {
   const [period, setPeriod] = useState<'today' | 'week' | 'month'>('today');
   const [keyword, setKeyword] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [popupMessage, setPopupMessage] = useState<string | null>(null);
-  const popupTimerRef = useRef<number | null>(null);
+  const { hideToast, showToast, toast } = useAppToast(4500);
   const { data, isLoading } = useReferenceRanges({ keyword: keyword || undefined });
   const rows = data?.data ?? [];
 
-  useEffect(
-    () => () => {
-      if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
-    },
-    [],
-  );
-
   /** Hiển thị thông báo lỗi theo cùng AppToast với các workspace khác. */
   function showPopup(message: string) {
-    if (popupTimerRef.current !== null) window.clearTimeout(popupTimerRef.current);
-    setPopupMessage(message);
-    popupTimerRef.current = window.setTimeout(() => {
-      setPopupMessage(null);
-      popupTimerRef.current = null;
-    }, 4500);
+    showToast(message, 'error');
   }
 
   return (
@@ -580,7 +568,7 @@ export function ReferenceRangeConfig({ canManage }: { canManage: boolean }) {
           </table>
         </div>
       </div>
-      <AppToast centered message={popupMessage} tone="error" />
+      <AppToast centered message={toast.message} onClose={hideToast} tone={toast.tone} />
     </div>
   );
 }

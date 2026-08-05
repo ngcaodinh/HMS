@@ -1,8 +1,15 @@
 import { labWorkspaceStyles as styles } from '../pages/workspace/lab-workspace.styles';
-import type { LabTestQueueItem } from '../types/lab-test.types';
-import { AssetIcon, calculateAge, cn, formatDateTimeVN, genderLabel, RESULT_TABLE_LABELS } from './shared';
+import type { LabTestQueueItem, LabTestStatus } from '../types/lab-test.types';
+import {
+  AssetIcon,
+  calculateAge,
+  cn,
+  formatDateTimeVN,
+  genderLabel,
+  RESULT_TABLE_LABELS,
+} from './shared';
 
-export type QueueFilterTab = 'all' | 'ordered' | 'in_progress' | 'urgent';
+export type QueueFilterTab = 'all' | 'ordered' | 'urgent';
 
 interface QueueListProps {
   filterTab: QueueFilterTab;
@@ -11,16 +18,37 @@ interface QueueListProps {
   list: LabTestQueueItem[];
   onChangeFilterTab: (value: QueueFilterTab) => void;
   onChangeKeyword: (value: string) => void;
-  onPrint: (labTestId: string) => void;
+  onPrint: (item: LabTestQueueItem) => void;
   onSelect: (labTestId: string) => void;
 }
 
+interface QueueActionVisibility {
+  canEnterResult: boolean;
+  canPrint: boolean;
+}
+
+/**
+ * Xác định thao tác được phép theo trạng thái phiếu xét nghiệm.
+ * Phiếu đã có kết quả không được mở lại để xem tại hàng đợi; phiếu đang thực hiện không được in.
+ * @param status - Trạng thái hiện tại của phiếu xét nghiệm
+ * @returns Tập quyền hiển thị nút nhập kết quả và in phiếu
+ */
+export function getQueueActionVisibility(status: LabTestStatus): QueueActionVisibility {
+  return {
+    canEnterResult: status !== 'resulted',
+    canPrint: status !== 'in_progress',
+  };
+}
+
 function statusChip(status: LabTestQueueItem['status']) {
-  if (status === 'resulted') return <span className={cn(styles.chip, styles.chipDone)}>Đã có kết quả</span>;
-  if (status === 'in_progress') return <span className={cn(styles.chip, styles.chipNeutral)}>Đang thực hiện</span>;
+  if (status === 'resulted')
+    return <span className={cn(styles.chip, styles.chipDone)}>Đã có kết quả</span>;
+  if (status === 'in_progress')
+    return <span className={cn(styles.chip, styles.chipNeutral)}>Đang thực hiện</span>;
   return <span className={cn(styles.chip, styles.chipPending)}>Chờ mẫu</span>;
 }
 
+/** Hiển thị hàng đợi xét nghiệm và chuyển đúng phiếu đã chọn sang luồng in riêng. */
 export function QueueList({
   filterTab,
   isLoading,
@@ -31,13 +59,11 @@ export function QueueList({
   onPrint,
   onSelect,
 }: QueueListProps) {
-  const waitingCount = list.filter((item) => item.status === 'ordered').length;
   const inProgressCount = list.filter((item) => item.status === 'in_progress').length;
   const urgentCount = list.filter((item) => item.isUrgent && item.status !== 'resulted').length;
 
   const byTab = list.filter((item) => {
     if (filterTab === 'ordered') return item.status === 'ordered';
-    if (filterTab === 'in_progress') return item.status === 'in_progress';
     if (filterTab === 'urgent') return item.isUrgent;
     return true;
   });
@@ -54,15 +80,6 @@ export function QueueList({
   return (
     <>
       <div className={styles.statGrid}>
-        <div className={styles.statCard}>
-          <div className={styles.statIconWrap} style={{ background: '#ffecd4' }}>
-            <AssetIcon className="h-5 w-5 brightness-0" name="icon-lab-order.svg" />
-          </div>
-          <div>
-            <p className={styles.statValue}>{waitingCount}</p>
-            <p className={styles.statLabel}>Chờ mẫu</p>
-          </div>
-        </div>
         <div className={styles.statCard}>
           <div className={styles.statIconWrap} style={{ background: '#dbeafe' }}>
             <AssetIcon className="h-5 w-5 brightness-0" name="icon-lab-result.svg" />
@@ -85,7 +102,10 @@ export function QueueList({
 
       <div className={styles.searchRow}>
         <div className={styles.searchWrap}>
-          <AssetIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 brightness-0" name="icon-search.svg" />
+          <AssetIcon
+            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 brightness-0"
+            name="icon-search.svg"
+          />
           <input
             className={styles.searchInput}
             onChange={(event) => onChangeKeyword(event.target.value)}
@@ -108,14 +128,11 @@ export function QueueList({
           Chờ tiếp nhận
         </button>
         <button
-          className={cn(styles.filterTab, filterTab === 'in_progress' && styles.filterTabActive)}
-          onClick={() => onChangeFilterTab('in_progress')}
-          type="button"
-        >
-          Đang thực hiện
-        </button>
-        <button
-          className={cn(styles.filterTab, filterTab === 'urgent' && styles.filterTabDangerActive, filterTab !== 'urgent' && styles.filterTabDanger)}
+          className={cn(
+            styles.filterTab,
+            filterTab === 'urgent' && styles.filterTabDangerActive,
+            filterTab !== 'urgent' && styles.filterTabDanger,
+          )}
           onClick={() => onChangeFilterTab('urgent')}
           type="button"
         >
@@ -159,19 +176,26 @@ export function QueueList({
                     <p className="font-bold text-[#006096]">
                       #{item.reportCode ?? item.labTestId.slice(0, 8).toUpperCase()}
                     </p>
-                    {item.isUrgent && <span className={cn(styles.chip, styles.chipDanger, 'mt-1')}>Cấp cứu</span>}
+                    {item.isUrgent && (
+                      <span className={cn(styles.chip, styles.chipDanger, 'mt-1')}>Cấp cứu</span>
+                    )}
                   </td>
                   {/* Chưa có cột barcode thật trong schema — dùng labTestId làm mã hiển thị tạm thời. */}
                   <td className={styles.td}>
-                    <span className="font-mono text-xs text-[#707882]">LAB{String(index + 1).padStart(4, '0')}</span>
+                    <span className="font-mono text-xs text-[#707882]">
+                      LAB{String(index + 1).padStart(4, '0')}
+                    </span>
                   </td>
                   <td className={styles.td}>
                     <p className="font-semibold">{item.patient.fullName}</p>
                     <p className="text-xs text-[#707882]">
-                      {item.patient.patientCode} · {genderLabel(item.patient.gender)} {calculateAge(item.patient.dateOfBirth)}t
+                      {item.patient.patientCode} · {genderLabel(item.patient.gender)}{' '}
+                      {calculateAge(item.patient.dateOfBirth)}t
                     </p>
                   </td>
-                  <td className={styles.td}>{RESULT_TABLE_LABELS[item.resultTableKey] ?? item.testName}</td>
+                  <td className={styles.td}>
+                    {RESULT_TABLE_LABELS[item.resultTableKey] ?? item.testName}
+                  </td>
                   <td className={styles.td}>
                     <p>{item.department?.name ?? '—'}</p>
                     <p className="text-xs text-[#707882]">BS. {item.orderingDoctor.fullName}</p>
@@ -180,19 +204,26 @@ export function QueueList({
                   <td className={styles.td}>{statusChip(item.status)}</td>
                   <td className={styles.td}>
                     <div className={styles.actionCellRow}>
-                      {item.status !== 'resulted' ? (
-                        <button className={styles.smallPrimaryButton} onClick={() => onSelect(item.labTestId)} type="button">
+                      {getQueueActionVisibility(item.status).canEnterResult && (
+                        <button
+                          className={styles.smallPrimaryButton}
+                          onClick={() => onSelect(item.labTestId)}
+                          type="button"
+                        >
                           <AssetIcon className="h-3.5 w-3.5" name="icon-save.svg" />
                           Nhập KQ
                         </button>
-                      ) : (
-                        <button className={styles.mutedButton} onClick={() => onSelect(item.labTestId)} type="button">
-                          Xem
+                      )}
+                      {getQueueActionVisibility(item.status).canPrint && (
+                        <button
+                          aria-label="In phiếu"
+                          className={styles.smallIconButton}
+                          onClick={() => onPrint(item)}
+                          type="button"
+                        >
+                          <span className="text-[10px] font-bold">In</span>
                         </button>
                       )}
-                      <button aria-label="In phiếu" className={styles.smallIconButton} onClick={() => onPrint(item.labTestId)} type="button">
-                        <span className="text-[10px] font-bold">In</span>
-                      </button>
                     </div>
                   </td>
                 </tr>

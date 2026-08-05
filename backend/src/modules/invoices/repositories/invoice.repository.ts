@@ -1,9 +1,9 @@
-import type {
-  HealthInsuranceBenefitLevel,
-  HealthInsuranceRouteType,
-  InvoiceStatus,
-  PaymentMethod,
+import {
   Prisma,
+  type HealthInsuranceBenefitLevel,
+  type HealthInsuranceRouteType,
+  type InvoiceStatus,
+  type PaymentMethod,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
@@ -186,6 +186,42 @@ export class InvoiceRepository {
     const invoiceId = randomUUID();
 
     return prisma.$transaction(async (tx) => {
+      // Khóa hồ sơ trong lúc tính và áp dụng tạm ứng để hai yêu cầu đồng thời
+      // không cùng sử dụng một số dư.
+      await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+        SELECT id
+        FROM medical_records
+        WHERE id = ${params.recordId}
+        FOR UPDATE
+      `);
+
+      const [deposits, refunds, activeInvoices] = await Promise.all([
+        tx.paymentAdvance.aggregate({
+          where: { recordId: params.recordId, type: 'deposit' },
+          _sum: { amount: true },
+        }),
+        tx.paymentAdvance.aggregate({
+          where: { recordId: params.recordId, type: 'refund' },
+          _sum: { amount: true },
+        }),
+        tx.invoice.aggregate({
+          where: {
+            recordId: params.recordId,
+            status: { in: ['pending', 'paid', 'write_off'] },
+          },
+          _sum: { advanceAppliedAmount: true },
+        }),
+      ]);
+      const deposited = deposits._sum.amount ?? new Prisma.Decimal(0);
+      const refunded = refunds._sum.amount ?? new Prisma.Decimal(0);
+      const alreadyApplied = activeInvoices._sum.advanceAppliedAmount ?? new Prisma.Decimal(0);
+      const availableAdvance = deposited.sub(refunded).sub(alreadyApplied);
+      const advanceAppliedAmount = availableAdvance.lte(0)
+        ? new Prisma.Decimal(0)
+        : (availableAdvance.lt(params.totalAmount) ? availableAdvance : params.totalAmount)
+            .toDecimalPlaces(2);
+      const amountDue = params.totalAmount.sub(advanceAppliedAmount).toDecimalPlaces(2);
+
       // Wall-clock VN (cùng pattern queue) — Workbench hiển thị đúng giờ VN, không lệch UTC.
       const nowVn = toVietnamDbDateTime();
       await tx.invoice.create({
@@ -201,9 +237,10 @@ export class InvoiceRepository {
           healthInsuranceBaseAmount: params.healthInsuranceBaseAmount,
           healthInsuranceDiscountAmount: params.healthInsuranceDiscountAmount,
           totalAmount: params.totalAmount,
-          advanceAppliedAmount: params.advanceAppliedAmount,
-          amountDue: params.amountDue,
-          statementStatus: 'draft',
+          advanceAppliedAmount,
+          amountDue,
+          statementStatus: 'issued',
+          statementNumber: `BK-${invoiceId.slice(0, 8).toUpperCase()}`,
           version: 1,
           createdAt: nowVn,
           updatedAt: nowVn,
@@ -480,13 +517,45 @@ export class InvoiceRepository {
   }
 
   async findServiceOrdersForRecord(recordId: string) {
-    return prisma.serviceOrder.findMany({
-      where: { recordId, status: { not: 'cancelled' } },
-      include: {
-        serviceCatalog: { select: { id: true, name: true, code: true } },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
+    // Dùng raw query có tham số để đọc thêm cấu hình BHYT ngay cả khi client Prisma
+    // đang chạy từ bản sinh trước migration; không ghép chuỗi từ input người dùng.
+    return prisma.$queryRaw<
+      Array<{
+        id: string;
+        fee: Prisma.Decimal;
+        service_catalog_id: string;
+        service_catalog_name: string;
+        service_catalog_code: string;
+        covered_by_health_insurance: boolean | number;
+        health_insurance_ceiling_price: Prisma.Decimal | null;
+      }>
+    >(Prisma.sql`
+      SELECT
+        so.id AS id,
+        so.fee AS fee,
+        sc.id AS service_catalog_id,
+        sc.name AS service_catalog_name,
+        sc.code AS service_catalog_code,
+        sc.covered_by_health_insurance AS covered_by_health_insurance,
+        sc.health_insurance_ceiling_price AS health_insurance_ceiling_price
+      FROM service_orders so
+      INNER JOIN service_catalog sc ON sc.id = so.serviceCatalogId
+      WHERE so.recordId = ${recordId}
+        AND so.status <> 'cancelled'
+      ORDER BY so.createdAt ASC
+    `).then((rows) =>
+      rows.map((row) => ({
+        id: row.id,
+        fee: row.fee,
+        serviceCatalog: {
+          id: row.service_catalog_id,
+          name: row.service_catalog_name,
+          code: row.service_catalog_code,
+          coveredByHealthInsurance: Boolean(row.covered_by_health_insurance),
+          healthInsuranceCeilingPrice: row.health_insurance_ceiling_price,
+        },
+      })),
+    );
   }
 
   async findMedicalRecord(recordId: string) {

@@ -57,6 +57,7 @@ export interface OrderDto {
   tone: 'danger' | 'purple' | 'blue' | 'green';
   orderType: string;
   hasAllergyWarning: boolean;
+  executedByName: string | null;
 }
 
 type TreatmentOrderWireDto = {
@@ -70,6 +71,7 @@ type TreatmentOrderWireDto = {
   patientName?: string;
   roomLabel?: string;
   hasAllergyWarning?: boolean;
+  executedByName?: string | null;
 };
 
 const ORDER_STATUSES = new Set<OrderDto['status']>([
@@ -118,6 +120,7 @@ export function mapTreatmentOrderDto(value: unknown): OrderDto | null {
     tone,
     orderType: value.orderType ?? '',
     hasAllergyWarning: value.hasAllergyWarning === true,
+    executedByName: value.executedByName ?? null,
   };
 }
 
@@ -397,6 +400,7 @@ export const useVitalsQueue = () =>
                   waitingNumbers: number[];
                 };
                 stats: VitalsQueueStatsDto;
+                departmentName?: string | null;
               }>
             | {
                 worklist: VitalsWorklistItemDto[];
@@ -406,6 +410,7 @@ export const useVitalsQueue = () =>
                   waitingNumbers: number[];
                 };
                 stats: VitalsQueueStatsDto;
+                departmentName?: string | null;
               };
         }
       >('/inpatient/vitals-queue');

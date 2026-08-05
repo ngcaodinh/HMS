@@ -35,7 +35,12 @@ const routeOptions: Array<{ value: RouteType; label: string }> = [
   { value: 'wrong_route', label: 'Trái tuyến' },
 ];
 
-function getInitialBenefitLevel(rate: number): BenefitLevel {
+function getInitialBenefitLevel(
+  rate: number,
+  hasInsuranceCard: boolean,
+  isInsuranceExpired: boolean,
+): BenefitLevel {
+  if (!hasInsuranceCard || isInsuranceExpired) return 'NO_COVERAGE';
   if (rate >= 1) return 'RATE_100';
   if (rate >= 0.95) return 'RATE_95';
   if (rate > 0) return 'RATE_80';
@@ -59,17 +64,16 @@ export function InvoiceCreationScreen({
   onBack,
 }: InvoiceCreationScreenProps) {
   const serviceItems = patient.serviceItems ?? [];
+  const hasInsuranceCard = Boolean(patient.bhytCardNumber && patient.bhytCardNumber !== '—');
+  const isInsuranceExpired = patient.healthInsuranceExpiryDate
+    ? new Date(patient.healthInsuranceExpiryDate).getTime() < Date.now()
+    : true;
   const [benefitLevel, setBenefitLevel] = useState<BenefitLevel>(
-    getInitialBenefitLevel(patient.bhytBenefitRate),
+    getInitialBenefitLevel(patient.bhytBenefitRate, hasInsuranceCard, isInsuranceExpired),
   );
   const [routeType, setRouteType] = useState<RouteType>('right_route');
   const [isBusy, setIsBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const hasInsuranceCard = Boolean(patient.bhytCardNumber && patient.bhytCardNumber !== '—');
-  const isInsuranceExpired = patient.healthInsuranceExpiryDate
-    ? new Date(patient.healthInsuranceExpiryDate).getTime() < Date.now()
-    : false;
-
   /** Gửi request tạo invoice pending; chỉ chuyển màn hình khi backend đã lưu thành công. */
   const handleConfirmInvoice = async () => {
     if (!patient.recordId) {

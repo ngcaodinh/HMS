@@ -84,6 +84,22 @@ test('accounting workspace renders only API data and uses the centered HMS notif
   assert.equal(file.includes('fixed bottom-6 right-6'), false);
 });
 
+test('accounting workspace loads the real report and protects CSV cells from formulas', () => {
+  const file = readFileSync(
+    join(
+      process.cwd(),
+      'src/modules/invoice/pages/accounting-workspace/accounting-workspace-view.tsx',
+    ),
+    'utf8',
+  );
+
+  assert.match(file, /getAccountingReport/);
+  assert.match(file, /toSafeCsvCell/);
+  assert.equal(file.includes('const safeValue = /^[=+\\-@]/.test(value)'), true);
+  assert.match(file, /reportFromDate/);
+  assert.match(file, /reportToDate/);
+});
+
 test('accounting lookup exposes loading, API error and empty states', () => {
   const file = readFileSync(
     join(process.cwd(), 'src/modules/invoice/components/patient-lookup-screen.tsx'),
@@ -145,4 +161,51 @@ test('accounting payment statement renders invoice data instead of fixed mock fe
   for (const hardCodedValue of ['1.290.000', '860.000', '430.000', '20/07/2026']) {
     assert.equal(file.includes(hardCodedValue), false);
   }
+});
+
+test('accounting payment statement prevents payment actions for closed invoices', () => {
+  const file = readFileSync(
+    join(process.cwd(), 'src/modules/invoice/components/payment-statement-screen.tsx'),
+    'utf8',
+  );
+
+  assert.match(file, /invoice\.status === 'pending_payment'/);
+  assert.match(file, /const amountToCollect = canModifyInvoice \? invoice\.finalAmount : 0/);
+  assert.match(file, /invoice\.status === 'cancelled'/);
+  assert.match(file, /invoice\.status === 'write_off'/);
+});
+
+test('accounting lookup exposes every persisted invoice status and working pagination actions', () => {
+  const file = readFileSync(
+    join(process.cwd(), 'src/modules/invoice/components/patient-lookup-screen.tsx'),
+    'utf8',
+  );
+
+  for (const status of ['pending_payment', 'settled', 'cancelled', 'write_off']) {
+    assert.match(file, new RegExp(status));
+  }
+  assert.match(file, /setPage\(\(current\) => Math\.max/);
+  assert.match(file, /setPage\(\(current\) => Math\.min/);
+});
+
+test('accounting notifications use concise and correct Vietnamese copy', () => {
+  const workspaceFile = readFileSync(
+    join(
+      process.cwd(),
+      'src/modules/invoice/pages/accounting-workspace/accounting-workspace-view.tsx',
+    ),
+    'utf8',
+  );
+  const toastFile = readFileSync(
+    join(process.cwd(), 'src/shared/components/app-toast.tsx'),
+    'utf8',
+  );
+
+  assert.equal(workspaceFile.includes('Thu tiền mặt OK'), false);
+  assert.match(workspaceFile, /Đã thu tiền mặt · Phiếu/);
+  assert.equal(workspaceFile.includes('Lý do: \${reason}'), false);
+  assert.match(workspaceFile, /showToast\('Không có số dư tạm ứng để hoàn trả\.', 'error'\)/);
+  assert.match(workspaceFile, /thanh toán MoMo/);
+  assert.equal(toastFile.includes('BỆNH VIỆN HMS'), false);
+  assert.match(toastFile, /isSuccess \? 'THÔNG BÁO' : 'CẢNH BÁO'/);
 });

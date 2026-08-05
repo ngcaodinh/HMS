@@ -1,20 +1,40 @@
 'use client';
 
+import { useEffect } from 'react';
+
 type AppToastProps = {
   /** Có căn giữa màn hình dạng Popup modal hay hiển thị góc dưới bên phải */
   centered?: boolean;
   /** Nội dung thông báo (null nếu không hiển thị) */
   message: string | null;
+  /**
+   * Hàm gọi khi người dùng chủ động đóng popup (bấm nút X, nhấn Escape, hoặc bấm ra ngoài lớp phủ
+   * ở biến thể `centered`). Nếu không truyền, popup sẽ không hiển thị nút đóng thủ công.
+   */
+  onClose?: () => void;
   /** Sắc thái thông báo: thành công (success) hoặc lỗi (error) */
   tone?: 'success' | 'error';
 };
+
+/**
+ * Biểu tượng dấu X dùng cho nút đóng popup (SVG nét mảnh, đồng bộ với các modal khác trong hệ thống).
+ *
+ * @param props Props tùy chỉnh className cho SVG
+ */
+function CloseIcon({ className = 'h-4 w-4' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
+    </svg>
+  );
+}
 
 /**
  * Biểu tượng chiếc khiên xác thực y tế chuẩn HMS (SVG dạng khối đặc cao cấp).
  *
  * @param props Props tùy chỉnh className cho SVG
  */
-function MedicalSuccessBadge({ className = 'h-7 w-7' }: { className?: string }) {
+export function MedicalSuccessBadge({ className = 'h-7 w-7' }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
       <path
@@ -30,7 +50,7 @@ function MedicalSuccessBadge({ className = 'h-7 w-7' }: { className?: string }) 
  *
  * @param props Props tùy chỉnh className cho SVG
  */
-function MedicalErrorBadge({ className = 'h-7 w-7' }: { className?: string }) {
+export function MedicalErrorBadge({ className = 'h-7 w-7' }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} viewBox="0 0 24 24" fill="currentColor">
       <path
@@ -48,7 +68,19 @@ function MedicalErrorBadge({ className = 'h-7 w-7' }: { className?: string }) {
  * @param props Các thuộc tính điều khiển popup
  * @returns Modal Popup căn giữa hoặc Toast ở góc
  */
-export function AppToast({ centered = false, message, tone = 'success' }: AppToastProps) {
+export function AppToast({ centered = false, message, onClose, tone = 'success' }: AppToastProps) {
+  // Cho phép đóng popup dạng modal bằng phím Escape (chỉ khi đang hiển thị và có onClose)
+  useEffect(() => {
+    if (!message || !centered || !onClose) return undefined;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose?.();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [message, centered, onClose]);
+
   if (!message) {
     return null;
   }
@@ -62,10 +94,16 @@ export function AppToast({ centered = false, message, tone = 'success' }: AppToa
     const details = parts.slice(1);
 
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0d293c]/40 px-4 backdrop-blur-md transition-all duration-300 animate-in fade-in">
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0d293c]/40 px-4 backdrop-blur-md transition-all duration-300 animate-fadeIn"
+        onClick={(event) => {
+          // Chỉ đóng khi bấm đúng vào lớp phủ nền, không đóng khi bấm vào nội dung card
+          if (onClose && event.target === event.currentTarget) onClose();
+        }}
+      >
         <div
           aria-live="polite"
-          className={`relative flex w-full max-w-[480px] flex-col overflow-hidden rounded-2xl border-2 bg-white text-[#171c1f] transition-all duration-200 animate-in zoom-in-95 ${
+          className={`relative flex w-full max-w-[480px] flex-col overflow-hidden rounded-2xl border-2 bg-white text-[#171c1f] transition-all duration-200 animate-modalIn ${
             isSuccess
               ? 'border-[#96ccff] shadow-[0_25px_60px_-15px_rgba(0,96,150,0.3)]'
               : 'border-[#ffcdd2] shadow-[0_25px_60px_-15px_rgba(198,40,40,0.3)]'
@@ -81,15 +119,22 @@ export function AppToast({ centered = false, message, tone = 'success' }: AppToa
             }`}
           >
             <span className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-white">
-              {isSuccess ? 'THÔNG BÁO TIẾP NHẬN' : 'CẢNH BÁO THAO TÁC'}
+              {isSuccess ? 'THÔNG BÁO' : 'CẢNH BÁO'}
             </span>
-            <span className="rounded-full border border-white/30 bg-white/15 px-2.5 py-0.5 text-[10px] font-bold tracking-widest text-white uppercase">
-              BỆNH VIỆN HMS
-            </span>
+            {onClose ? (
+              <button
+                aria-label="Đóng thông báo"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/90 transition-colors duration-150 hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+                onClick={onClose}
+                type="button"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            ) : null}
           </div>
 
           {/* Nội dung Popup */}
-          <div className="flex items-start gap-4.5 bg-white p-6">
+          <div className="flex items-start gap-4 bg-white p-6">
             <div
               className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ring-4 ${
                 isSuccess
@@ -131,7 +176,7 @@ export function AppToast({ centered = false, message, tone = 'success' }: AppToa
 
   // Chế độ Toast góc màn hình (dành cho các ngữ cảnh ngoài popup)
   return (
-    <div className="fixed bottom-6 right-6 z-[100] flex max-w-md items-center px-4 py-2 transition-all duration-200 animate-in slide-in-from-bottom-5">
+    <div className="fixed bottom-6 right-6 z-[100] flex max-w-md items-center px-4 py-2 transition-all duration-200 animate-toastSlideIn">
       <div
         aria-live="polite"
         className={`flex max-w-md items-center gap-3.5 rounded-xl border px-4 py-3.5 text-sm font-semibold shadow-2xl backdrop-blur-md ${
@@ -148,7 +193,17 @@ export function AppToast({ centered = false, message, tone = 'success' }: AppToa
         >
           {isSuccess ? <MedicalSuccessBadge className="h-5 w-5" /> : <MedicalErrorBadge className="h-5 w-5" />}
         </div>
-        <span className="leading-snug text-white/95">{message}</span>
+        <span className="flex-1 leading-snug text-white/95">{message}</span>
+        {onClose ? (
+          <button
+            aria-label="Đóng thông báo"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-white/70 transition-colors duration-150 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+            onClick={onClose}
+            type="button"
+          >
+            <CloseIcon className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
       </div>
     </div>
   );

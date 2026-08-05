@@ -23,10 +23,10 @@ export const labWorkspaceStyles = {
   searchInput:
     'h-11 w-full rounded-md border border-[#bfc7d2] bg-white pl-10 pr-3 text-[13px] text-[#171c1f] outline-none transition-colors duration-150 focus:border-[#006096] focus:ring-4 focus:ring-[#006096]/10',
   filterTab:
-    'inline-flex h-11 items-center gap-1.5 rounded-md border border-[#c0c7d1] bg-white px-3.5 text-[13px] font-semibold text-[#3f4851] transition hover:bg-[#f2f3f8] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#006096]/15',
-  filterTabActive: 'border-[#006096] bg-[#006096] text-white hover:bg-[#00527f]',
+    'inline-flex h-11 w-36 shrink-0 items-center justify-center gap-1.5 rounded-md border border-[#c0c7d1] bg-white px-3.5 text-[13px] font-semibold text-[#3f4851] transition hover:bg-[#f2f3f8] active:scale-[0.98] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#006096]/15',
+  filterTabActive: 'border-[#006096] bg-[#dbeafe] text-[#004871] hover:bg-[#c7e5fb]',
   filterTabDanger: 'border-[#ba1a1a] text-[#ba1a1a] hover:bg-[#fff5f4]',
-  filterTabDangerActive: 'border-[#ba1a1a] bg-[#ba1a1a] text-white hover:bg-[#a01717]',
+  filterTabDangerActive: 'border-[#ba1a1a] bg-[#fee2e2] text-[#991b1b] hover:bg-[#fecaca]',
   tableWrap: 'mb-5 overflow-hidden rounded-[12px] border border-[#bfc7d2] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]',
   table: 'min-w-full divide-y divide-[#e5e7eb] text-left text-[13px]',
   th: 'bg-[#f2f3f8] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.55px] text-[#707882]',

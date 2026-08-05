@@ -12,6 +12,7 @@ export type InvoiceApiDto = {
     unitPrice: string;
     amount: string;
     coveredByHealthInsurance: boolean;
+    healthInsuranceBenefitRateSnapshot?: string | null;
     healthInsuranceFundAmount: string;
     patientCoPayAmount: string;
   }>;
