@@ -22,7 +22,7 @@ export const doctorWorkspaceStyles = {
   userName: 'truncate text-sm font-bold leading-5 text-white',
   userRole: 'text-[11px] font-medium leading-[16.5px] text-white/50',
   iconButton:
-    'ml-auto flex h-8 w-8 items-center justify-center rounded-md border border-white/10 transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-95',
+    'ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-white/10 text-white/70 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/30 active:scale-95',
   workspace: 'flex min-h-screen min-w-0 flex-1 flex-col bg-[#f6fafe] lg:h-screen',
   topbar:
     'flex min-h-[52px] shrink-0 flex-wrap items-center justify-between gap-3 border-b border-[#c0c7d1] bg-white px-5 py-3 lg:min-h-[64px] lg:px-6',
