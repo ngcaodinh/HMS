@@ -1,3 +1,4 @@
+/** Bảo vệ giới hạn sinh hiệu, quan hệ huyết áp và cách nhập thập phân tiếng Việt. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

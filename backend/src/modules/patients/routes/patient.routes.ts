@@ -3,9 +3,14 @@ import { Router } from 'express';
 import {
   attachDevPrincipal,
   requirePermission,
-} from '../../../middlewares/requirePermission';
+} from '../../../middlewares/require-permission';
 import { patientController } from '../controllers/patient.controller';
 
+/**
+ * @route   /api/v1/patients
+ * @desc    Tra cứu bệnh nhân và chuẩn hóa danh tính cấp cứu.
+ * @access  Private, yêu cầu permission tương ứng.
+ */
 export const patientRouter = Router();
 
 patientRouter.use(attachDevPrincipal);

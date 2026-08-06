@@ -1,3 +1,4 @@
+/** Bảo vệ export nhân sự: chỉ xuất field được phép và trung hòa công thức nhập từ người dùng. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

@@ -1,3 +1,4 @@
+/** Kiểm tra bản in giữ đúng template y tế, trạng thái ký và không suy diễn dữ liệu thiếu. */
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,6 +1,6 @@
 /**
  * @file StockReportScreen.tsx
- * @description Báo cáo movement immutable từ API kho dược.
+ * @description Báo cáo biến động kho immutable từ dữ liệu API kho dược.
  */
 
 'use client';
@@ -13,20 +13,37 @@ import type {
 } from '../types/pharmacy-inventory.schema';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
+/**
+ * Hợp đồng dữ liệu và callback của màn hình báo cáo biến động kho.
+ * `from`/`to` dùng định dạng `YYYY-MM-DD`; `logs` là các bản ghi đã được query theo bộ lọc,
+ * trong đó số lượng và tồn kho dùng cùng đơn vị thuốc với dữ liệu backend.
+ */
 interface StockReportScreenProps {
+  /** Nhật ký biến động immutable; rỗng được render thành empty state. */
   logs: PharmacyStockMovement[];
+  /** Ngày bắt đầu lọc, định dạng `YYYY-MM-DD`, có thể rỗng. */
   from: string;
+  /** Ngày kết thúc lọc, định dạng `YYYY-MM-DD`, có thể rỗng. */
   to: string;
+  /** Loại biến động hoặc chuỗi rỗng để chọn tất cả. */
   movementType: StockMovementType | '';
+  /** Trạng thái query, mặc định `false`. */
   isLoading?: boolean;
+  /** Lỗi query, mặc định `false`; error state ưu tiên hơn empty state. */
   isError?: boolean;
+  /** Lỗi khoảng ngày do workspace cha kiểm tra trước khi query. */
   dateError?: string;
+  /** Cập nhật ngày bắt đầu và có thể kích hoạt refetch ở workspace cha. */
   onFromChange: (value: string) => void;
+  /** Cập nhật ngày kết thúc và có thể kích hoạt refetch ở workspace cha. */
   onToChange: (value: string) => void;
+  /** Cập nhật loại biến động và có thể kích hoạt refetch ở workspace cha. */
   onMovementTypeChange: (value: StockMovementType | '') => void;
+  /** Ủy quyền side effect xuất Excel cho workspace cha. */
   onExportExcel: () => void;
 }
 
+/** Nhãn hiển thị cho các trạng thái biến động mà API kho trả về. */
 const movementLabels: Record<StockMovementType, string> = {
   adjustment: 'Điều chỉnh',
   prescription_cancel: 'Hoàn đơn',
@@ -34,11 +51,26 @@ const movementLabels: Record<StockMovementType, string> = {
   receipt: 'Nhập kho',
 };
 
-/** Hiển thị giá trị movement có dấu, để người dùng phân biệt xuất và nhập kho. */
+/** Hiển thị số lượng biến động có dấu; đơn vị giữ nguyên theo `quantityChange` của API. */
 function formatQuantity(value: number): string {
   return value > 0 ? `+ ${value}` : `- ${Math.abs(value)}`;
 }
 
+/**
+ * Hiển thị báo cáo biến động kho phục vụ đối soát và audit Dược.
+ *
+ * @param logs Nhật ký immutable đã được lọc từ API.
+ * @param from Ngày bắt đầu dạng `YYYY-MM-DD`.
+ * @param to Ngày kết thúc dạng `YYYY-MM-DD`.
+ * @param movementType Loại biến động hoặc rỗng để chọn tất cả.
+ * @param isLoading Trạng thái query, mặc định `false`.
+ * @param isError Trạng thái lỗi query, mặc định `false`.
+ * @param dateError Lỗi khoảng ngày nếu bộ lọc không hợp lệ.
+ * @param onExportExcel Callback xuất báo cáo do workspace cha cung cấp.
+ * @returns Component React với loading, error, empty hoặc bảng dữ liệu.
+ * @remarks Màn hình chỉ đọc và không tự mutation; query, refetch, quyền truy cập và cơ chế xuất
+ * tệp do lớp cha/backend quyết định. Khi có `isError`, error state được hiển thị thay cho empty.
+ */
 export const StockReportScreen: React.FC<StockReportScreenProps> = ({
   logs,
   from,

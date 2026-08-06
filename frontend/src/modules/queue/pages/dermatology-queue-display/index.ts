@@ -1,1 +1,1 @@
-export { DermatologyQueueDisplayPage } from './dermatology-queue-display';
+export { DermatologyQueueDisplayPage } from './DermatologyQueueDisplayPage';

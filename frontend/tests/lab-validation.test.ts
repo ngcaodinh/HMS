@@ -1,3 +1,4 @@
+/** Bảo vệ invariant nhập kết quả theo giới hạn số, đơn vị, định danh và trường bắt buộc. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

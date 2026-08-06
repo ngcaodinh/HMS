@@ -6,15 +6,15 @@ import express from 'express';
 import helmet from 'helmet';
 import pinoHttp from 'pino-http';
 
-import { config } from './config/unifiedConfig';
-import { checkPrismaReadiness } from './core/database/prismaClient';
-import { isAppError, mapErrorDetailsToFields } from './core/http/AppError';
-import { asyncHandler } from './core/http/asyncHandler';
+import { config } from './config/unified-config';
+import { checkPrismaReadiness } from './core/database/prisma-client';
+import { isAppError, mapErrorDetailsToFields } from './core/http/app-error';
+import { asyncHandler } from './core/http/async-handler';
 import { logger } from './core/logger/logger';
-import { notFoundHandler } from './middlewares/error-handler';
-import { errorHandler } from './middlewares/errorHandler';
-import { requestContext } from './middlewares/requestContext';
-import { identityRoutes } from './modules/identity/identityRoutes';
+import { notFoundHandler } from './middlewares/not-found-handler';
+import { errorHandler } from './middlewares/not-found-handler';
+import { requestContext } from './middlewares/request-context';
+import { identityRoutes } from './modules/identity/identity.routes';
 import { apiV1Router } from './routes';
 
 export const createApp = () => {
@@ -28,7 +28,8 @@ export const createApp = () => {
   app.use(requestContext);
   app.use(pinoHttp({ logger }));
 
-  app.get('/health', (_req, res) => {
+  app.get('/health', (request, res) => {
+    void request;
     res.status(200).json({
       status: 'ok',
       service: 'hms-backend',
@@ -36,7 +37,8 @@ export const createApp = () => {
     });
   });
 
-  app.get('/ready', asyncHandler(async (_req, res) => {
+  app.get('/ready', asyncHandler(async (request, res) => {
+    void request;
     try {
       await checkPrismaReadiness();
       res.status(200).json({ status: 'ready' });

@@ -1,1 +1,1 @@
-export { DoctorWorkspacePage } from './doctor-workspace';
+export { DoctorWorkspacePage } from './DoctorWorkspacePage';

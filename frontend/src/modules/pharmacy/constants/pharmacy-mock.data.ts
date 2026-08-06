@@ -1,7 +1,8 @@
 /**
  * @file pharmacy-mock.data.ts
- * @description Mock data is retained only for the stock-import flow, which is outside
- * the pharmacy validation plan and still has no complete backend repository workflow.
+ * @description Dữ liệu giả lập làm fallback cho workspace, luồng nhập kho và preview XML khi phù hợp.
+ * Đây không phải source of truth cho đơn thuốc, signed/paid gate, FEFO, stock movement hoặc persistence;
+ * không dùng các giá trị này để quyết định cấp phát hay trừ kho.
  */
 
 import type { StockReceipt, Prescription } from '../types/pharmacy.types';
@@ -12,6 +13,7 @@ import type {
   PharmacyWarehouse,
 } from '../types/pharmacy-inventory.schema';
 
+/** Escape ký tự đặc biệt trước khi đưa dữ liệu mock vào text node XML. */
 function escapeXml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -22,10 +24,12 @@ function escapeXml(str: string): string {
 }
 
 /**
- * Tạo chuỗi nội dung XML chuẩn Bộ Y tế giả lập cho một đơn thuốc.
+ * Tạo chuỗi XML giả lập để preview/tải trình diễn từ view-model đơn thuốc.
  *
- * @param prescription Đối tượng đơn thuốc cần kết xuất XML
- * @returns Chuỗi XML định dạng UTF-8 theo chuẩn kết xuất dữ liệu đơn thuốc
+ * @param prescription Đối tượng đơn thuốc cần hiển thị trong preview XML.
+ * @returns Chuỗi XML UTF-8 dùng cho preview/trình diễn.
+ * @remarks Hàm không kiểm tra chữ ký, paid gate, allergy override hoặc FEFO và không cập nhật backend;
+ * XML có giá trị nghiệp vụ phải do endpoint export ở server tạo và lưu.
  */
 export function generatePrescriptionXml(prescription: Prescription): string {
   const patientGenderCode = prescription.patientGender === 'Nam' ? '1' : '2';
@@ -86,7 +90,8 @@ ${itemsXml}
 }
 
 /**
- * Danh sách các kho dược trực thuộc Nhà thuốc Bệnh viện Da liễu HMS-VN.
+ * Danh sách kho giả lập cho bộ lọc và form pharmacy.
+ * ID, tên và trạng thái trong mảng này không thay thế danh sách warehouse từ API thật.
  */
 export const mockWarehousesList: PharmacyWarehouse[] = [
   {
@@ -107,7 +112,8 @@ export const mockWarehousesList: PharmacyWarehouse[] = [
 ];
 
 /**
- * Danh sách đơn thuốc điện tử giả lập cho Ca trực Kho Dược từ 07:00 ngày Thứ Hai, 20/07/2026.
+ * Danh sách đơn thuốc giả lập cho trạng thái hiển thị của màn hình pharmacy.
+ * Các cờ signed/paid, allergy, FEFO và cấp phát chỉ là fixture; command thật phải dùng response/backend.
  */
 export const mockPrescriptionsList: Prescription[] = [
   {
@@ -435,7 +441,9 @@ export const mockPrescriptionsList: Prescription[] = [
 ];
 
 /**
- * Danh sách tồn kho theo lô FEFO giả lập cho Ca trực Kho Dược 20/07/2026.
+ * Danh sách batch tồn kho giả lập theo FEFO để trình bày bảng kho.
+ * Hạn dùng dùng ngày ISO `YYYY-MM-DD`, `daysToExpiry` là số ngày lịch và `importPrice` là chuỗi giá trị
+ * tiền tệ; các cờ cảnh báo không được dùng làm quyết định ghi kho ở client.
  */
 export const mockInventoryBatchesList: PharmacyInventoryBatch[] = [
   {
@@ -595,7 +603,8 @@ export const mockInventoryBatchesList: PharmacyInventoryBatch[] = [
 ];
 
 /**
- * Tổng quan KPI tồn kho dược cho Ca trực Kho Dược 20/07/2026.
+ * Tổng quan KPI tồn kho giả lập để render trạng thái ban đầu của UI.
+ * Count là số nguyên batch/số lượng; số liệu thật phải lấy từ endpoint summary.
  */
 export const mockInventorySummaryData: PharmacyInventorySummary = {
   expiredBatches: 0,
@@ -606,7 +615,9 @@ export const mockInventorySummaryData: PharmacyInventorySummary = {
 };
 
 /**
- * Nhật ký xuất nhập tồn kho giả lập trong Ca trực Kho Dược 20/07/2026 từ 07:00.
+ * Nhật ký stock movement giả lập cho bảng báo cáo/audit read-only.
+ * `quantityChange` và `balanceAfter` tính theo đơn vị thuốc; dữ liệu thật phải đọc từ API và không được
+ * dùng fixture này để tạo movement mới.
  */
 export const mockStockMovementsList: PharmacyStockMovement[] = [
   {
@@ -677,7 +688,7 @@ export const mockStockMovementsList: PharmacyStockMovement[] = [
   },
 ];
 
-/** Phiếu nhập kho mẫu dành riêng cho màn hình nhập kho. */
+/** Phiếu nhập kho giả lập dành riêng cho màn hình nhập kho; tiền là số nguyên VND và không tự persist. */
 export const mockStockReceipt: StockReceipt = {
   receiptCode: '#NKO-2026-0154',
   supplierName: 'Công ty Dược phẩm TW1 (CPC1)',

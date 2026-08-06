@@ -3,7 +3,7 @@ import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
 
-import { config } from '../../../config/unifiedConfig';
+import { config } from '../../../config/unified-config';
 import type { JwtPayload } from '../types/auth.types';
 
 dayjs.extend(utc);

@@ -1,3 +1,4 @@
+/** Token class dùng chung cho shell, topbar, nội dung và nút của Admin workspace. */
 export const adminWorkspaceStyles = {
   content: 'min-h-0 flex-1 overflow-auto',
   contentInner: 'space-y-6 p-5 lg:p-8',

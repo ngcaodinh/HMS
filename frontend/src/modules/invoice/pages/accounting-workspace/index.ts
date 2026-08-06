@@ -1,1 +1,1 @@
-export { AccountingWorkspacePage } from './accounting-workspace';
+export { AccountingWorkspacePage } from './AccountingWorkspacePage';

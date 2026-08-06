@@ -1,3 +1,4 @@
+/** Kiểm tra adapter nhân sự map đúng filter/pagination và giữ metadata response. */
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 

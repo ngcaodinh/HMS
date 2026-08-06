@@ -23,6 +23,12 @@ export type MomoCreateSignatureFields = {
   requestType: string;
 };
 
+/** Chuyển dữ liệu IPN về chuỗi an toàn, không biến object thành "[object Object]". */
+function readMomoString(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return '';
+}
+
 /**
  * rawSignature tạo payment — thứ tự field cố định theo doc-momo.
  */
@@ -72,15 +78,15 @@ export function verifyMomoCreateStyleSignature(
 ): boolean {
   const raw = buildMomoCreateRawSignature({
     accessKey,
-    amount: String(data.amount ?? ''),
-    extraData: String(data.extraData ?? ''),
-    ipnUrl: String(data.ipnUrl ?? ''),
-    orderId: String(data.orderId ?? ''),
-    orderInfo: String(data.orderInfo ?? ''),
-    partnerCode: String(data.partnerCode ?? ''),
-    redirectUrl: String(data.redirectUrl ?? ''),
-    requestId: String(data.requestId ?? ''),
-    requestType: String(data.requestType ?? ''),
+    amount: readMomoString(data.amount),
+    extraData: readMomoString(data.extraData),
+    ipnUrl: readMomoString(data.ipnUrl),
+    orderId: readMomoString(data.orderId),
+    orderInfo: readMomoString(data.orderInfo),
+    partnerCode: readMomoString(data.partnerCode),
+    redirectUrl: readMomoString(data.redirectUrl),
+    requestId: readMomoString(data.requestId),
+    requestType: readMomoString(data.requestType),
   });
   const computed = generateMomoSignature(raw, secretKey);
   return computed === signature;

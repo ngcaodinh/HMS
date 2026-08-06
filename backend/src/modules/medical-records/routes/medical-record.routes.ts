@@ -23,6 +23,11 @@ import {
   worklistQuerySchema,
 } from '../schemas/medical-record.schemas';
 
+/**
+ * @route   /api/v1/medical-records
+ * @desc    Đọc và cập nhật hồ sơ khám, sinh hiệu, chẩn đoán và chỉ định xét nghiệm.
+ * @access  Private, permission theo vai trò lâm sàng và audit.
+ */
 export const medicalRecordRouter = Router();
 export const clinicalCatalogRouter = Router();
 

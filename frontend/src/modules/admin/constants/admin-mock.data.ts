@@ -19,6 +19,7 @@ import type {
   StaffMember,
 } from '../types/admin.types';
 
+/** Nhãn hiển thị theo mã vai trò; map này không phải danh sách quyền thực thi. */
 export const roleLabelByCode: Record<RoleCode, string> = {
   admin: 'Quản trị viên',
   accountant: 'Kế toán',
@@ -31,6 +32,7 @@ export const roleLabelByCode: Record<RoleCode, string> = {
   receptionist: 'Tiếp tân',
 };
 
+/** Nhãn hiển thị theo mã khoa/phòng để dùng trong bảng và form chọn. */
 export const departmentLabelByCode: Record<DepartmentCode, string> = {
   accounting: 'Phòng Kế toán',
   clinical: 'Khoa Khám bệnh',
@@ -41,6 +43,7 @@ export const departmentLabelByCode: Record<DepartmentCode, string> = {
   reception: 'Quầy Tiếp nhận',
 };
 
+/** KPI minh họa; `value` đã là chuỗi định dạng sẵn và không phải số liệu API để tính tiếp. */
 export const initialKpiCards: KpiCard[] = [
   { helper: 'So với hôm qua +4.2%', id: 'patients', label: 'Bệnh nhân hôm nay', tone: 'sky', value: '286' },
   { helper: 'Đang hoạt động toàn viện', id: 'staff', label: 'Nhân sự đang trực', tone: 'teal', value: '64' },
@@ -48,6 +51,7 @@ export const initialKpiCards: KpiCard[] = [
   { helper: 'Đã đối soát BHYT', id: 'revenue', label: 'Doanh thu hôm nay', tone: 'amber', value: '182,4 triệu' },
 ];
 
+/** Lưu lượng minh họa theo giờ địa phương dạng `HHh`; `value` là số lượt bệnh nhân. */
 export const initialHourlyPatientFlow: PatientFlowPoint[] = [
   { hour: '07h', value: 12 },
   { hour: '08h', value: 34 },
@@ -60,6 +64,7 @@ export const initialHourlyPatientFlow: PatientFlowPoint[] = [
   { hour: '16h', value: 31 },
 ];
 
+/** Tải khoa/phòng minh họa; các trường là số đếm tổng hợp cho màn hình chỉ đọc. */
 export const initialDepartmentLoad: DepartmentLoadRow[] = [
   {
     completed: 58,
@@ -99,6 +104,7 @@ export const initialDepartmentLoad: DepartmentLoadRow[] = [
   },
 ];
 
+/** Danh sách nhân sự minh họa cho CRUD cục bộ; không đại diện cho tài khoản thật hoặc nguồn phân quyền. */
 export const initialStaffMembers: StaffMember[] = [
   {
     createdAt: '2025-01-10T02:00:00.000Z',
@@ -172,6 +178,7 @@ export const initialStaffMembers: StaffMember[] = [
   },
 ];
 
+/** Danh mục dịch vụ minh họa; giá và trần BHYT dùng đơn vị VND. */
 export const initialServiceCatalog: ServiceCatalogItem[] = [
   {
     code: 'SVC-0001',
@@ -215,6 +222,7 @@ export const initialServiceCatalog: ServiceCatalogItem[] = [
   },
 ];
 
+/** Snapshot doanh thu minh họa theo kỳ; các trường tiền là số VND phục vụ trình bày. */
 export const initialRevenueSnapshot: RevenueSnapshot = {
   bankTransferTotal: 32_400_000,
   cashTotal: 68_500_000,
@@ -225,6 +233,7 @@ export const initialRevenueSnapshot: RevenueSnapshot = {
   writeOffTotal: 4_200_000,
 };
 
+/** Phân bổ doanh thu minh họa; `percentOfTotal` là phần trăm hiển thị, không phải phép quyết toán. */
 export const initialPaymentMethodBreakdown: PaymentMethodBreakdownRow[] = [
   { amount: 68_500_000, label: 'Tiền mặt', method: 'cash', percentOfTotal: 38 },
   { amount: 32_400_000, label: 'Chuyển khoản', method: 'transfer', percentOfTotal: 18 },
@@ -232,6 +241,7 @@ export const initialPaymentMethodBreakdown: PaymentMethodBreakdownRow[] = [
   { amount: 71_200_000, label: 'Bảo hiểm y tế', method: 'insurance', percentOfTotal: 34 },
 ];
 
+/** Danh sách giường minh họa; đơn giá là VND/ngày và trạng thái bảo trì không tính là giường trống. */
 export const initialBeds: BedRecord[] = [
   { bedNumber: 'G1', dailyRate: 200000, departmentCode: 'clinical', id: 'bed-001', roomNumber: 'P101', status: 'occupied' },
   { bedNumber: 'G2', dailyRate: 200000, departmentCode: 'clinical', id: 'bed-002', roomNumber: 'P101', status: 'occupied' },
@@ -245,6 +255,7 @@ export const initialBeds: BedRecord[] = [
   { bedNumber: 'G1', dailyRate: 180000, departmentCode: 'laboratory', id: 'bed-010', roomNumber: 'P302', status: 'available' },
 ];
 
+/** Audit minh họa chỉ đọc; không coi các dòng này là audit log do backend phát hành. */
 export const initialAuditLog: AuditLogEntry[] = [
   {
     action: 'LOGIN_SUCCESS',

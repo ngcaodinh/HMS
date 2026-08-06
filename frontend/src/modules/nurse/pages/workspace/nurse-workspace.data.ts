@@ -1,4 +1,7 @@
+/** Các lane nghiệp vụ được hiển thị trong workspace điều dưỡng. */
 export type NurseScreen = 'vitals' | 'samples' | 'beds' | 'orders' | 'emergency';
+
+/** Tên icon hợp lệ do component icon của workspace hỗ trợ. */
 export type IconName =
   | 'activity'
   | 'alert'
@@ -16,12 +19,14 @@ export type IconName =
   | 'syringe'
   | 'user';
 
+/** Hợp đồng dữ liệu của một mục điều hướng lane điều dưỡng. */
 export type NavItem = {
   icon: IconName;
   id: NurseScreen;
   label: string;
 };
 
+/** Dữ liệu hiển thị một thẻ thống kê; `delta` đã được format thành chuỗi nếu có. */
 export type StatCard = {
   delta?: string;
   icon: IconName;
@@ -31,6 +36,10 @@ export type StatCard = {
   valueClass?: string;
 };
 
+/**
+ * Ánh xạ mã loại y lệnh từ backend sang nhãn tiếng Việt dùng trong bộ lọc UI.
+ * Mã chưa khai báo không có fallback trong map này và không làm thay đổi status server.
+ */
 export const orderTypeLabels: Record<string, string> = {
   medication: 'Thuốc',
   monitoring: 'Theo dõi',
@@ -39,6 +48,7 @@ export const orderTypeLabels: Record<string, string> = {
   procedure: 'Thủ thuật',
 };
 
+/** Thứ tự và nhãn các lane; việc hiển thị lane không thay thế authorization ở backend. */
 export const navItems: NavItem[] = [
   { id: 'vitals', label: 'Tiếp nhận & Sinh hiệu', icon: 'heart' },
   { id: 'samples', label: 'Lấy mẫu & Bàn giao mẫu', icon: 'flask' },
@@ -47,6 +57,8 @@ export const navItems: NavItem[] = [
   { id: 'emergency', label: 'Chuẩn hóa cấp cứu', icon: 'shield' },
 ];
 
+// Giữ khai báo type multiline để metadata dễ mở rộng.
+// prettier-ignore
 export const screenMeta: Record<
   NurseScreen,
   { title: string; titleClass?: string }

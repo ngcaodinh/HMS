@@ -5,9 +5,13 @@ import { buildBackendApiV1Url } from '@/shared/auth/backend-url';
 const SESSION_COOKIE = 'hms_session';
 
 /**
- * BFF route: exchanges username/password for a backend JWT and stores it in an httpOnly
- * cookie (CLAUDE.md §6.4 — never keep the raw token in client-readable storage). Only the
- * principal (no token) is returned to the browser.
+ * BFF đăng nhập legacy: chuyển credential tới backend và lưu session trong cookie httpOnly.
+ *
+ * @route   POST /api/session
+ * @desc    Đổi credential lấy session backend và chỉ trả principal cho browser.
+ * @access  Public; handler không yêu cầu JWT trước khi đăng nhập.
+ * @remarks Body được forward nguyên trạng, lỗi giữ status/envelope backend; success không trả
+ * giá trị session cho JavaScript phía client.
  */
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -39,7 +43,12 @@ export async function POST(req: NextRequest) {
   return response;
 }
 
-/** Logs out by clearing the session cookie. */
+/**
+ * @route   DELETE /api/session
+ * @desc    Xóa cookie session ở BFF.
+ * @access  Public; có thể gọi khi session đã hết hạn.
+ * @returns Envelope xác nhận logout và response có cookie session đã bị xóa.
+ */
 export async function DELETE() {
   const response = NextResponse.json({ data: { loggedOut: true } });
   response.cookies.delete(SESSION_COOKIE);

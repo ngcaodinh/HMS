@@ -1,3 +1,4 @@
+/** Kiểm tra thời hạn cookie đổi từ ISO sang giây và fallback 0 khi không hợp lệ. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

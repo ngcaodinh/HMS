@@ -3,6 +3,13 @@ import type { NextFunction, Request, Response } from 'express';
 import { sendPaginated, sendSuccess } from '../../../core/http/response';
 import { AppError } from '../../../core/errors/app-error';
 import {
+  diagnoseRecordSchema,
+  orderLabTestsSchema,
+  recordVitalSignsSchema,
+  recordVitalSignsWithAssessmentSchema,
+  updateClinicalAssessmentSchema,
+} from '../schemas/medical-record.schemas';
+import {
   diagnoseMedicalRecord,
   orderLabTests,
   recordVitalSigns,
@@ -14,7 +21,6 @@ import {
   getMedicalRecordDetail,
   listDoctorWorklist,
 } from '../services/medical-record-query.service';
-import type { VitalSignsWithAssessmentInput } from '../types/medical-record.types';
 
 function requirePrincipal(req: Request) {
   if (!req.principal)
@@ -69,7 +75,7 @@ export async function getMedicalRecordDetailController(
  * @route GET /api/v1/clinical-catalogs/icd-10
  * @access doctor
  */
-export async function getIcd10CatalogController(req: Request, res: Response, next: NextFunction) {
+export function getIcd10CatalogController(req: Request, res: Response, next: NextFunction) {
   try {
     const { keyword } = req.query as { keyword?: string };
     const result = getIcd10Catalog(keyword);
@@ -87,7 +93,8 @@ export async function recordVitalSignsController(req: Request, res: Response, ne
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
-    const result = await recordVitalSigns(recordId, principal.userId, req.body);
+    const input = recordVitalSignsSchema.parse(req.body);
+    const result = await recordVitalSigns(recordId, principal.userId, input);
     sendSuccess(res, result, { status: 201 });
   } catch (error) {
     next(error);
@@ -107,11 +114,8 @@ export async function recordVitalSignsAndAssessmentController(
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
-    const result = await recordVitalSignsAndAssessment(
-      recordId,
-      principal.userId,
-      req.body as VitalSignsWithAssessmentInput,
-    );
+    const input = recordVitalSignsWithAssessmentSchema.parse(req.body);
+    const result = await recordVitalSignsAndAssessment(recordId, principal.userId, input);
     sendSuccess(res, result, { status: 201 });
   } catch (error) {
     next(error);
@@ -130,7 +134,8 @@ export async function updateClinicalAssessmentController(
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
-    const result = await updateClinicalAssessment(recordId, principal.userId, req.body);
+    const input = updateClinicalAssessmentSchema.parse(req.body);
+    const result = await updateClinicalAssessment(recordId, principal.userId, input);
     sendSuccess(res, result);
   } catch (error) {
     next(error);
@@ -145,7 +150,8 @@ export async function orderLabTestsController(req: Request, res: Response, next:
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
-    const result = await orderLabTests(recordId, principal.userId, req.body);
+    const input = orderLabTestsSchema.parse(req.body);
+    const result = await orderLabTests(recordId, principal.userId, input);
     sendSuccess(res, result, { status: 201 });
   } catch (error) {
     next(error);
@@ -164,7 +170,8 @@ export async function diagnoseMedicalRecordController(
   try {
     const principal = requirePrincipal(req);
     const { recordId } = req.params as { recordId: string };
-    const result = await diagnoseMedicalRecord(recordId, principal.userId, req.body);
+    const input = diagnoseRecordSchema.parse(req.body);
+    const result = await diagnoseMedicalRecord(recordId, principal.userId, input);
     sendSuccess(res, result);
   } catch (error) {
     next(error);

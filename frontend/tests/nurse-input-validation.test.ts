@@ -1,3 +1,4 @@
+/** Bảo vệ invariant điều dưỡng: sinh hiệu, dị ứng và định danh cấp cứu phải đủ trước khi ghi. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

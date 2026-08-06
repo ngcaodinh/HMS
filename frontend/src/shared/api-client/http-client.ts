@@ -8,6 +8,7 @@ type ApiErrorDetail = {
   message?: string;
 };
 
+/** Envelope lỗi tối thiểu mà BFF chuyển tiếp từ backend cho Axios adapter. */
 type EnvelopeError = {
   code?: string;
   details?: ApiErrorDetail[];
@@ -15,6 +16,7 @@ type EnvelopeError = {
   message?: string;
 };
 
+/** Chuyển danh sách detail của backend thành map field để form dùng chung một contract lỗi. */
 const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
   if (!Array.isArray(details)) return undefined;
 
@@ -42,7 +44,7 @@ const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
   return Object.keys(fields).length > 0 ? fields : undefined;
 };
 
-// Chuyen loi envelope cua Axios ve cung ApiError ma UI dang bat bang instanceof.
+// Chuyển lỗi envelope của Axios về ApiError để UI bắt cùng một kiểu bằng instanceof.
 const createApiError = (error: unknown) => {
   const response = axios.isAxiosError(error) ? error.response : undefined;
   const envelopeError = response?.data?.error as EnvelopeError | undefined;
@@ -58,9 +60,10 @@ const createApiError = (error: unknown) => {
 };
 
 /**
- * Same-origin axios instance pointed at the Next.js BFF proxy (`app/api/proxy/[...path]`),
- * which attaches the JWT from the httpOnly session cookie. Never call the backend origin
- * directly from client code.
+ * Axios instance cùng origin trỏ tới Next.js BFF `/api/proxy`.
+ * @remarks BFF chịu trách nhiệm nối request với backend và áp dụng session server-side; client
+ * không gọi backend origin trực tiếp. Interceptor chỉ chuẩn hóa lỗi có envelope `error`, còn
+ * lỗi Axios khác được giữ nguyên để caller xử lý.
  */
 export const httpClient = axios.create({
   baseURL: '/api/proxy',

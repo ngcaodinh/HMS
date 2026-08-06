@@ -1,7 +1,6 @@
 /**
  * @file PharmacyModals.tsx
  * @description Tập hợp các hộp thoại Modal tương tác cho Phân hệ Dược sĩ & Nhà thuốc
- * @author Senior Frontend Engineer
  */
 
 'use client';
@@ -10,6 +9,11 @@ import React, { useState } from 'react';
 import type { Prescription } from '../types/pharmacy.types';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
+/**
+ * Hợp đồng callback và trạng thái của các modal Dược.
+ * Modal không tự gọi API; mọi xác nhận được ủy quyền cho workspace cha, nơi quản lý mutation,
+ * Toast, refetch và điều hướng phiên làm việc.
+ */
 interface PharmacyModalsProps {
   /** Modal đang mở hoặc null nếu đóng */
   activeModal: 'dispense' | 'reject' | 'import-xml' | 'logout' | 'fefo-sync' | null;
@@ -25,17 +29,21 @@ interface PharmacyModalsProps {
   onConfirmXmlImport: () => void;
   /** Hàm xác nhận đăng xuất */
   onConfirmLogout: () => void;
+  /** Khóa xác nhận phát thuốc trong lúc mutation đang chờ, mặc định `false`. */
   isDispensing?: boolean;
+  /** Khóa gửi lý do từ chối trong lúc mutation đang chờ, mặc định `false`. */
   isRejecting?: boolean;
+  /** Lỗi field hoặc lỗi server của lần từ chối gần nhất, nếu có. */
   rejectServerError?: string;
+  /** Xóa lỗi server khi người dùng sửa lại lý do từ chối. */
   onClearRejectServerError?: () => void;
 }
 
 /**
- * Kiem tra ly do tu choi don thuoc truoc khi gui ve bac si.
+ * Kiểm tra lý do từ chối đơn thuốc trước khi gửi về bác sĩ.
  *
- * @param reason Noi dung ly do duoc duoc si nhap trong modal
- * @returns Thong bao loi neu khong hop le, nguoc lai tra ve null
+ * @param reason Nội dung lý do do Dược sĩ nhập trong modal.
+ * @returns Thông báo lỗi nếu không hợp lệ, ngược lại trả về `null`.
  */
 export function validateRejectReason(reason: string): string | null {
   if (reason.trim().length < 10) {
@@ -61,6 +69,10 @@ export function validateRejectReason(reason: string): string | null {
  * @param onConfirmXmlImport Callback nhập dữ liệu XML phiếu nhập kho
  * @param onConfirmLogout Callback thực hiện đăng xuất hệ thống
  * @returns Component React hiển thị hộp thoại Modal phù hợp
+ * @remarks Nhấp overlay hoặc nút hủy/đóng gọi `onCloseModal` và không xác nhận nghiệp vụ. Nút
+ * xác nhận chỉ ủy quyền side effect cho callback cha; trạng thái pending khóa thao tác phát/từ
+ * chối. Modal từ chối tự kiểm tra 10–500 ký tự, hiển thị lỗi cục bộ hoặc lỗi server và xóa lý do
+ * cục bộ sau khi gửi callback. UI gate này không thay thế authorization ở backend.
  */
 export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
   activeModal,
@@ -77,6 +89,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
 }) => {
   const [rejectReason, setRejectReason] = useState<string>('');
   const [rejectError, setRejectError] = useState<string>('');
+  // Guard UI phản ánh snapshot trạng thái/hóa đơn/tồn FEFO; backend vẫn là nguồn quyết định cuối cùng.
   const isDispenseAllowed = Boolean(
     prescription?.status === 'pending' &&
     prescription.invoiceStatus === 'paid' &&
@@ -85,6 +98,11 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
 
   if (!activeModal) return null;
 
+  /**
+   * Xử lý sự kiện gửi lý do từ chối: validate cục bộ trước, sau đó giao mutation cho workspace cha.
+   * Lỗi validation giữ modal mở; callback server được gọi khi hợp lệ và state lý do được xóa sau
+   * khi đã bàn giao, còn lỗi server do props `rejectServerError` hiển thị từ lần mutation đó.
+   */
   const handleRejectSubmit = () => {
     const validationError = validateRejectReason(rejectReason);
     if (validationError) {
@@ -99,7 +117,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
 
   return (
     <>
-      {/* Modal 1: Confirm Dispense */}
+      {/* Modal xác nhận phát thuốc và trừ kho FEFO. */}
       {activeModal === 'dispense' && prescription && (
         <div className={styles.modalOverlay} onClick={onCloseModal}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -208,7 +226,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
         </div>
       )}
 
-      {/* Modal 2: Reject Prescription */}
+      {/* Modal từ chối đơn và gửi lý do chuyên môn cho bác sĩ. */}
       {activeModal === 'reject' && prescription && (
         <div className={styles.modalOverlay} onClick={onCloseModal}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
@@ -275,7 +293,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
         </div>
       )}
 
-      {/* Modal 3: Import XML Stock Receipt */}
+      {/* Modal nhập dữ liệu phiếu nhập từ XML. */}
       {activeModal === 'import-xml' && (
         <div className={styles.modalOverlay} onClick={onCloseModal}>
           <div className={`${styles.modal} max-w-[620px]`} onClick={(e) => e.stopPropagation()}>
@@ -297,7 +315,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
             </div>
 
             <div className={styles.modalBody}>
-              {/* File Dropzone */}
+              {/* Vùng tiếp nhận tệp XML theo giao diện hiện tại. */}
               <div className="mb-4 border-2 border-dashed border-[#bfc7d2] rounded-2xl p-6 text-center bg-[#f0f4f8] cursor-pointer hover:border-[#006096] transition-colors">
                 <svg className="w-10 h-10 text-[#006096] mx-auto mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -310,7 +328,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
                 <div className="text-[12px] text-[#3f4851]">Chấp nhận định dạng: .xml (Dung lượng tối đa 10MB)</div>
               </div>
 
-              {/* Sample preview box */}
+              {/* Vùng xem trước cấu trúc XML minh họa, không phải payload bệnh nhân thật. */}
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className={styles.formLabel} style={{ marginBottom: 0 }}>
@@ -370,7 +388,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
         </div>
       )}
 
-      {/* Modal 4: FEFO Sync */}
+      {/* Modal thông báo đồng bộ FEFO chưa có mutation backend. */}
       {activeModal === 'fefo-sync' && (
         <div className={styles.modalOverlay} onClick={onCloseModal}>
           <div className={`${styles.modal} max-w-[480px]`} onClick={(e) => e.stopPropagation()}>
@@ -424,7 +442,7 @@ export const PharmacyModals: React.FC<PharmacyModalsProps> = ({
         </div>
       )}
 
-      {/* Modal 5: Logout */}
+      {/* Modal xác nhận kết thúc phiên làm việc. */}
       {activeModal === 'logout' && (
         <div className={styles.modalOverlay} onClick={onCloseModal}>
           <div className={`${styles.modal} max-w-[360px]`} onClick={(e) => e.stopPropagation()}>

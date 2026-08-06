@@ -1,3 +1,4 @@
+/** Kiểm tra HTTP client quy đổi lỗi backend về ApiError và giữ lỗi validation theo field. */
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 

@@ -21,4 +21,17 @@ module.exports = {
     '@typescript-eslint/no-misused-promises': 'error',
     '@typescript-eslint/consistent-type-imports': 'error',
   },
+  overrides: [
+    {
+      // Express route callbacks được framework gọi theo vòng đời request; các controller
+      // trong repo tự bắt lỗi và chuyển qua next, nên Promise ở vị trí argument là chủ ý.
+      files: ['src/**/*.routes.ts', 'src/**/routes/**/*.ts'],
+      rules: {
+        '@typescript-eslint/no-misused-promises': [
+          'error',
+          { checksVoidReturn: { arguments: false } },
+        ],
+      },
+    },
+  ],
 };

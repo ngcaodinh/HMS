@@ -1,6 +1,13 @@
+/** Khóa xác định bảng nhập/hiển thị kết quả tương ứng với loại xét nghiệm. */
 export type ResultTableKey = 'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
+
+/**
+ * Trạng thái server của phiếu xét nghiệm: chờ mẫu, đang xử lý hoặc đã có kết quả đã ký.
+ * UI không tự suy diễn trạng thái ngoài các giá trị API này.
+ */
 export type LabTestStatus = 'ordered' | 'in_progress' | 'resulted';
 
+/** Thông tin bệnh nhân tối thiểu dùng trong worklist; ngày sinh là chuỗi ngày do API cung cấp. */
 interface PatientSummary {
   patientId: string;
   patientCode: string;
@@ -9,6 +16,10 @@ interface PatientSummary {
   gender: 'male' | 'female';
 }
 
+/**
+ * Một dòng worklist xét nghiệm, gồm trạng thái mẫu, mức cấp cứu và thông tin định tuyến.
+ * `createdAt` là thời điểm ISO từ API; `specimenType` có thể trống khi chưa nhận mẫu.
+ */
 export interface LabTestQueueItem {
   labTestId: string;
   recordId: string;
@@ -25,6 +36,7 @@ export interface LabTestQueueItem {
   orderingDoctor: { fullName: string };
 }
 
+/** Kết quả công thức máu; giá trị giữ dạng chuỗi để bảo toàn định dạng API và đơn vị lấy từ khoảng tham chiếu. */
 export interface CbcResult {
   mayXetNghiem?: string | null;
   mauBenhPham?: string | null;
@@ -48,9 +60,16 @@ export interface CbcResult {
   ghiChuChiSo?: string | null;
 }
 
+/** Mức bán định lượng dùng cho các chỉ số có kết quả âm tính, vết hoặc 1+ đến 4+. */
 export type SemiQuant = 'am_tinh' | 'vet' | 'cong' | 'v_2_cong' | 'v_3_cong' | 'v_4_cong';
+
+/** Kết quả nhị phân theo quy ước xét nghiệm, không phải cờ bất thường của khoảng số. */
 export type AmTinhDuongTinh = 'am_tinh' | 'duong_tinh';
 
+/**
+ * Kết quả tổng phân tích nước tiểu; trường định lượng là chuỗi và trường định tính dùng enum API.
+ * Đơn vị, ngưỡng và cờ bình thường được lấy từ `ReferenceRange` khi hiển thị.
+ */
 export interface UrinalysisResult {
   mayXetNghiem?: string | null;
   phuongPhap?: string | null;
@@ -103,6 +122,7 @@ export interface UrinalysisResult {
   dcdGhiChu?: string | null;
 }
 
+/** Kết quả kháng sinh đồ: `S` nhạy, `I` trung gian, `R` kháng. */
 export type SirResult = 'S' | 'I' | 'R';
 
 /** 30 kháng sinh cố định theo hợp đồng API — khớp đúng `ANTIBIOGRAM_FIELDS` phía backend. */
@@ -115,6 +135,7 @@ export const ANTIBIOGRAM_FIELDS = [
   'ksdTobramycine', 'ksdAmikacine', 'ksdNetromycine', 'ksdCoTrimoxazol', 'ksdNitroxoline',
 ] as const;
 
+/** Nhãn hiển thị tiếng Việt/chuẩn chuyên môn tương ứng với từng khóa kháng sinh đồ. */
 export const ANTIBIOGRAM_LABELS: Record<(typeof ANTIBIOGRAM_FIELDS)[number], string> = {
   ksdPenicilline: 'Penicilline',
   ksdAmpicilline: 'Ampicilline',
@@ -148,6 +169,7 @@ export const ANTIBIOGRAM_LABELS: Record<(typeof ANTIBIOGRAM_FIELDS)[number], str
   ksdNitroxoline: 'Nitroxoline',
 };
 
+/** Kết quả vi sinh, gồm mô tả nuôi cấy và kháng sinh đồ theo bộ khóa cố định của API. */
 export type MicrobiologyResult = {
   viTriLayMau?: string | null;
   phuongPhapSoi?: string | null;
@@ -168,6 +190,10 @@ export type MicrobiologyResult = {
   ksdKhacKqC?: SirResult | null;
 } & Partial<Record<(typeof ANTIBIOGRAM_FIELDS)[number], SirResult | null>>;
 
+/**
+ * Kết quả giải phẫu bệnh; `trangThai` là trạng thái nội dung GPB, độc lập với `LabTestStatus`.
+ * Các trường ngày là chuỗi do API cung cấp và không được xem là thời điểm cục bộ tùy ý.
+ */
 export interface PathologyResult {
   phuongPhapSinhThiet?: 'punch' | 'shave' | 'excision' | 'incision' | 'khac' | null;
   viTriSinhThiet?: string | null;
@@ -195,6 +221,7 @@ export interface PathologyResult {
   ngayTraKetQua?: string | null;
 }
 
+/** Kết quả hóa sinh; giá trị định lượng giữ dạng chuỗi, còn đơn vị và ngưỡng nằm ở cấu hình tham chiếu. */
 export interface BioChemistryResult {
   mayXetNghiem?: string | null;
   mauBenhPham?: string | null;
@@ -239,6 +266,7 @@ export interface BioChemistryResult {
   ghiChuChiSo?: string | null;
 }
 
+/** Union kết quả theo `resultTableKey`; `null` biểu thị chưa có dữ liệu kết quả. */
 export type StructuredResult =
   | CbcResult
   | UrinalysisResult
@@ -247,6 +275,10 @@ export type StructuredResult =
   | BioChemistryResult
   | null;
 
+/**
+ * Khoảng tham chiếu dùng để hiển thị đơn vị, ngưỡng mở và điều kiện giới tính.
+ * `lowerBound`/`upperBound` là chuỗi số thập phân; thiếu một đầu nghĩa là ngưỡng một phía.
+ */
 export interface ReferenceRange {
   fieldKey: string;
   code: string;
@@ -257,6 +289,10 @@ export interface ReferenceRange {
   condition: 'all' | 'male' | 'female';
 }
 
+/**
+ * Metadata của tệp gắn với phiếu xét nghiệm; API không đưa MIME/kích thước vào type này.
+ * Tải tệp phải đi qua endpoint đã xác thực, không coi `attachmentId` là URL công khai.
+ */
 export interface LabTestAttachment {
   attachmentId: string;
   fileType: 'pdf' | 'png' | 'jpeg' | 'xml';
@@ -264,6 +300,10 @@ export interface LabTestAttachment {
   uploadedAt: string;
 }
 
+/**
+ * Chi tiết phiếu xét nghiệm dùng cho nhập kết quả và lịch sử.
+ * `resulted` là kết quả đã hoàn tất/ký; `structuredResult` và tệp có thể rỗng theo trạng thái.
+ */
 export interface LabTestDetail {
   labTestId: string;
   recordId: string;
@@ -288,6 +328,7 @@ export interface LabTestDetail {
   attachments: LabTestAttachment[];
 }
 
+/** Danh mục loại xét nghiệm; `resultUnit` là đơn vị kết quả, còn `price` được API chuyển thành chuỗi. */
 export interface LabTestType {
   labTestTypeId: string;
   code: string;
@@ -302,6 +343,7 @@ export interface LabTestType {
   isActive: boolean;
 }
 
+/** Một dòng cấu hình khoảng tham chiếu, đã được API gắn tên loại xét nghiệm để hiển thị. */
 export interface ReferenceRangeRow {
   referenceRangeId: string;
   labTestTypeId: string;
@@ -316,6 +358,7 @@ export interface ReferenceRangeRow {
   condition: 'all' | 'male' | 'female';
 }
 
+/** Số liệu hoạt động; `averageTatMinutes` tính theo phút và `hour` nằm trong 0–23 giờ. */
 export interface LabActivityStats {
   totalReceived: number;
   totalCompleted: number;

@@ -1,6 +1,6 @@
 import pino from 'pino';
 
-import { config } from '../../config/unifiedConfig';
+import { config } from '../../config/unified-config';
 
 export const logger = pino({
   level: config.app.env === 'production' ? 'info' : 'debug',

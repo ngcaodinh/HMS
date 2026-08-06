@@ -1,5 +1,7 @@
 /**
- * Kết thúc phiên BFF và chuyển người dùng về màn đăng nhập.
+ * Gọi `POST /api/auth/logout` để BFF kết thúc phiên rồi chuyển người dùng về `/login`.
+ * @remarks Điều hướng nằm trong `finally`, nên request lỗi vẫn dẫn người dùng về màn đăng nhập;
+ * hàm không retry và không hiển thị lỗi riêng.
  */
 export const performLogout = async () => {
   try {

@@ -1,3 +1,4 @@
+/** Bảo vệ điều hướng theo role; route public và quyền backend là hai lớp kiểm soát riêng. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

@@ -1,5 +1,5 @@
 import type { LabTestDetail, LabTestQueueItem, ResultTableKey } from '../types/lab-test.types';
-import { calculateAge } from './shared';
+import { calculateAge } from './SharedComponents';
 import { LAB_PRINT_STYLES, LAB_PRINT_TEMPLATES } from './lab-print-templates';
 import type { StructuredResultEntry } from './format-structured-result';
 
@@ -64,10 +64,14 @@ function formatPrintValue(value: PrintValue): string {
 export function renderLabPrintTemplate(template: string, data: PrintData): string {
   const withSelectValues = template.replace(
     /<select\b([^>]*\bdata-xn="([^"]+)"[^>]*)>[\s\S]*?<\/select>/gi,
-    (_match, attributes: string, key: string) => {
+    (match, attributes: string, key: string) => {
+      void match;
       const classAttributes = attributes.replace(
         /class="([^"]*)"/i,
-        (_classMatch: string, classes: string) => `class="${classes} print-value"`,
+        (classMatch: string, classes: string) => {
+          void classMatch;
+          return `class="${classes} print-value"`;
+        },
       );
       const value = hasValue(data, key) ? formatPrintValue(data[key]) : '';
       return `<span${classAttributes}>${escapePrintHtml(value)}</span>`;
@@ -76,14 +80,17 @@ export function renderLabPrintTemplate(template: string, data: PrintData): strin
 
   return withSelectValues.replace(
     /<([a-z][a-z0-9-]*)([^>]*\bdata-xn="([^"]+)"[^>]*)>([\s\S]*?)<\/\1>/gi,
-    (_match, tagName: string, attributes: string, key: string, originalContent: string) => {
-      if (!hasValue(data, key)) return _match;
+    (match, tagName: string, attributes: string, key: string, originalContent: string) => {
+      if (!hasValue(data, key)) return match;
 
       if (/\bchk-box\b/i.test(attributes)) {
         const updatedAttributes = data[key]
           ? attributes.replace(
               /class="([^"]*)"/i,
-              (_classMatch: string, classes: string) => `class="${classes} checked"`,
+              (classMatch: string, classes: string) => {
+                void classMatch;
+                return `class="${classes} checked"`;
+              },
             )
           : attributes;
         return `<${tagName}${updatedAttributes}>${originalContent}</${tagName}>`;
@@ -159,8 +166,9 @@ export function createLabOrderPrintHtml(item: LabTestQueueItem): string {
  */
 export function createLabResultPrintHtml(
   detail: LabTestDetail,
-  _entries: StructuredResultEntry[],
+  entries: StructuredResultEntry[],
 ): string {
+  void entries;
   return documentShell(
     'Phiếu kết quả xét nghiệm',
     renderLabPrintTemplate(getTemplate(detail.resultTableKey), createResultPrintData(detail)),

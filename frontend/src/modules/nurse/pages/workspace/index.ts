@@ -1,1 +1,1 @@
-export { NurseWorkspacePage } from './nurse-workspace';
+export { NurseWorkspacePage } from './NurseWorkspacePage';

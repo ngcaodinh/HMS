@@ -1,8 +1,8 @@
 import type { QueueTicket, QueueTicketStatus } from '@prisma/client';
 
-import { AppError } from '../../../core/errors/appError';
-import { auditPort } from '../../../core/ports/auditPort';
-import { realtimePort } from '../../../core/ports/realtimePort';
+import { AppError } from '../../../core/errors/app-error';
+import { auditPort } from '../../../core/ports/audit-port';
+import { realtimePort } from '../../../core/ports/realtime-port';
 import {
   formatDateOnly,
   formatVietnamDbDateTime,
@@ -11,8 +11,8 @@ import {
   getVietnamNowIso,
   parseLegalDateString,
   toVietnamDbDateTime,
-} from '../../../core/time/vietnamClock';
-import { QUEUE_RECEIPT, QUEUE_SOURCE } from '../constants/queue.constants';
+} from '../../../core/time/vietnam-clock';
+import { QUEUE_RECEIPT } from '../constants/queue.constants';
 import { queueRepository } from '../repositories/queue.repository';
 import type {
   IssuedTicketDto,
@@ -21,7 +21,7 @@ import type {
   ReprintTicketDto,
 } from '../types/queue.types';
 
-/** Sprint 1 non-durable idempotency (G9). */
+/** Idempotency trong memory của Sprint 1, chưa bền vững qua restart (G9). */
 const issueIdempotencyCache = new Map<string, IssuedTicketDto>();
 
 /**
@@ -92,10 +92,7 @@ export class QueueService {
   /**
    * Kiosk / desk cấp số waiting (atomic, idempotent in-process).
    */
-  async issueTicket(params: {
-    idempotencyKey: string;
-    source?: string;
-  }): Promise<IssuedTicketDto> {
+  async issueTicket(params: { idempotencyKey: string }): Promise<IssuedTicketDto> {
     const cached = issueIdempotencyCache.get(params.idempotencyKey);
     if (cached) {
       return cached;
@@ -103,10 +100,7 @@ export class QueueService {
 
     try {
       const date = getVietnamLegalDate();
-      const ticket = await queueRepository.createTicketWithAllocatedNumber(
-        date,
-        params.source ?? QUEUE_SOURCE.KIOSK,
-      );
+      const ticket = await queueRepository.createTicketWithAllocatedNumber(date);
       const dto = toIssuedDto(ticket);
       issueIdempotencyCache.set(params.idempotencyKey, dto);
 
@@ -335,22 +329,14 @@ export class QueueService {
   /**
    * skipped → called (gọi lại từ danh sách bỏ qua).
    */
-  async recallTicket(
-    ticketId: string,
-    reason: string,
-    userId?: string,
-  ): Promise<QueueTicketDto> {
+  async recallTicket(ticketId: string, reason: string, userId?: string): Promise<QueueTicketDto> {
     const ticket = await queueRepository.findById(ticketId);
     if (!ticket) {
       throw new AppError(404, 'QUEUE_TICKET_NOT_FOUND', 'Không tìm thấy số thứ tự');
     }
 
     if (ticket.status !== 'skipped') {
-      throw new AppError(
-        409,
-        'INVALID_QUEUE_TRANSITION',
-        'Chỉ được gọi lại số đã bỏ qua',
-      );
+      throw new AppError(409, 'INVALID_QUEUE_TRANSITION', 'Chỉ được gọi lại số đã bỏ qua');
     }
 
     const calledAt = toVietnamDbDateTime();
@@ -375,10 +361,7 @@ export class QueueService {
    * Bốc số tại quầy (source reception_desk) — vẫn waiting để call-next / list.
    */
   async issueDeskTicket(idempotencyKey: string): Promise<IssuedTicketDto> {
-    return this.issueTicket({
-      idempotencyKey,
-      source: QUEUE_SOURCE.RECEPTION_DESK,
-    });
+    return this.issueTicket({ idempotencyKey });
   }
 }
 

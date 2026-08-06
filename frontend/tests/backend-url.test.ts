@@ -1,3 +1,4 @@
+/** Bảo đảm cấu hình backend chỉ là origin và không tạo tiền tố API bị lặp khi migrate. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

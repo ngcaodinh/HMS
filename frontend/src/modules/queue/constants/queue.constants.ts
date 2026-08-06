@@ -1,3 +1,4 @@
+/** Tên event Socket.IO của hàng đợi; payload và quyền xử lý vẫn do backend quyết định. */
 export const SOCKET_QUEUE_ISSUE = 'queue.ticket.issue';
 export const SOCKET_QUEUE_ISSUE_RESULT = 'queue.ticket.issue.result';
 export const SOCKET_QUEUE_ISSUE_ERROR = 'queue.ticket.issue.error';

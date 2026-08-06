@@ -7,7 +7,6 @@ import type {
   DirectorLabAnalyticsResponse,
   DirectorOverviewResponse,
   DirectorPharmacyInventoryResponse,
-  DirectorProgressRow,
   DirectorSummaryCard,
 } from './director-dashboard.types';
 import {
@@ -88,7 +87,9 @@ function buildDateRange(query: DirectorDashboardQuery): DirectorDateRange {
 
   if (query.period === 'month') {
     const start = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth(), 1));
-    const end = new Date(Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + 1, 1));
+    const end = new Date(
+      Date.UTC(selectedDate.getUTCFullYear(), selectedDate.getUTCMonth() + 1, 1),
+    );
     return { date: query.date, end, period: query.period, start };
   }
 
@@ -100,7 +101,10 @@ function buildDateRange(query: DirectorDashboardQuery): DirectorDateRange {
   };
 }
 
-const emptyCard = (label: string, tone: DirectorSummaryCard['tone'] = 'slate'): DirectorSummaryCard => ({
+const emptyCard = (
+  label: string,
+  tone: DirectorSummaryCard['tone'] = 'slate',
+): DirectorSummaryCard => ({
   label,
   tone,
   value: '0',
@@ -109,7 +113,9 @@ const emptyCard = (label: string, tone: DirectorSummaryCard['tone'] = 'slate'): 
 /**
  * Lấy tổng quan điều hành read-only cho Giám đốc, không có drill-down bệnh nhân.
  */
-export async function getDirectorOverview(query: DirectorDashboardQuery): Promise<DirectorOverviewResponse> {
+export async function getDirectorOverview(
+  query: DirectorDashboardQuery,
+): Promise<DirectorOverviewResponse> {
   const range = buildDateRange(query);
   const stats = await getDirectorOverviewStats(range);
   const departmentMap = new Map<
@@ -194,16 +200,18 @@ export async function getDirectorLabAnalytics(
 ): Promise<DirectorLabAnalyticsResponse> {
   const range = buildDateRange(query);
   const stats = await getDirectorLabStats(range);
-  const abnormalRows = bioChemistryIndicators.map((indicator) => {
-    const abnormalCount = stats.bioChemistryRows.filter((row) => {
-      const value = toNumber(row[indicator.field]);
-      return value > 0 && (value < indicator.min || value > indicator.max);
-    }).length;
-    return {
-      label: indicator.label,
-      value: percentage(abnormalCount, stats.bioChemistryRows.length),
-    };
-  }).filter((row) => row.value > 0);
+  const abnormalRows = bioChemistryIndicators
+    .map((indicator) => {
+      const abnormalCount = stats.bioChemistryRows.filter((row) => {
+        const value = toNumber(row[indicator.field]);
+        return value > 0 && (value < indicator.min || value > indicator.max);
+      }).length;
+      return {
+        label: indicator.label,
+        value: percentage(abnormalCount, stats.bioChemistryRows.length),
+      };
+    })
+    .filter((row) => row.value > 0);
 
   const amrRows = stats.microbiologyRows.map((row) => ({
     organism: row.chungVkKsd || 'Không xác định',
@@ -276,7 +284,10 @@ export async function getDirectorBedPerformance(
   const occupiedBeds = stats.beds.filter((bed) => bed.status === 'occupied').length;
   const availableBeds = stats.beds.filter((bed) => bed.status === 'available').length;
   const maintenanceBeds = stats.beds.filter((bed) => bed.status === 'maintenance').length;
-  const byDepartment = new Map<string, { available: number; maintenance: number; occupied: number; total: number }>();
+  const byDepartment = new Map<
+    string,
+    { available: number; maintenance: number; occupied: number; total: number }
+  >();
 
   for (const bed of stats.beds) {
     const departmentName = bed.room.department?.name ?? bed.room.name ?? 'Chưa phân khoa';
@@ -313,7 +324,11 @@ export async function getDirectorBedPerformance(
       { label: 'Công suất chung', tone: 'teal', value: `${percentage(occupiedBeds, totalBeds)}%` },
       { label: 'Giường sử dụng', tone: 'blue', value: `${occupiedBeds} / ${totalBeds}` },
       { label: 'Giường trống', tone: 'green', value: String(availableBeds) },
-      { label: 'Bảo trì', tone: maintenanceBeds > 0 ? 'amber' : 'slate', value: String(maintenanceBeds) },
+      {
+        label: 'Bảo trì',
+        tone: maintenanceBeds > 0 ? 'amber' : 'slate',
+        value: String(maintenanceBeds),
+      },
     ],
   };
 }
@@ -345,7 +360,11 @@ export async function getDirectorPharmacyInventory(
       };
     }),
     summaryCards: [
-      { label: 'Cảnh báo tồn kho', tone: alertCount > 0 ? 'red' : 'green', value: String(alertCount) },
+      {
+        label: 'Cảnh báo tồn kho',
+        tone: alertCount > 0 ? 'red' : 'green',
+        value: String(alertCount),
+      },
       { label: 'Sắp hết hạn', tone: 'amber', value: String(stats.expiringSoonBatches) },
       { label: 'Mã thuốc theo dõi', tone: 'blue', value: String(stats.activeMedicines) },
       { label: 'Tổng tồn khả dụng', tone: 'teal', value: String(stats.totalQuantity) },
@@ -376,8 +395,16 @@ export async function getDirectorAuditSummary(
     })),
     summaryCards: [
       { label: 'Sự kiện hệ thống', tone: 'blue', value: String(stats.total) },
-      { label: 'Bypass cần chuẩn hóa', tone: stats.bypassCount > 0 ? 'amber' : 'green', value: String(stats.bypassCount) },
-      { label: 'Lỗi đăng nhập', tone: stats.loginFailures > 0 ? 'red' : 'green', value: String(stats.loginFailures) },
+      {
+        label: 'Bypass cần chuẩn hóa',
+        tone: stats.bypassCount > 0 ? 'amber' : 'green',
+        value: String(stats.bypassCount),
+      },
+      {
+        label: 'Lỗi đăng nhập',
+        tone: stats.loginFailures > 0 ? 'red' : 'green',
+        value: String(stats.loginFailures),
+      },
       emptyCard('Log chi tiết bị ẩn'),
     ],
   };

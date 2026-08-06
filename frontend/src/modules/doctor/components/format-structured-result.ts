@@ -83,6 +83,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 const SKIP_FIELDS = new Set(['id', 'labTestId', 'createdAt', 'updatedAt']);
 
+/** Một dòng kết quả đã chuẩn hóa để hiển thị trong hồ sơ bác sĩ. */
 export interface StructuredResultEntry {
   label: string;
   value: string;
@@ -96,6 +97,15 @@ function isNumeric(value: unknown): value is string | number {
   return (typeof value === 'string' || typeof value === 'number') && String(value).trim() !== '' && !Number.isNaN(Number(value));
 }
 
+/**
+ * Chuẩn hóa result xét nghiệm và chọn khoảng tham chiếu theo giới tính.
+ *
+ * @param structuredResult Snapshot kết quả; metadata kỹ thuật không được hiển thị như chỉ số.
+ * @param referenceRanges Khoảng tham chiếu theo field, ưu tiên giới tính rồi fallback `all`.
+ * @param patientGender Giới tính dùng chọn khoảng tham chiếu, có thể thiếu.
+ * @returns Danh sách dòng gồm nhãn, giá trị, đơn vị, khoảng và cờ bất thường.
+ * @remarks Hàm chỉ map dữ liệu để trình bày, không thay thế kết luận hoặc quyền ký của backend.
+ */
 export function formatStructuredResultEntries(
   structuredResult: Record<string, unknown> | null,
   referenceRanges: ReferenceRange[] = [],

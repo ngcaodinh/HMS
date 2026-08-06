@@ -1,1 +1,1 @@
-export { LabWorkspacePage } from './lab-workspace';
+export { LabWorkspacePage } from './LabWorkspacePage';

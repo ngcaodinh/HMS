@@ -1,3 +1,4 @@
+/** Kiểm tra adapter lane 6 giữ worklist/thống kê sau khi bóc envelope và loại DTO lỗi. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

@@ -7,8 +7,10 @@ import {
 
 /**
  * @route   POST /api/staff-users/:userId/password-resets
- * @desc    Reset mật khẩu nhân viên và trả secret tạm thời qua envelope không cache.
+ * @desc    Yêu cầu backend reset mật khẩu và chuyển credential tạm thời qua envelope không cache.
  * @access  staff.password.reset cùng origin
+ * @remarks Body và response/error envelope được giữ qua `passthroughJson`; backend xác thực
+ * permission, còn route chỉ thêm same-origin guard cho mutation.
  */
 export async function POST(request: Request, { params }: { params: { userId: string } }) {
   if (!assertSameOrigin()) return forbiddenOrigin();

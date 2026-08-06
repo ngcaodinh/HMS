@@ -1,6 +1,6 @@
 import Image from 'next/image';
 
-import { LoginForm } from '@/modules/auth/components/login-form';
+import { LoginForm } from '@/modules/auth/components/LoginForm';
 
 type LoginPageProps = {
   searchParams?: {
@@ -8,6 +8,7 @@ type LoginPageProps = {
   };
 };
 
+/** Số liệu giới thiệu tĩnh của màn hình đăng nhập, không phải KPI lấy từ hệ thống vận hành. */
 const stats = [
   {
     label: 'BỆNH NHÂN / THÁNG',
@@ -26,6 +27,18 @@ const stats = [
   },
 ];
 
+/**
+ * Hiển thị cổng đăng nhập dành cho nhân viên và chuyển thông tin lý do điều hướng cho form.
+ *
+ * @param props - Query tùy chọn từ route trước đó.
+ * @param props.searchParams - `reason=session_expired` cho phép form báo phiên đã hết hạn; giá trị
+ * khác không làm thay đổi workflow.
+ * @returns Layout giới thiệu hệ thống và `LoginForm` với các trạng thái nhập, lỗi và điều hướng.
+ * @remarks
+ * Đây là route public, không yêu cầu JWT để render. Page không tự fetch dữ liệu hay tạo session;
+ * BFF/backend xử lý authentication, session và quyền.
+ * Loading, error, success, retry-after và redirect của luồng đăng nhập do `LoginForm` sở hữu.
+ */
 export default function LoginPage({ searchParams }: LoginPageProps) {
   return (
     <main className="min-h-screen bg-[#f6fafe] font-sans text-[#171c1f] lg:flex">

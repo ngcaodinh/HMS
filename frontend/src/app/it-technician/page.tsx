@@ -9,8 +9,13 @@ export const metadata = {
 };
 
 /**
- * Server-side guard cho /it-technician để không render workspace khi thiếu role.
- * Đọc principal qua BFF cookie, redirect về login khi hết phiên và trả UI 403 khi thiếu quyền.
+ * Guard phía server cho `/it-technician` trước khi render workspace quản lý nhân viên.
+ *
+ * @returns Redirect về login khi hết phiên; UI 403 khi thiếu role; hoặc workspace quản lý staff
+ * khi principal hợp lệ.
+ * @remarks Dữ liệu principal được đọc từ `GET /auth/me` qua BFF cookie. UI chỉ cho phép role
+ * `it_tech`/`admin` mở route; permission chi tiết và audit của từng API action vẫn do backend
+ * quyết định.
  */
 export default async function ItTechnicianPage() {
   const response = await backendFetch('/auth/me');

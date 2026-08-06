@@ -1,9 +1,10 @@
+/** Đại diện cho một lỗi theo field trong envelope `{ error: { code, message, details } }`. */
 export interface ApiErrorDetail {
   field: string;
   rule: string;
 }
 
-/** Mirrors the `error` object of the backend's `{ error: { code, message, details } }` envelope. */
+/** Lỗi HTTP giữ lại mã nghiệp vụ, status và chi tiết để layer gọi xử lý theo contract. */
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;

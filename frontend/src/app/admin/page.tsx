@@ -9,9 +9,11 @@ export const metadata = {
 };
 
 /**
- * Guard phía server cho /admin để không render workspace khi thiếu role.
- * Đọc principal qua BFF cookie (backendFetch('/auth/me')), redirect về login khi hết phiên
- * và trả UI 403 khi tài khoản không có role admin.
+ * Guard phía server cho `/admin` trước khi render workspace quản trị.
+ *
+ * @returns Redirect về login khi phiên hết hạn, UI 403 khi thiếu role hoặc workspace khi hợp lệ.
+ * @remarks Principal được đọc qua BFF cookie bằng `backendFetch('/auth/me')`; dữ liệu này là
+ * nguồn quyết định access của page, còn UI 403 chỉ là phản hồi hiển thị và không thay thế RBAC.
  */
 export default async function AdminPage() {
   const response = await backendFetch('/auth/me');

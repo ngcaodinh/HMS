@@ -1,15 +1,27 @@
 import { redirect } from 'next/navigation';
 
-import { ChangePasswordForm } from '@/modules/auth/components/change-password-form';
+import { ChangePasswordForm } from '@/modules/auth/components/ChangePasswordForm';
 import { backendFetch } from '@/shared/auth/backend';
 import { resolveRoleHomePath } from '@/shared/auth/role-routing';
 
 /**
- * Trang đổi mật khẩu bắt buộc, chỉ hiển thị khi principal có mustChangePassword.
+ * Bảo vệ trang đổi mật khẩu bắt buộc bằng principal lấy từ backend trước khi render form.
+ *
+ * @returns Trang đổi mật khẩu khi session hợp lệ và `mustChangePassword` là true; nếu không, thực
+ * hiện redirect về login hoặc home theo role.
+ * @remarks
+ * - `backendFetch('/auth/me')` đọc trạng thái session ở server; 401 hoặc response lỗi đều quay về
+ *   `/login` để xử lý phiên thiếu hoặc đã hết hạn.
+ * - Principal đã hoàn tất đổi mật khẩu được chuyển tới homePath theo role thay vì xem lại form.
+ * - `ChangePasswordForm` sở hữu loading/error/success của mutation `PUT /api/auth/password`; client
+ *   validation chỉ là UX, backend vẫn là hàng rào cuối cùng.
+ * - UI route này không tự cấp quyền; session, role và điều kiện bắt buộc đổi mật khẩu phải do
+ *   backend xác thực.
  */
 export default async function ChangePasswordPage() {
   const response = await backendFetch('/auth/me');
 
+  // Session thiếu hoặc đã hết hạn, cùng các lỗi backend khác, không được render form nhạy cảm.
   if (response.status === 401) redirect('/login');
   if (!response.ok) redirect('/login');
 
@@ -17,6 +29,7 @@ export default async function ChangePasswordPage() {
   const principal = payload?.data;
   const roleCodes = Array.isArray(principal?.roleCodes) ? principal.roleCodes : [];
 
+  // Chỉ principal còn cờ bắt buộc mới được vào workflow; các role khác quay về home mặc định.
   if (!principal?.mustChangePassword) {
     redirect(resolveRoleHomePath(roleCodes) ?? '/login');
   }

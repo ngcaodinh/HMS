@@ -1,5 +1,6 @@
 import { ApiError, type FieldErrors } from './error';
 
+/** Tùy chọn request cho fetch boundary; body được mã hóa JSON và request luôn không dùng cache. */
 type RequestOptions = {
   body?: unknown;
   headers?: HeadersInit;
@@ -7,12 +8,14 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
+/** Các trường lỗi tùy chọn mà BFF/backend có thể đặt trong envelope lỗi. */
 type ApiErrorDetail = {
   field?: string;
   message?: string;
   rule?: string;
 };
 
+/** Payload lỗi sau khi tách khỏi response JSON; `retryAfterSeconds` dùng đơn vị giây. */
 type ApiErrorBody = {
   code?: string;
   details?: ApiErrorDetail[];
@@ -51,6 +54,7 @@ const normalizeFieldMap = (fields: unknown): FieldErrors | undefined => {
   return Object.keys(normalizedFields).length > 0 ? normalizedFields : undefined;
 };
 
+// Chuyển danh sách detail của backend thành map field để form dùng chung một contract lỗi.
 const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
   if (!Array.isArray(details)) return undefined;
 
@@ -73,6 +77,7 @@ const normalizeDetailFields = (details: unknown): FieldErrors | undefined => {
   return Object.keys(fields).length > 0 ? fields : undefined;
 };
 
+// Giữ tương thích hai dạng lỗi: field map trực tiếp và danh sách detail theo field.
 const normalizeErrorFields = (error: ApiErrorBody | undefined): FieldErrors | undefined => {
   const fields = normalizeFieldMap(error?.fields);
   if (fields) return fields;
@@ -80,6 +85,7 @@ const normalizeErrorFields = (error: ApiErrorBody | undefined): FieldErrors | un
   return normalizeDetailFields(error?.details);
 };
 
+/** Đọc response JSON; response không parse được trở thành ApiError để caller xử lý thống nhất. */
 const parseJsonPayload = (text: string, status: number) => {
   if (!text) return null;
 
@@ -95,7 +101,14 @@ const parseJsonPayload = (text: string, status: number) => {
 };
 
 /**
- * Fetch boundary duy nhất phía client: gửi credential, parse envelope và chuẩn hóa lỗi.
+ * Fetch boundary phía client cho các route same-origin, thường là BFF `/api/*`.
+ * @param path Đường dẫn route frontend; không phải backend origin trực tiếp.
+ * @param options Method, body JSON, header bổ sung và signal hủy request nếu caller cung cấp.
+ * @returns Chỉ phần `data` của success envelope sau khi kiểm tra response.
+ * @throws ApiError cho lỗi mạng, HTTP, JSON không hợp lệ hoặc envelope thiếu `data`; lỗi abort
+ * được giữ nguyên để caller phân biệt hủy request với lỗi hệ thống.
+ * @remarks Request gửi kèm cookie phiên theo chính sách same-origin; boundary không retry và
+ * không tự hiển thị lỗi, còn UI quyết định cách hiển thị hoặc điều hướng.
  */
 export const apiClient = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
   let response: Response;

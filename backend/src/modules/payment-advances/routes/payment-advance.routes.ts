@@ -1,10 +1,14 @@
 import { Router } from 'express';
 
-import { attachDevPrincipal, requirePermission } from '../../../middlewares/requirePermission';
+import { attachDevPrincipal, requirePermission } from '../../../middlewares/require-permission';
 import { PAYMENT_ADVANCE_PERMISSIONS } from '../constants/payment-advance.constants';
 import { paymentAdvanceController } from '../controllers/payment-advance.controller';
 
-/** Router tạm ứng nội trú, mount dưới /api/v1. */
+/**
+ * @route   GET|POST /api/v1/medical-records/:recordId/payment-advances[/*]
+ * @desc    Tạo, hoàn và tra cứu các khoản tạm ứng của hồ sơ nội trú.
+ * @access  Private (requirePermission với quyền đọc/ghi tạm ứng)
+ */
 export const paymentAdvanceRouter = Router();
 
 paymentAdvanceRouter.use(attachDevPrincipal);

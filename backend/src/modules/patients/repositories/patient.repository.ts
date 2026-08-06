@@ -2,7 +2,7 @@ import type { Patient, Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../../../core/prisma/prisma';
-import { parseLegalDateString, toVietnamDbDateTime } from '../../../core/time/vietnamClock';
+import { parseLegalDateString, toVietnamDbDateTime } from '../../../core/time/vietnam-clock';
 
 export type CreatePatientInput = {
   fullName: string;

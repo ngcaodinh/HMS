@@ -12,11 +12,12 @@ import { isActionAllowed } from '../modules/rbac/services/rbac.service';
  * Verifies the bearer JWT, reloads the user's current `isActive`/roles from DB on every
  * request (tokens are never trusted as the source of truth), attaches `req.principal`,
  * then enforces the RBAC policy for `action` (when provided) and audits denials.
- * @param {string} [action] Policy action code declared in `role-policy.ts`. Omit to only
- * require a valid, active session (e.g. `GET /auth/me`).
+ * @param {string} [action] Mã action trong `role-policy.ts`; bỏ trống nếu chỉ cần
+ * kiểm tra phiên đăng nhập còn hiệu lực, ví dụ `GET /auth/me`.
  */
 export function authorizeAndAudit(action?: string) {
-  return async (req: Request, _res: Response, next: NextFunction) => {
+  const handleAuthorization = async (req: Request, response: Response, next: NextFunction) => {
+    void response;
     try {
       const header = req.headers.authorization;
       if (!header?.startsWith('Bearer ')) {
@@ -72,5 +73,10 @@ export function authorizeAndAudit(action?: string) {
     } catch (error) {
       next(error);
     }
+  };
+
+  // Trả middleware đồng bộ để Express không nhận nhầm Promise là kết quả cần xử lý.
+  return (req: Request, res: Response, next: NextFunction): void => {
+    void handleAuthorization(req, res, next);
   };
 }

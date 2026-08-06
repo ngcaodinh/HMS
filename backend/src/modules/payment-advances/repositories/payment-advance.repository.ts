@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../../../core/prisma/prisma';
-import { toVietnamDbDateTime } from '../../../core/time/vietnamClock';
+import { toVietnamDbDateTime } from '../../../core/time/vietnam-clock';
 
 /**
  * Truy cập dữ liệu tạm ứng và giữ các phép tính số dư ở sát transaction database.

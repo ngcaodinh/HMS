@@ -2,7 +2,7 @@ import { Prisma, type QueueTicket, type QueueTicketStatus } from '@prisma/client
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../../../core/prisma/prisma';
-import { toVietnamDbDateTime } from '../../../core/time/vietnamClock';
+import { toVietnamDbDateTime } from '../../../core/time/vietnam-clock';
 
 const MAX_SEQUENCE_ALLOCATION_ATTEMPTS = 2;
 
@@ -14,7 +14,7 @@ export class QueueRepository {
    * Cấp số + tạo ticket trong một transaction.
    * Retry ngắn xử lý race khi nhiều worker cùng tạo sequence đầu ngày.
    */
-  async createTicketWithAllocatedNumber(date: Date, _source: string): Promise<QueueTicket> {
+  async createTicketWithAllocatedNumber(date: Date): Promise<QueueTicket> {
     for (let attempt = 1; attempt <= MAX_SEQUENCE_ALLOCATION_ATTEMPTS; attempt += 1) {
       try {
         return await prisma.$transaction(async (tx) => {
@@ -66,10 +66,7 @@ export class QueueRepository {
   }
 
   private isUniqueConflict(error: unknown): boolean {
-    return (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    );
+    return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
   }
 
   async findById(ticketId: string): Promise<QueueTicket | null> {
@@ -102,10 +99,7 @@ export class QueueRepository {
     return { items, total };
   }
 
-  async updateStatus(
-    ticketId: string,
-    data: Prisma.QueueTicketUpdateInput,
-  ): Promise<QueueTicket> {
+  async updateStatus(ticketId: string, data: Prisma.QueueTicketUpdateInput): Promise<QueueTicket> {
     return prisma.queueTicket.update({
       where: { id: ticketId },
       data,
@@ -115,10 +109,7 @@ export class QueueRepository {
   /**
    * Gọi số waiting nhỏ nhất theo FIFO và tránh race giữa nhiều quầy.
    */
-  async callNextWaiting(
-    date: Date,
-    calledAt: Date,
-  ): Promise<QueueTicket | null | 'race'> {
+  async callNextWaiting(date: Date, calledAt: Date): Promise<QueueTicket | null | 'race'> {
     return prisma.$transaction(async (tx) => {
       const waiting = await tx.queueTicket.findFirst({
         where: { date, status: 'waiting' },

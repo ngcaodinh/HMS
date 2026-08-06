@@ -8,21 +8,21 @@
 
 import React, { useEffect, useState } from 'react';
 
-import { RoleIcon } from '@/shared/components/role-icon';
-import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import { RoleIcon } from '@/shared/components/RoleIcon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/Sidebar';
 import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 
 import type { PharmacyScreen } from '../types/pharmacy.types';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface PharmacySidebarProps {
-  /** Màn hình đang active */
+  /** Màn hình pharmacy đang active; giá trị phải thuộc tập `PharmacyScreen`. */
   activeScreen: PharmacyScreen;
-  /** Tên dược sĩ đăng nhập (tùy chọn) */
+  /** Tên dược sĩ đăng nhập tùy chọn; UI dùng tên mặc định khi prop bị bỏ trống. */
   pharmacistName?: string;
-  /** Hàm callback khi người dùng chọn chuyển màn hình */
+  /** Callback yêu cầu parent chuyển màn hình, không tự thay đổi route hoặc permission. */
   onSelectScreen: (screen: PharmacyScreen) => void;
-  /** Hàm callback mở modal đăng xuất */
+  /** Callback yêu cầu parent mở modal xác nhận đăng xuất. */
   onOpenLogoutModal: () => void;
 }
 
@@ -90,6 +90,9 @@ const NAV_ITEMS: { id: PharmacyScreen; label: string; icon: JSX.Element }[] = [
  * @param onSelectScreen Callback điều hướng màn hình
  * @param onOpenLogoutModal Callback mở hộp thoại xác nhận đăng xuất
  * @returns Component React hiển thị thanh điều hướng bên trái với đồng hồ thời gian thực
+ * @remarks Component không tự tải dữ liệu, không có loading/error/empty state riêng và không thực hiện
+ * logout. Đồng hồ được cập nhật mỗi giây rồi dọn interval khi unmount; UI visibility không thay thế
+ * authorization backend cho các thao tác dược.
  */
 export const PharmacySidebar: React.FC<PharmacySidebarProps> = ({
   activeScreen,
@@ -99,7 +102,8 @@ export const PharmacySidebar: React.FC<PharmacySidebarProps> = ({
 }) => {
   const [timeString, setTimeString] = useState<string>('07:45:32');
 
-  // Đăng ký đồng hồ thời gian thực
+  // Đồng bộ đồng hồ local khi mount và mỗi giây; dependency rỗng vì không phụ thuộc props, cleanup để
+  // tránh interval tiếp tục chạy sau khi sidebar bị unmount.
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();

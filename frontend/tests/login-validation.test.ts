@@ -1,3 +1,4 @@
+/** Kiểm tra validation client chỉ hỗ trợ phản hồi UX và bám giới hạn tên đăng nhập của backend. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

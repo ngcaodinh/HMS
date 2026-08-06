@@ -1,19 +1,28 @@
 import type { ReactNode } from 'react';
 import Image from 'next/image';
 
-import { LogoutButton } from '@/shared/auth/logout-button';
-import { RoleIcon } from '@/shared/components/role-icon';
-import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import { LogoutButton } from '@/shared/auth/LogoutButton';
+import { RoleIcon } from '@/shared/components/RoleIcon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/Sidebar';
 
 import type { WorklistItem } from '../types/medical-record.types';
-import { AssetIcon, calculateAge, cn, genderLabel } from './shared';
+import { AssetIcon, calculateAge, cn, genderLabel } from './SharedComponents';
 import { doctorWorkspaceStyles as styles } from '../pages/workspace/doctor-workspace.styles';
 
 const assetPath = '/doctor-assets';
 
+/**
+ * Dữ liệu trình bày badge của một mục worklist, gồm màu số thứ tự, nhãn và trạng thái nhấp nháy.
+ */
 type QueueBadge = { label: string; numberClass: string; pillClass: string; blink?: boolean };
 
-/** Mirrors GROUP_META badge styling in Tailieu/doctor.html (badge-active/lab/result/done). */
+/**
+ * Chọn badge theo ưu tiên hồ sơ đang khám, trạng thái hồ sơ và kết quả xét nghiệm đã sẵn sàng.
+ *
+ * @param item Mục worklist chứa trạng thái server và cờ kết quả mới.
+ * @param isSelected Cho biết hồ sơ có đang được mở trong workspace hay không.
+ * @returns Nhãn và class trình bày tương ứng với trạng thái của mục worklist.
+ */
 function badgeFor(item: WorklistItem, isSelected: boolean): QueueBadge {
   if (isSelected) {
     return { label: 'Đang khám', numberClass: 'bg-[rgba(96,165,250,0.2)] text-[#93c5fd]', pillClass: 'border-[rgba(96,165,250,0.4)] bg-[rgba(96,165,250,0.2)] text-[#96ccff]' };
@@ -33,6 +42,25 @@ function badgeFor(item: WorklistItem, isSelected: boolean): QueueBadge {
   return { label: 'Chờ khám', numberClass: 'bg-[rgba(251,191,36,0.2)] text-[#fcd34d]', pillClass: 'border-[rgba(251,191,36,0.4)] bg-[rgba(251,191,36,0.2)] text-[#fbbf24]' };
 }
 
+/**
+ * Hiển thị worklist của bác sĩ, bộ lọc cục bộ, thống kê trạng thái và nhóm hồ sơ
+ * theo tiến trình khám.
+ *
+ * @param doctorName Tên hiển thị ở chân sidebar; page truyền fallback `Bác sĩ` khi phiên chưa có
+ * tên.
+ * @param onLogout Callback logout tùy chọn từ workspace; nút hiển thị thực hiện qua `LogoutButton`.
+ * @param onSelectPatient Callback nhận `recordId` khi bác sĩ chọn một hồ sơ.
+ * @param onSearchTermChange Callback cập nhật từ khóa tìm kiếm ở local state của page.
+ * @param searchTerm Từ khóa hiện tại, dùng lọc theo họ tên bệnh nhân ở client.
+ * @param selectedRecordId ID hồ sơ đang mở để đánh dấu nhóm Đang khám.
+ * @param worklist Worklist server; mảng rỗng biểu thị trạng thái không có bệnh nhân hoặc đang chờ
+ * tải.
+ * @returns Sidebar với trạng thái loading do page điều phối, nhóm rỗng và các mục worklist thành
+ * công.
+ *
+ * @remarks Sidebar chỉ kiểm soát khả năng hiển thị/chọn hồ sơ ở UI; authorization vẫn do
+ * backend/API.
+ */
 export function Sidebar({
   doctorName,
   onLogout,
@@ -55,6 +83,8 @@ export function Sidebar({
   );
   const notSelected = filtered.filter((item) => item.recordId !== selectedRecordId);
 
+  // Tách hồ sơ đang chọn khỏi các nhóm còn lại để không lặp record và luôn giữ ngữ cảnh
+  // đang khám ở đầu.
   const groups: Array<{ title: string; items: WorklistItem[] }> = [
     { title: 'Đang khám', items: filtered.filter((item) => item.recordId === selectedRecordId) },
     { title: 'Chờ khám', items: notSelected.filter((item) => item.status === 'open') },
@@ -68,6 +98,7 @@ export function Sidebar({
 
   const doneCount = worklist.filter((item) => item.status === 'closed').length;
   const waitingCount = worklist.filter((item) => item.status === 'open' || item.status === 'waiting_results').length;
+  // Thống kê lấy từ toàn bộ worklist server, không bị ảnh hưởng bởi từ khóa lọc đang nhập.
   const stats: Array<[string, string, string]> = [
     [String(doneCount), 'Đã khám', 'text-[#6ee7b7]'],
     [String(waitingCount), 'Đang chờ', 'text-[#fbbf24]'],
@@ -146,6 +177,7 @@ export function Sidebar({
   );
 }
 
+/** Gom các mục worklist thành một nhóm có tiêu đề trong sidebar. */
 function QueueSection({ children, title }: { children: ReactNode; title: string }) {
   return (
     <div>
@@ -155,6 +187,7 @@ function QueueSection({ children, title }: { children: ReactNode; title: string 
   );
 }
 
+/** Hiển thị một hồ sơ trong worklist cùng số thứ tự, thông tin tóm tắt và badge trạng thái. */
 function QueueItem({
   isSelected = false,
   item,

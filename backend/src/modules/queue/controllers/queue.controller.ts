@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { AppError } from '../../../core/errors/appError';
+import { AppError } from '../../../core/errors/app-error';
 import { sendSuccess } from '../../../core/http/response';
 import {
   callNextBodySchema,

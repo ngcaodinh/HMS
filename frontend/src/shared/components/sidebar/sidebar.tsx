@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import { Fragment, type ReactNode } from 'react';
 
-import { SidebarNavItem } from './sidebar-nav-item';
+import { SidebarNavItem } from './SidebarNavItem';
 import { sidebarStyles as styles } from './sidebar.styles';
 import type { SidebarNavSectionConfig, SidebarTone } from './sidebar.types';
 

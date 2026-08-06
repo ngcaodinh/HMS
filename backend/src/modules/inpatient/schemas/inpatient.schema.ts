@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+/** Schema biên giới cho các thao tác giường bệnh, y lệnh, xuất viện và cấp cứu nội trú. */
+
 export const assignBedSchema = z.object({
   bedId: z.string().min(1, 'Mã giường không được để trống'),
   expectedRecordVersion: z.number().int('Version phải là số nguyên'),

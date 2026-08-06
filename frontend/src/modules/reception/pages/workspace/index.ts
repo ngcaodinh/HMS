@@ -1,1 +1,1 @@
-export { ReceptionWorkspacePage } from './reception-workspace';
+export { ReceptionWorkspacePage } from './ReceptionWorkspacePage';

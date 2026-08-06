@@ -15,6 +15,8 @@ import { addRetryAfterToPayload } from './retry-after';
  * @route   POST /api/auth/login
  * @desc    Proxy đăng nhập, giữ JWT trong cookie httpOnly thay vì trả về client.
  * @access  Public cùng origin
+ * @remarks Body JSON được chuyển tiếp nguyên trạng tới backend. Lỗi 429 được chuẩn hóa
+ * `Retry-After`; success chỉ trả principal/homePath và ghi session cookie httpOnly.
  */
 export async function POST(request: Request) {
   if (!assertSameOrigin()) return forbiddenOrigin();

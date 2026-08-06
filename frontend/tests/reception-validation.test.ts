@@ -1,3 +1,4 @@
+/** Bảo vệ tiếp nhận: tìm kiếm, BHYT, đồng ý bảo mật và nhánh mới/cũ phải tách biệt. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

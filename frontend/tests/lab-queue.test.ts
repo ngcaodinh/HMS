@@ -1,3 +1,4 @@
+/** Bảo đảm worklist xét nghiệm chỉ hiển thị bộ lọc và thao tác phù hợp với trạng thái server. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';

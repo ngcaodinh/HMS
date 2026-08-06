@@ -14,6 +14,8 @@ import { resolveRoleHomePath } from '@/shared/auth/role-routing';
  * @route   PUT /api/auth/password
  * @desc    Đổi mật khẩu và cập nhật cookie bằng JWT mới cho phiên hiện tại.
  * @access  Authenticated staff cùng origin
+ * @remarks Body được chuyển tiếp tới backend; success trả principal/homePath và session mới,
+ * còn 401 xóa cookie hiện tại để client quay lại luồng đăng nhập.
  */
 export async function PUT(request: Request) {
   if (!assertSameOrigin()) return forbiddenOrigin();

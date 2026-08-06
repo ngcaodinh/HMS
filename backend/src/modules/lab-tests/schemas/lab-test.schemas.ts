@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const labTestIdParamsSchema = z.object({ labTestId: z.string().min(1) });
 export const labTestTypeIdParamsSchema = z.object({ id: z.string().min(1) });
 
-/** Omitted `status` returns all 3 states (khớp tab "Tất cả" trong ảnh mẫu). */
+/** Bỏ trống `status` sẽ trả cả 3 trạng thái, khớp tab "Tất cả" trên giao diện. */
 export const listPendingLabTestsQuerySchema = z.object({
   status: z.enum(['ordered', 'in_progress', 'resulted']).optional(),
   isUrgent: z
@@ -73,7 +73,7 @@ const cbcNonNegative = (label: string, precision: number, scale: number) =>
 const cbcPercent = (label: string) =>
   decimalRange({ label, max: 100, min: 0, precision: 5, scale: 2 });
 
-/** CBC / công thức máu — plain numeric fields, no enums. */
+/** Công thức máu — các field dạng số thuần, không dùng enum. */
 export const cbcResultSchema = z.object({
   mayXetNghiem: z.string().max(100, 'Máy xét nghiệm tối đa 100 ký tự.').optional(),
   mauBenhPham: z.string().max(100, 'Mẫu bệnh phẩm tối đa 100 ký tự.').optional(),
@@ -469,17 +469,23 @@ const referenceRangeFields = {
   condition: z.enum(['all', 'male', 'female']).default('all'),
 };
 
-function withReferenceBoundValidation<T extends z.AnyZodObject>(schema: T) {
+function withReferenceBoundValidation<T extends z.ZodTypeAny>(
+  schema: T,
+): z.ZodEffects<T, z.output<T>, z.input<T>> {
   return schema.superRefine((value, context) => {
-    if (value.lowerBound === undefined || value.upperBound === undefined) return;
-    if (Number(value.lowerBound) >= Number(value.upperBound)) {
+    const referenceRange = value as {
+      lowerBound?: string | number;
+      upperBound?: string | number;
+    };
+    if (referenceRange.lowerBound === undefined || referenceRange.upperBound === undefined) return;
+    if (Number(referenceRange.lowerBound) >= Number(referenceRange.upperBound)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['upperBound'],
         message: 'Ngưỡng dưới phải nhỏ hơn ngưỡng trên.',
       });
     }
-  });
+  }) as z.ZodEffects<T, z.output<T>, z.input<T>>;
 }
 
 export const createReferenceRangeSchema = withReferenceBoundValidation(

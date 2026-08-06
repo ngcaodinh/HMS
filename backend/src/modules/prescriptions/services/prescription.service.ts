@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { AppError } from '../../../core/errors/app-error';
-import { config } from '../../../config/unifiedConfig';
+import { config } from '../../../config/unified-config';
 import { recordAuditLog } from '../../audit/services/audit.service';
 import type { Principal } from '../../auth/types/auth.types';
 import {

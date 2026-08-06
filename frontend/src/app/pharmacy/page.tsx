@@ -9,6 +9,13 @@ export const metadata: Metadata = {
   description: 'Phân hệ Quản lý Dược, Cấp phát thuốc theo đơn & Quản lý kho FEFO cho Dược sĩ.',
 };
 
+/**
+ * Guard phía server cho phân hệ dược trước khi render workspace.
+ *
+ * @returns Redirect về login khi hết phiên, UI 403 khi thiếu role hoặc workspace khi hợp lệ.
+ * @remarks Principal lấy qua BFF cookie; chỉ `pharmacist` và `admin` được hiển thị phân hệ. UI
+ * gate không thay thế permission, trạng thái thanh toán hoặc quy tắc FEFO ở backend.
+ */
 export default async function PharmacyPage() {
   const response = await backendFetch('/auth/me');
 

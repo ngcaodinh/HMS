@@ -1,1 +1,1 @@
-export { KioskRootPage } from './kiosk-root';
+export { KioskRootPage } from './KioskRootPage';

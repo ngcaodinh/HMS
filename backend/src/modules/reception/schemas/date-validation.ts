@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { getVietnamLegalDateString } from '../../../core/time/vietnamClock';
+import { getVietnamLegalDateString } from '../../../core/time/vietnam-clock';
 
 const MIN_PATIENT_DATE_OF_BIRTH = '1900-01-01';
 

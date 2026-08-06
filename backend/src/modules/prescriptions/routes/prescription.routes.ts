@@ -25,7 +25,11 @@ import {
   signPrescriptionSchema,
 } from '../schemas/prescription.schemas';
 
-/** Mounted at /api/v1/medical-records — owned by the prescriptions module (Lane 5), not medical-records (Lane 3). */
+/**
+ * @route   GET|POST /api/v1/medical-records/:recordId/prescriptions[/*]
+ * @desc    Tạo bản nháp và tra cứu đơn thuốc mới nhất của hồ sơ khám.
+ * @access  Private (authorizeAndAudit với permission theo từng endpoint)
+ */
 export const recordPrescriptionRouter = Router();
 
 recordPrescriptionRouter.post(
@@ -42,7 +46,11 @@ recordPrescriptionRouter.get(
   getLatestPrescriptionController,
 );
 
-/** Mounted at /api/v1/prescriptions */
+/**
+ * @route   GET|POST /api/v1/prescriptions/*
+ * @desc    Tra cứu, ký, hủy, cấp phát và xuất dữ liệu đơn thuốc.
+ * @access  Private (authorizeAndAudit với permission theo từng endpoint)
+ */
 export const prescriptionRouter = Router();
 
 prescriptionRouter.get(
@@ -87,7 +95,11 @@ prescriptionRouter.get(
   downloadPrescriptionXmlController,
 );
 
-/** Mounted at /api/v1/medicines */
+/**
+ * @route   GET /api/v1/medicines/
+ * @desc    Tra cứu thuốc đủ điều kiện cấp phát theo bộ lọc tìm kiếm.
+ * @access  Private (authorizeAndAudit với permission medicine.read)
+ */
 export const medicineRouter = Router();
 
 medicineRouter.get(

@@ -1,1 +1,1 @@
-export { ItTechnicianWorkspace } from './pages/technician-workspace';
+export { ItTechnicianWorkspace } from './pages/technician-workspace/ItTechnicianWorkspace';

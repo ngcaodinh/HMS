@@ -1,1 +1,1 @@
-export { AdminWorkspace } from './admin-workspace';
+export { AdminWorkspace } from './AdminWorkspace';

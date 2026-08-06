@@ -11,6 +11,11 @@ import {
 } from './director-dashboard.controller';
 import { validateDirectorDashboardQuery } from './director-dashboard.schemas';
 
+/**
+ * @route   /api/v1/director-dashboard
+ * @desc    Cung cấp các số liệu tổng hợp cho dashboard giám đốc.
+ * @access  Private, yêu cầu director.dashboard.read và audit.
+ */
 export const directorDashboardRouter = Router();
 
 const readDirectorDashboard = [

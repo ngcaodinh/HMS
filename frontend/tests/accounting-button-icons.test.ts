@@ -1,3 +1,4 @@
+/** Bảo đảm nút kế toán không hiển thị biểu tượng gây hiểu nhầm đã hoàn tất giao dịch. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';

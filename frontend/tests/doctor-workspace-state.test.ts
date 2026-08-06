@@ -1,3 +1,4 @@
+/** Bảo đảm lựa chọn không bị reset khi tải và reset khi hồ sơ rời worklist hiện tại. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

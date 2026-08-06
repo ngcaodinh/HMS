@@ -1,1 +1,1 @@
-export { DirectorDashboardPage } from './director-dashboard';
+export { DirectorDashboardPage } from './DirectorDashboardPage';

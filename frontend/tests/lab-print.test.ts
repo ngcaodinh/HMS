@@ -1,3 +1,4 @@
+/** Kiểm tra phiếu xét nghiệm chọn đúng mẫu, escape dữ liệu và in bằng tài liệu cô lập. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

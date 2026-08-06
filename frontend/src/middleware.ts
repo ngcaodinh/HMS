@@ -11,6 +11,13 @@ import { backendApiV1BaseUrl } from './shared/auth/backend-url';
 import { fetchMiddlewarePrincipal } from './shared/auth/middleware-principal';
 import { sessionCookieName } from './shared/auth/session-cookie';
 
+/**
+ * Tạo redirect về login và xóa cookie session đã không còn đáng tin cậy.
+ *
+ * @param request Request hiện tại để giữ origin và URL redirect.
+ * @param reason Lý do tùy chọn được truyền qua query; hiện chỉ có `session_expired`.
+ * @returns Response redirect tới `/login`.
+ */
 const createLoginRedirect = (request: NextRequest, reason?: 'session_expired') => {
   const loginUrl = new URL('/login', request.url);
   if (reason) loginUrl.searchParams.set('reason', reason);
@@ -21,6 +28,7 @@ const createLoginRedirect = (request: NextRequest, reason?: 'session_expired') =
   return response;
 };
 
+/** Trả HTML 403 tối giản và link về home role nếu principal hợp lệ có đường dẫn mặc định. */
 const createForbiddenResponse = (homePath: string | null) =>
   new NextResponse(
     `<!doctype html>
@@ -92,6 +100,7 @@ const createForbiddenResponse = (homePath: string | null) =>
     },
   );
 
+/** Trả HTML 503 khi middleware không thể kiểm tra principal với backend xác thực. */
 const createAuthUnavailableResponse = () =>
   new NextResponse(
     `<!doctype html>
@@ -157,8 +166,13 @@ const createAuthUnavailableResponse = () =>
   );
 
 /**
- * Guard route nhân viên ở edge: chưa đăng nhập về /login, sai role trả 403.
- * Middleware chỉ đọc principal từ backend bằng cookie httpOnly, không đưa JWT xuống client JS.
+ * Guard route nhân viên ở edge: public/static đi thẳng, thiếu session về login, sai role trả 403.
+ *
+ * @param request Request Next.js chứa pathname và cookie session.
+ * @returns `NextResponse.next()` khi được phép, redirect khi thiếu session/mật khẩu cần đổi, hoặc
+ * HTML 403/503 khi access/authentication không hợp lệ.
+ * @remarks Middleware đọc principal qua backend bằng cookie httpOnly, không đưa JWT xuống client
+ * JS. UI route vẫn phải để backend kiểm tra authorization cho từng API/mutation.
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -195,6 +209,7 @@ export async function middleware(request: NextRequest) {
   return NextResponse.next();
 }
 
+/** Matcher bỏ qua API, asset Next.js và file tĩnh để tránh chặn các route không thuộc page guard. */
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
 };

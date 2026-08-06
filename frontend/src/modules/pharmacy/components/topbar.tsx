@@ -4,6 +4,7 @@ interface TopbarProps {
   pharmacistName: string;
 }
 
+/** Hiển thị người dùng và thời điểm hiện tại trong workspace cấp phát thuốc. */
 export function Topbar({ pharmacistName }: TopbarProps) {
   const now = new Date();
 

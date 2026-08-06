@@ -1,1 +1,1 @@
-export { DarkQueueDisplayPage } from './dark-queue-display';
+export { DarkQueueDisplayPage } from './DarkQueueDisplayPage';

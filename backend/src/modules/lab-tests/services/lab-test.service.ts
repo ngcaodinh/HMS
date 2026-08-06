@@ -64,8 +64,8 @@ function shapePendingLabTest(labTest: PendingLabTest) {
 
 /**
  * @route GET /api/v1/lab-tests
- * @desc Lab technician worklist, hard-scoped to the technician's own department (not a
- * client-controlled query param, to prevent viewing other departments' queues).
+ * @desc Worklist của kỹ thuật viên, luôn giới hạn theo khoa của chính người dùng.
+ * Không nhận khoa từ query client để tránh đọc nhầm hàng đợi của khoa khác.
  * @access lab_tech
  */
 export async function listPendingLabTests(query: ListPendingLabTestsQuery, principal: Principal) {
@@ -248,8 +248,8 @@ function isReportCodeUniqueViolation(error: unknown): boolean {
 
 /**
  * @route POST /api/v1/lab-tests/:labTestId/result
- * @desc Validates the structured result against the catalog's resultTableKey, verifies the
- * attachment belongs to this lab test, transitions `ordered -> resulted` with e-signature.
+ * @desc Kiểm tra kết quả theo `resultTableKey`, xác minh file thuộc đúng phiếu xét nghiệm,
+ * sau đó chuyển `ordered -> resulted` cùng chữ ký điện tử.
  * @access lab_tech
  * @throws {AppError} 400 LAB_RESULT_TYPE_MISMATCH, 400 TEST_ALREADY_RESULTED,
  * 409 ATTACHMENT_OWNER_MISMATCH, 409 VERSION_CONFLICT

@@ -1,9 +1,9 @@
 import type { Server, Socket } from 'socket.io';
 import { randomUUID } from 'node:crypto';
 
-import { AppError } from '../core/errors/appError';
+import { AppError } from '../core/errors/app-error';
 import { logger } from '../core/logger/logger';
-import { getVietnamLegalDateString } from '../core/time/vietnamClock';
+import { getVietnamLegalDateString } from '../core/time/vietnam-clock';
 import {
   SOCKET_QUEUE_ISSUE,
   SOCKET_QUEUE_ISSUE_ERROR,
@@ -22,14 +22,14 @@ export function registerQueueSocketHandlers(io: Server): void {
     logger.debug({ socketId: socket.id }, 'Socket connected');
 
     const legalDate = getVietnamLegalDateString();
-    socket.join(`queue:${legalDate}`);
+    void socket.join(`queue:${legalDate}`);
 
     socket.on(SOCKET_QUEUE_JOIN, (payload: { date?: string } | undefined) => {
       const date =
         payload?.date && /^\d{4}-\d{2}-\d{2}$/.test(payload.date)
           ? payload.date
           : getVietnamLegalDateString();
-      socket.join(`queue:${date}`);
+      void socket.join(`queue:${date}`);
       socket.emit('queue.joined', { room: `queue:${date}`, date });
     });
 
@@ -66,9 +66,7 @@ export function registerQueueSocketHandlers(io: Server): void {
       } catch (error) {
         const code = error instanceof AppError ? error.code : 'INTERNAL_ERROR';
         const message =
-          error instanceof AppError
-            ? error.message
-            : 'Không lấy được số. Vui lòng thử lại.';
+          error instanceof AppError ? error.message : 'Không lấy được số. Vui lòng thử lại.';
 
         logger.error({ error, socketId: socket.id }, 'queue.ticket.issue failed');
         socket.emit(SOCKET_QUEUE_ISSUE_ERROR, {

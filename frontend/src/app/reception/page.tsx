@@ -3,10 +3,9 @@
 import dynamic from 'next/dynamic';
 
 /**
- * Client-only load: browser extensions (password managers, form fillers, etc.)
- * inject attributes like `fdprocessedid` onto <button> before React hydrates,
- * which triggers "Extra attributes from the server" warnings.
- * Disabling SSR for this page avoids that hydration mismatch entirely.
+ * Client-only load để tránh hydration mismatch do extension trình duyệt chèn thuộc tính vào
+ * button trước khi React hydrate. `ssr: false` giữ nguyên boundary hiện tại; loading fallback
+ * được hiển thị trong lúc workspace lễ tân tải.
  */
 const ReceptionWorkspacePage = dynamic(
   () =>
@@ -21,6 +20,13 @@ const ReceptionWorkspacePage = dynamic(
   },
 );
 
+/**
+ * Route shell cho workspace lễ tân.
+ *
+ * @returns Workspace client-only hoặc trạng thái loading trong dynamic import.
+ * @remarks Middleware kiểm tra session/role trước route; page chỉ điều phối tải workspace, còn
+ * queue, tiếp nhận, lỗi và mutation do component/module cùng backend xử lý.
+ */
 export default function ReceptionPage() {
   return <ReceptionWorkspacePage />;
 }

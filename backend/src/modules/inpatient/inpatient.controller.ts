@@ -1,16 +1,16 @@
 import type { Request, Response } from 'express';
 import {
-  PrismaClient,
   BedStatus,
   TreatmentOrderStatus,
   TreatmentType,
   MedicalRecordStatus,
 } from '@prisma/client';
 import type { ReleaseReason, DischargeCondition, Prisma } from '@prisma/client';
-import { AppError } from '../../core/errors/appError';
-import { RealtimePublisher } from '../../ports/RealtimePublisher';
-import { AuditPort } from '../../ports/AuditPort';
-import { BillingSettlementPort } from '../../ports/BillingSettlementPort';
+import { AppError } from '../../core/errors/app-error';
+import { prisma } from '../../core/prisma/prisma';
+import { AuditPort } from '../../ports/audit-port';
+import { BillingSettlementPort } from '../../ports/billing-settlement-port';
+import { RealtimePublisher } from '../../ports/realtime-publisher';
 import { sendSuccess } from '../../core/http/response-envelope';
 import { toVNISOString } from '../../core/utils/datetime';
 import crypto from 'crypto';
@@ -26,8 +26,6 @@ import {
   recordVitalSignsSchema,
   standardizeEmergencyIdentitySchema,
 } from './schemas/inpatient.schema';
-
-const prisma = new PrismaClient();
 
 /**
  * Chuẩn hóa tên khoa để ghép các bản ghi danh mục cũ/mới cùng chuyên khoa.
@@ -747,7 +745,7 @@ export class InpatientController {
     const departmentId = (req.query.departmentId as string | undefined) || req.user?.departmentId;
     const departmentScopeIds = await resolveEquivalentDepartmentIds(departmentId);
 
-    // Clinical worklist - medical_records where vitalConfirmedAt IS NULL
+  // Worklist lâm sàng: medical_records có vitalConfirmedAt IS NULL.
     const worklistRecords = await prisma.medicalRecord.findMany({
       where: {
         vitalConfirmedAt: null,
@@ -774,7 +772,7 @@ export class InpatientController {
       };
     });
 
-    // Ticket queue today - raw SQL on queue_tickets
+  // Hàng đợi trong ngày: truy vấn trực tiếp queue_tickets.
     const tickets = await prisma.$queryRaw<
       Array<{ id: string; number: number; status: string; calledAt: Date | null }>
     >`
@@ -796,7 +794,7 @@ export class InpatientController {
     const waitingCount = waitingTickets.length;
     const waitingNumbers = waitingTickets.map((t) => t.number);
 
-    // Stats calculations from medical_records measured today
+  // Tính thống kê từ medical_records được đo trong ngày hiện tại.
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 

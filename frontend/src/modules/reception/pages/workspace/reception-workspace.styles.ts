@@ -42,6 +42,7 @@ export const receptionWorkspaceStyles = {
   primaryButton:
     'rounded-lg bg-gradient-to-r from-[#004a75] via-[#006096] to-[#007abc] px-5 py-2.5 text-[13.3px] font-bold leading-normal text-white shadow-hms-button transition-all duration-200 ease-out hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-[#006096]/20 disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60 disabled:hover:brightness-100',
   queueLayout: 'flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden lg:flex-row',
+  // Panel queue tự quản lý chiều cao và không để overflow lan sang vùng form.
   queuePanel:
     'flex max-h-[42vh] shrink-0 flex-col overflow-hidden border-b border-[#bfc7d2] bg-white lg:max-h-none lg:h-full lg:w-[320px] lg:border-b-0 lg:border-r',
   nowServing:
@@ -63,6 +64,7 @@ export const receptionWorkspaceStyles = {
   queueTab:
     'flex flex-1 items-center justify-center gap-1 border-b-2 border-transparent px-2 py-2.5 text-[11.5px] font-bold text-[#707882] transition-colors duration-200 hover:text-[#3f4851] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#006096]/30 focus-visible:ring-inset',
   queueTabActive: 'border-[#006096] text-[#006096] hover:text-[#006096]',
+  // Chỉ danh sách ticket cuộn; phần số đang gọi và action vẫn sticky trong panel.
   queueList: 'min-h-0 flex-1 overflow-y-auto px-2 py-1.5',
   queueItem:
     'flex items-center gap-2 rounded-md p-2 transition-colors duration-150 hover:bg-[#f6fafe]',
@@ -71,6 +73,7 @@ export const receptionWorkspaceStyles = {
   callButton:
     'rounded-full border border-[#006096] px-2.5 py-1 text-[11px] font-bold text-[#006096] transition-all duration-200 ease-out hover:-translate-y-px hover:bg-[#e7f4ff] active:translate-y-0 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[#006096]/20',
   formArea: 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#f6fafe]',
+  // Chỉ form scroll nội bộ; body đã được page khóa để footer và shell không trôi theo document.
   formScroll: 'min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-4 sm:px-5 sm:py-5',
   infoStrip:
     'mb-3 flex flex-wrap items-center justify-between gap-2 rounded-[10px] border border-[rgba(0,96,150,0.18)] bg-[rgba(0,96,150,0.06)] px-4 py-3',
@@ -89,6 +92,7 @@ export const receptionWorkspaceStyles = {
     'flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-[#bfc7d2] bg-white p-3 text-xs font-medium leading-[18px] text-[#171c1f] transition-colors duration-200 hover:border-[#96ccff]',
   formFooter:
     'flex shrink-0 flex-wrap justify-end gap-2.5 border-t border-[#bfc7d2] bg-white px-4 py-3',
+  // Luồng cấp cứu có vùng cuộn riêng để không làm thay đổi scroll của shell lễ tân.
   emergencyBody:
     'relative flex min-h-0 w-full flex-1 overflow-y-auto overscroll-contain bg-white px-4 py-8',
   emergencyGlow:

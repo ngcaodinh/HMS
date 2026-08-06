@@ -1,7 +1,6 @@
 /**
  * @file StockImportScreen.tsx
- * @description Màn hình 3: Nhập kho thuốc & Quản lý lô mới (Hỗ trợ Import XML)
- * @author Senior Frontend Engineer
+ * @description Màn hình 3: Nhập kho thuốc và quản lý lô mới, hỗ trợ nhập dữ liệu XML.
  */
 
 'use client';
@@ -10,23 +9,28 @@ import React, { useState } from 'react';
 import type { StockReceipt, StockReceiptItem } from '../types/pharmacy.types';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
+/**
+ * Hợp đồng dữ liệu draft và callback của màn hình nhập kho.
+ * `stockReceipt` là snapshot khởi tạo; các chỉnh sửa mặt hàng được giữ local cho tới khi người
+ * dùng lưu, còn modal XML, xuất tệp, chuyển màn hình và persistence do workspace cha đảm nhiệm.
+ */
 interface StockImportScreenProps {
-  /** Thông tin phiếu nhập kho */
+  /** Snapshot phiếu nhập kho hiện tại, gồm ngày dạng `YYYY-MM-DD` và tiền nguyên theo VNĐ. */
   stockReceipt: StockReceipt;
-  /** Callback mở modal Import XML hóa đơn nhà cung cấp */
+  /** Callback mở modal nhập XML hóa đơn nhà cung cấp. */
   onOpenImportXmlModal: () => void;
-  /** Callback xuất tệp phiếu nhập kho */
+  /** Callback xuất tệp phiếu nhập kho; side effect tạo tệp do workspace cha thực hiện. */
   onExportStockReceipt: () => void;
-  /** Callback chuyển sang màn hình danh mục tồn kho */
+  /** Callback chuyển sang màn hình danh mục tồn kho. */
   onNavigateToInventory: () => void;
-  /** Callback lưu phiếu nhập kho và khởi tạo các lô thuốc mới */
+  /** Callback lưu draft, khởi tạo các lô thuốc mới và đồng bộ thông báo thành công ở workspace. */
   onSaveReceipt: (receipt: StockReceipt) => void;
 }
 
 /**
  * Màn hình Nhập kho dược (Screen 3):
  * Cho phép Dược sĩ lập phiếu nhập kho thuốc từ nhà cung cấp, nhập thông tin số hóa đơn,
- * thêm các dòng thuốc, cấu hình số lô, ngày sản xuất, hạn sử dụng, giá nhập và giá bán.
+ * thêm các dòng thuốc, cấu hình số lô, ngày sản xuất, hạn sử dụng và giá nhập.
  *
  * @param stockReceipt Dữ liệu phiếu nhập kho khởi tạo
  * @param onOpenImportXmlModal Callback mở modal tải tệp XML hóa đơn
@@ -34,6 +38,9 @@ interface StockImportScreenProps {
  * @param onNavigateToInventory Callback chuyển sang xem kho thuốc
  * @param onSaveReceipt Callback lưu thông tin phiếu nhập kho và nhập lô
  * @returns Component React màn hình Nhập kho dược
+ * @remarks Màn hình không tự gọi API và không có loading/error từ server; success sau khi lưu,
+ * xuất hoặc nhập XML được callback cha phản hồi. Giá trị thành tiền được tính local từ số lượng
+ * và đơn giá, còn việc validate/persistence và trừ kho vẫn thuộc backend/workspace.
  */
 export const StockImportScreen: React.FC<StockImportScreenProps> = ({
   stockReceipt,
@@ -47,15 +54,20 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
   const [receiptDate, setReceiptDate] = useState<string>(stockReceipt.receiptDate);
   const [isXmlImported, setIsXmlImported] = useState<boolean>(stockReceipt.isXmlImported);
 
-  // Danh sách dòng nhập kho có thể tương tác động
+  // Draft các dòng nhập kho; chỉ được gửi lên workspace khi người dùng bấm lưu.
   const [items, setItems] = useState<StockReceiptItem[]>(stockReceipt.items);
 
-  // Cập nhật giá trị 1 dòng
+  /**
+   * Xử lý thay đổi một field của dòng nhập kho.
+   * `importQuantity` là số lượng theo đơn vị thuốc; `unitPrice` và `totalPrice` là số nguyên VNĐ.
+   * Khi một trong hai giá trị đầu vào thay đổi, thành tiền được tính lại trong draft trước khi
+   * render; hàm chưa thực hiện validation hoặc mutation server.
+   */
   const handleItemChange = (index: number, field: keyof StockReceiptItem, value: any) => {
     const updated = [...items];
     const item = { ...updated[index], [field]: value };
 
-    // Tự động tính thành tiền nếu thay đổi số lượng hoặc đơn giá
+    // Giữ thành tiền nhất quán với số lượng và đơn giá trong draft hiện tại.
     if (field === 'importQuantity' || field === 'unitPrice') {
       const qty = Number(item.importQuantity) || 0;
       const price = Number(item.unitPrice) || 0;
@@ -66,7 +78,7 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
     setItems(updated);
   };
 
-  // Thêm 1 dòng mới vào phiếu nhập
+  /** Thêm một dòng thuốc mặc định vào draft phiếu nhập, chưa ghi dữ liệu lên server. */
   const handleAddRow = () => {
     const newRow: StockReceiptItem = {
       id: `item-${Date.now()}`,
@@ -81,7 +93,10 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
     setItems([...items, newRow]);
   };
 
-  // Lưu phiếu nhập
+  /**
+   * Xử lý sự kiện lưu phiếu nhập: cộng thành tiền các dòng rồi gửi snapshot cho callback cha.
+   * Callback cha chịu trách nhiệm persistence, cập nhật tồn kho và hiển thị success/error.
+   */
   const handleSave = () => {
     const total = items.reduce((acc, curr) => acc + curr.totalPrice, 0);
     onSaveReceipt({
@@ -97,7 +112,7 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Screen Header */}
+      {/* Tiêu đề và các thao tác XML, xuất tệp, điều hướng. */}
       <div className={styles.screenHeader}>
         <div>
           <h2 className={styles.screenTitle}>Nhập kho thuốc &amp; Quản lý lô mới</h2>
@@ -146,7 +161,7 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
         </div>
       </div>
 
-      {/* Stock Receipt Form Card */}
+      {/* Biểu mẫu draft phiếu nhập kho. */}
       <div className={styles.card}>
         <div className={styles.cardHeader}>
           <div className={styles.cardTitle}>
@@ -171,7 +186,7 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
         </div>
 
         <div className={styles.cardBody}>
-          {/* Header Form Inputs */}
+          {/* Thông tin nhà cung cấp, hóa đơn và ngày nhập kho. */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className={styles.formLabel} htmlFor="select-ncc">
@@ -217,7 +232,7 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
             </div>
           </div>
 
-          {/* Items Table */}
+          {/* Danh sách các lô thuốc và giá trị nhập kho. */}
           <h4 className="text-[13px] font-bold uppercase tracking-[0.5px] text-[#3f4851] mb-3">
             Chi tiết lô thuốc nhập kho
           </h4>
@@ -314,7 +329,7 @@ export const StockImportScreen: React.FC<StockImportScreenProps> = ({
             </table>
           </div>
 
-          {/* Form Actions */}
+          {/* Thao tác thêm dòng và lưu draft phiếu nhập. */}
           <div className="flex items-center justify-between">
             <button
               type="button"

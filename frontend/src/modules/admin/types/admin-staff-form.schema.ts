@@ -15,9 +15,13 @@ export const staffFormFields = [
 
 const staffFormFieldSet = new Set<string>(staffFormFields);
 
+/** Số di động Việt Nam gồm 10 chữ số sau khi bỏ khoảng trắng. */
 const phoneNumberRegex = /^(03[2-9]|05[2689]|07[06-9]|08[1-9]|09[0-9])[0-9]{7}$/;
+/** Username chỉ nhận chữ ASCII, số, dấu chấm và gạch dưới. */
 const usernameRegex = /^[A-Za-z0-9._]+$/;
+/** CCCD phải là đúng 12 chữ số; không lưu khoảng trắng trong giá trị đã chuẩn hóa. */
 const identityCardRegex = /^[0-9]{12}$/;
+/** Ngày form dùng định dạng ngày lịch không kèm múi giờ `YYYY-MM-DD`. */
 const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 const departmentCodeSchema = z.enum([
@@ -42,8 +46,10 @@ const roleCodeSchema = z.enum([
   'director',
 ]);
 
+/** Loại khoảng trắng khỏi các trường định danh trước khi kiểm tra định dạng. */
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, '').trim();
 
+/** Lấy ngày hiện tại theo múi giờ máy khách, tránh lệch ngày khi đổi từ UTC sang chuỗi form. */
 const getTodayDateValue = () => {
   const now = new Date();
   const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
@@ -59,6 +65,7 @@ const getMinimumAdultBirthDateValue = () => {
   return `${String(year - 18).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
+/** Kiểm tra ngày `YYYY-MM-DD` có tồn tại trên lịch, không chỉ đúng theo regex. */
 const isRealDateOnly = (value: string) => {
   if (!dateOnlyRegex.test(value)) return false;
 
@@ -72,6 +79,7 @@ const isRealDateOnly = (value: string) => {
   );
 };
 
+/** Quy tắc form nhân sự: định dạng định danh, ngày hợp lệ và tuổi tối thiểu 18. */
 export const staffFormSchema = z.object({
   dateOfBirth: z
     .string()
@@ -102,12 +110,17 @@ export const staffFormSchema = z.object({
 });
 
 export type StaffFormField = (typeof staffFormFields)[number];
+
+/** Kết quả sau parse của form nhân sự, đã loại khoảng trắng ở CCCD và số điện thoại. */
 export type ParsedStaffFormValues = z.output<typeof staffFormSchema>;
+
+/** Map lỗi theo field, mỗi field có thể có nhiều message từ Zod. */
 export type StaffFormFieldErrors = Partial<Record<StaffFormField, string[]>>;
 
 /**
  * Chuyển Zod issues thành field errors để modal hiển thị lỗi ngay cạnh input tương ứng.
- * Nhận ZodError từ safeParse, trả map field -> danh sách message chỉ gồm các field form đang hiển thị.
+ * @param error - Lỗi từ `safeParse`, có thể chứa issue ngoài field đang hiển thị.
+ * @returns Map field -> danh sách message chỉ gồm các field form đang hiển thị.
  */
 export const getStaffFormFieldErrors = (error: z.ZodError): StaffFormFieldErrors =>
   error.issues.reduce<StaffFormFieldErrors>((currentFields, issue) => {
@@ -124,8 +137,11 @@ export const getStaffFormFieldErrors = (error: z.ZodError): StaffFormFieldErrors
   }, {});
 
 /**
- * Kiểm tra username đã tồn tại trong danh sách nhân viên hiện có (loại trừ chính bản ghi đang sửa).
- * Dùng để chặn trùng username ngay trên state cục bộ vì module này không gọi API thật.
+ * Kiểm tra username trùng không phân biệt hoa thường trong danh sách nhân sự cục bộ.
+ * @param staffList - Danh sách nhân sự hiện có trên state cục bộ.
+ * @param username - Username cần kiểm tra.
+ * @param excludeId - ID bản ghi đang sửa, không tính bản ghi này khi so sánh.
+ * @returns `true` nếu username đã tồn tại.
  */
 export const isStaffUsernameTaken = (
   staffList: Array<{ id: string; username: string }>,
@@ -136,6 +152,7 @@ export const isStaffUsernameTaken = (
     (staff) => staff.id !== excludeId && staff.username.toLowerCase() === username.toLowerCase(),
   );
 
+/** Giá trị mặc định khi mở form mới; các lựa chọn bắt buộc bắt đầu ở trạng thái rỗng. */
 export const emptyStaffFormValues: StaffFormValues = {
   dateOfBirth: '',
   departmentCode: '',
@@ -147,6 +164,7 @@ export const emptyStaffFormValues: StaffFormValues = {
   username: '',
 };
 
+/** Đưa bản ghi nhân sự về dữ liệu thô của form để chỉnh sửa trên state cục bộ. */
 export const toStaffFormValues = (staff: {
   dateOfBirth: string;
   departmentCode: DepartmentCode;

@@ -7,6 +7,7 @@ import {
   type UpdateStaffInput,
 } from './staff.schema';
 
+/** Các field được phép hiển thị và map lỗi trong form tạo tài khoản. */
 export const createStaffFormFields = [
   'fullName',
   'username',
@@ -18,6 +19,7 @@ export const createStaffFormFields = [
   'roleCode',
 ] as const;
 
+/** Các field được phép hiển thị và map lỗi trong form chỉnh sửa tài khoản. */
 export const editStaffFormFields = [
   'fullName',
   'username',
@@ -30,15 +32,21 @@ export const editStaffFormFields = [
   'isActive',
 ] as const;
 
+/** Số di động Việt Nam 10 chữ số, không chứa khoảng trắng sau khi chuẩn hóa. */
 const phoneNumberRegex = /^(03[2-9]|05[2689]|07[06-9]|08[1-9]|09[0-9])[0-9]{7}$/;
+/** Username chỉ gồm chữ ASCII, số, dấu chấm hoặc gạch dưới; giới hạn độ dài nằm ở schema. */
 const usernameRegex = /^[A-Za-z0-9._]+$/;
+/** CCCD được kiểm tra ở dạng đúng 12 chữ số; không ghi giá trị thật vào comment hoặc log. */
 const identityCardRegex = /^[0-9]{12}$/;
+/** Ngày chỉ dùng định dạng `YYYY-MM-DD`, không bao gồm giờ hoặc timezone. */
 const dateOnlyRegex = /^\d{4}-\d{2}-\d{2}$/;
 const createStaffFormFieldSet = new Set<string>(createStaffFormFields);
 const editStaffFormFieldSet = new Set<string>(editStaffFormFields);
 
+/** Loại bỏ khoảng trắng nhập thừa trước khi kiểm tra số điện thoại và CCCD. */
 const normalizeWhitespace = (value: string) => value.replace(/\s+/g, '').trim();
 
+/** Lấy ngày hiện tại theo timezone máy khách để tránh lệch ngày khi sinh giá trị cho input date. */
 const getTodayDateValue = () => {
   const now = new Date();
   const localTime = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
@@ -54,6 +62,7 @@ const getMinimumAdultBirthDateValue = () => {
   return `${String(year - 18).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
+/** Kiểm tra ngày `YYYY-MM-DD` có tồn tại theo UTC, tránh Date tự cuốn ngày không hợp lệ. */
 const isRealDateOnly = (value: string) => {
   if (!dateOnlyRegex.test(value)) return false;
 
@@ -71,6 +80,12 @@ const isRealDateOnly = (value: string) => {
   );
 };
 
+/**
+ * Validation phía UI cho form tạo staff.
+ *
+ * @remarks Schema kiểm tra định dạng, độ dài và điều kiện đủ 18 tuổi; backend vẫn là nguồn quyết
+ * định cuối cùng về quyền, tính duy nhất và tính hợp lệ của dữ liệu nhạy cảm.
+ */
 export const createStaffFormSchema = z.object({
   dateOfBirth: z
     .string()
@@ -103,6 +118,7 @@ export const createStaffFormSchema = z.object({
     .regex(usernameRegex, 'Username chỉ gồm chữ, số, dấu chấm hoặc gạch dưới'),
 });
 
+/** Validation phía UI cho form chỉnh sửa staff, bao gồm trạng thái active/locked. */
 export const editStaffFormSchema = z.object({
   dateOfBirth: z
     .string()
@@ -148,6 +164,9 @@ export type EditStaffFormFieldErrors = Partial<Record<EditStaffFormField, string
 /**
  * Chuyển form đã parse thành payload create staff đúng hợp đồng backend.
  * Nhận dữ liệu đã qua schema nên không dùng fallback ngầm cho role hoặc khoa/phòng.
+ *
+ * @param values Giá trị output của `createStaffFormSchema`.
+ * @returns Payload có `roleCodes` dạng mảng theo contract backend.
  */
 export const toCreateStaffInput = (values: ParsedCreateStaffFormValues): CreateStaffInput => ({
   dateOfBirth: values.dateOfBirth,
@@ -162,7 +181,11 @@ export const toCreateStaffInput = (values: ParsedCreateStaffFormValues): CreateS
 
 /**
  * Chuyển form chỉnh sửa thành payload PATCH theo đúng các field backend cho phép cập nhật.
- * Các định danh như username, CCCD, ngày sinh và giới tính chỉ hiển thị trong UI, không gửi lên API.
+ *
+ * @remarks Giá trị được map nguyên trạng sau khi schema parse; `reason` cho thay đổi trạng thái
+ * được nhập ở dialog khóa/mở khóa riêng và không tự suy diễn trong adapter này.
+ * @param values Giá trị output của `editStaffFormSchema`.
+ * @returns Payload PATCH chứa các field staff đã parse.
  */
 export const toUpdateStaffInput = (values: ParsedEditStaffFormValues): UpdateStaffInput => ({
   dateOfBirth: values.dateOfBirth,
@@ -179,6 +202,9 @@ export const toUpdateStaffInput = (values: ParsedEditStaffFormValues): UpdateSta
 /**
  * Chuẩn hóa lỗi validation/API về đúng field của form create staff.
  * Nhận field map có thể đến từ Zod hoặc backend, trả subset mà UI đang hiển thị.
+ *
+ * @param fields Map field name sang danh sách message; key `roleCodes` được quy về `roleCode`.
+ * @returns Partial field-error map, bỏ qua field không có trong form hoặc không có message.
  */
 export const normalizeCreateStaffFieldErrors = (
   fields: Record<string, string[] | undefined>,
@@ -202,6 +228,9 @@ export const normalizeCreateStaffFieldErrors = (
 
 /**
  * Chuẩn hóa lỗi validation/API về đúng field đang cho phép chỉnh sửa trong form edit staff.
+ *
+ * @param fields Map field name sang danh sách message từ Zod hoặc backend.
+ * @returns Partial field-error map chỉ gồm field có trong form edit.
  */
 export const normalizeEditStaffFieldErrors = (
   fields: Record<string, string[] | undefined>,
@@ -225,6 +254,9 @@ export const normalizeEditStaffFieldErrors = (
 
 /**
  * Chuyển Zod issues thành field errors để component không phụ thuộc trực tiếp chi tiết Zod.
+ *
+ * @param error Lỗi từ `createStaffFormSchema.safeParse`.
+ * @returns Lỗi theo field để hiển thị cạnh input create.
  */
 export const getCreateStaffValidationFieldErrors = (
   error: z.ZodError,
@@ -244,6 +276,9 @@ export const getCreateStaffValidationFieldErrors = (
 
 /**
  * Chuyển Zod issues của form edit thành lỗi theo field để modal hiển thị cạnh input tương ứng.
+ *
+ * @param error Lỗi từ `editStaffFormSchema.safeParse`.
+ * @returns Lỗi theo field để hiển thị cạnh input edit.
  */
 export const getEditStaffValidationFieldErrors = (error: z.ZodError): EditStaffFormFieldErrors =>
   normalizeEditStaffFieldErrors(

@@ -1,10 +1,11 @@
 import type { DispensablePrescription } from '../types/prescription-dispense.types';
 
+/** Escape dữ liệu text chưa tin cậy trước khi ghép vào HTML nhãn in. */
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] ?? char));
 }
 
-/** Client-side only — no server print/label endpoint exists, matches the dispensing scope's "basic" cut. */
+/** Mở tài liệu nhãn ở cửa sổ riêng; browser chịu trách nhiệm in, không gọi endpoint in riêng. */
 export function printDispenseLabel(prescription: DispensablePrescription): void {
   const printWindow = window.open('', '_blank', 'width=420,height=600');
   if (!printWindow) return;

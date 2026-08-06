@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/node';
 
-import { config } from './config/unifiedConfig';
+import { config } from './config/unified-config';
 
 if (config.sentry.dsn) {
   Sentry.init({

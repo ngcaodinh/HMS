@@ -1,7 +1,7 @@
 import Image from 'next/image';
 
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
-import { AssetIcon, cn } from './shared';
+import { AssetIcon, cn } from './SharedComponents';
 
 interface SidebarProps {
   onLogout: () => void;

@@ -42,6 +42,7 @@ const BIO_CHEMISTRY_PRECISION: Record<string, [number, number]> = {
   kiemDu: [5, 2],
 };
 
+/** Rule hóa sinh với precision/scale theo field; pH động mạch bị giới hạn trong 0–14. */
 export const BIO_CHEMISTRY_RULES: Record<string, DecimalRule> = Object.fromEntries(
   Object.entries(BIO_CHEMISTRY_PRECISION).map(([field, [precision, scale]]) => [
     field,

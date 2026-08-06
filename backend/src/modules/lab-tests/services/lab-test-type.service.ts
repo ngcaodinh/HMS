@@ -2,8 +2,8 @@ import { listActiveLabTestTypes } from '../repositories/lab-test-type.repository
 
 /**
  * @route GET /api/v1/lab-test-types
- * @desc Read-only active lab test catalog (price/specimen/method) used to search-and-select
- * during ordering. POST/PATCH management is added alongside the lab technician config screen.
+ * @desc Danh mục xét nghiệm đang hoạt động ở chế độ chỉ đọc (giá/mẫu/phương pháp) để
+ * tìm và chọn khi lập chỉ định; quản lý POST/PATCH nằm ở màn hình cấu hình kỹ thuật viên.
  * @access doctor, lab_tech, admin
  */
 export async function listLabTestTypes(keyword?: string) {

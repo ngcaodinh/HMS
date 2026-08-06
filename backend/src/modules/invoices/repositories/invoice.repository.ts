@@ -8,7 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '../../../core/prisma/prisma';
-import { toVietnamDbDateTime } from '../../../core/time/vietnamClock';
+import { toVietnamDbDateTime } from '../../../core/time/vietnam-clock';
 
 export type CreateInvoiceItemInput = {
   description: string;

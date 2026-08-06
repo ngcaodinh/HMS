@@ -1,3 +1,4 @@
+/** Giới hạn số thập phân theo nhãn hiển thị và precision/scale của dữ liệu xét nghiệm. */
 export interface DecimalRule {
   label: string;
   max?: number;

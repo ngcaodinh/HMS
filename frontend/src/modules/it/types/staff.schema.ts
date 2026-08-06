@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+/** Mã role đầy đủ mà API có thể trả về hoặc nhận trong payload quản lý tài khoản. */
 export const roleCodeSchema = z.enum([
   'admin',
   'receptionist',
@@ -12,6 +13,7 @@ export const roleCodeSchema = z.enum([
   'director',
 ]);
 
+/** Nhóm role nhân viên đích được dùng trong các contract quản lý staff. */
 export const managedRoleCodeSchema = z.enum([
   'receptionist',
   'accountant',
@@ -21,6 +23,7 @@ export const managedRoleCodeSchema = z.enum([
   'pharmacist',
 ]);
 
+/** Mã khoa/phòng dạng code; nhãn hiển thị được ánh xạ riêng ở workspace IT. */
 export const departmentSchema = z.enum([
   'clinical',
   'dermatology',
@@ -31,6 +34,14 @@ export const departmentSchema = z.enum([
   'it',
 ]);
 
+/**
+ * Contract tài khoản staff sau khi parse từ API.
+ *
+ * @remarks `createdAt`, `updatedAt` và `lastLoginAt` là chuỗi thời gian từ backend; `lastLoginAt`
+ * có thể `null`. `isActive` là trạng thái khóa/mở khóa, còn `mustChangePassword` cho biết tài
+ * khoản phải đổi mật khẩu ở lần đăng nhập sau. Contract này không chứa password hoặc password
+ * hash.
+ */
 export const staffUserSchema = z.object({
   authVersion: z.number(),
   createdAt: z.string(),
@@ -49,6 +60,7 @@ export const staffUserSchema = z.object({
   username: z.string(),
 });
 
+/** Contract phân trang danh sách staff, trong đó `page` bắt đầu từ 1 theo query hiện tại. */
 export const staffListSchema = z.object({
   items: z.array(staffUserSchema),
   page: z.number(),
@@ -57,11 +69,21 @@ export const staffListSchema = z.object({
   totalPages: z.number(),
 });
 
+/**
+ * Envelope backend trả về khi tạo hoặc reset tài khoản.
+ *
+ * @remarks `temporaryPassword` là credential chỉ được hiển thị một lần; UI không được coi đây là
+ * dữ liệu có thể cache hoặc lưu lâu dài.
+ */
 export const createStaffResultSchema = z.object({
   temporaryPassword: z.string(),
   user: staffUserSchema,
 });
 
+/**
+ * Payload POST tạo staff; `dateOfBirth` dùng `YYYY-MM-DD`, `roleCodes` thường chứa một role từ
+ * form.
+ */
 export type CreateStaffInput = {
   dateOfBirth: string;
   departmentId: DepartmentCode;
@@ -73,6 +95,10 @@ export type CreateStaffInput = {
   username: string;
 };
 
+/**
+ * Payload PATCH cho các field backend cho phép cập nhật; `reason` dùng để ghi audit khi đổi trạng
+ * thái.
+ */
 export type UpdateStaffInput = {
   dateOfBirth?: string;
   departmentId?: DepartmentCode;
@@ -86,6 +112,7 @@ export type UpdateStaffInput = {
   username?: string;
 };
 
+/** Bộ lọc danh sách staff; `isActive` không truyền nghĩa là lấy cả tài khoản khóa và mở. */
 export type StaffListFilter = {
   departmentId?: DepartmentCode;
   isActive?: boolean;

@@ -1,3 +1,4 @@
+/** Các field sinh hiệu; đơn vị lần lượt là bpm, °C, mmHg, lần/phút, %, kg và cm. */
 export type VitalField =
   | 'pulse'
   | 'temperatureC'
@@ -8,6 +9,7 @@ export type VitalField =
   | 'weightKg'
   | 'heightCm';
 
+/** Giá trị text cục bộ của hai thành phần huyết áp trước khi parse số. */
 export interface BloodPressureFormValues {
   bloodPressureSystolic: string;
   bloodPressureDiastolic: string;

@@ -1,0 +1,229 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+
+interface MomoQrModalProps {
+  isOpen: boolean;
+  amount: number;
+  invoiceNumber: string;
+  patientName: string;
+  onClose: () => void;
+  onConfirmSuccess: () => void | Promise<void>;
+  /** payUrl — mở cổng Momo trên trình duyệt (giữ nguyên luồng redirect cũ). */
+  payUrl?: string | null;
+  /**
+   * Payload gen QR từ API (Momo `qrCodeUrl`, hoặc fallback `payUrl`).
+   * Không phải URL ảnh — FE encode thành QR.
+   */
+  qrPayload?: string | null;
+  statusText?: string;
+}
+
+/**
+ * Tạo URL ảnh QR từ payload thanh toán mà không thêm dependency npm.
+ *
+ * @param payload - Payload QR hoặc payUrl do backend/MoMo cung cấp, không phải dữ liệu tự tính ở FE.
+ * @param size - Kích thước ảnh theo pixel, mặc định 200.
+ * @returns URL CDN dùng để trình duyệt tải ảnh QR; hàm không tự thực hiện request.
+ * @remarks Payload được encode trước khi đưa vào query string. CDN chỉ render ảnh; trạng thái thanh
+ * toán vẫn được đồng bộ bởi parent với backend.
+ */
+function buildQrImageUrl(payload: string, size = 200): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=8&data=${encodeURIComponent(payload)}`;
+}
+
+/**
+ * Hiển thị fallback MoMo QR/payUrl và đồng hồ hết hạn cho invoice đang chờ thanh toán.
+ *
+ * @param props - Thông tin invoice, payload thanh toán và callback điều phối từ workspace.
+ * @param props.isOpen - false thì không render và không chạy countdown.
+ * @param props.amount - Số tiền nguyên VNĐ chỉ dùng để xác nhận với người thu ngân.
+ * @param props.invoiceNumber - Mã invoice hiển thị trong modal.
+ * @param props.patientName - Tên hiển thị của hồ sơ đang thanh toán.
+ * @param props.onClose - Đóng fallback modal mà không hủy giao dịch trên server.
+ * @param props.onConfirmSuccess - Callback async để parent sync trạng thái MoMo và báo success/error.
+ * @param props.payUrl - URL mở cổng MoMo; mặc định null.
+ * @param props.qrPayload - Payload QR, fallback sang payUrl khi rỗng; mặc định null.
+ * @param props.statusText - Trạng thái polling do parent truyền vào; có fallback chờ thanh toán.
+ * @remarks Countdown bắt đầu lại 300 giây khi mở modal hoặc payload đổi; cleanup interval khi đóng,
+ * payload đổi hoặc unmount. Nếu ảnh QR lỗi, UI chuyển sang link payUrl; component không tự quyết định
+ * paid/failed và không thay thế kiểm tra giao dịch ở backend.
+ */
+export function MomoQrModal({
+  isOpen,
+  amount,
+  invoiceNumber,
+  patientName,
+  onClose,
+  onConfirmSuccess,
+  payUrl = null,
+  qrPayload = null,
+  statusText,
+}: MomoQrModalProps) {
+  // MoMo QR có thời lượng hiển thị 300 giây; việc thanh toán thành công vẫn do backend xác nhận.
+  const [timeLeft, setTimeLeft] = useState<number>(300);
+  const [busy, setBusy] = useState(false);
+  const [qrImageFailed, setQrImageFailed] = useState(false);
+
+  const effectivePayload = useMemo(() => {
+    const fromQr = qrPayload?.trim() ?? '';
+    if (fromQr.length > 0) {
+      return fromQr;
+    }
+    const fromPay = payUrl?.trim() ?? '';
+    return fromPay.length > 0 ? fromPay : null;
+  }, [qrPayload, payUrl]);
+
+  const qrImageSrc = useMemo(
+    () => (effectivePayload ? buildQrImageUrl(effectivePayload, 200) : null),
+    [effectivePayload],
+  );
+
+  // Đồng bộ countdown với trạng thái mở và payload QR; cleanup interval để không giảm thời gian sau
+  // khi modal đóng hoặc request thanh toán đã chuyển sang payload mới.
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    setTimeLeft(300);
+    setQrImageFailed(false);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, effectivePayload]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  /** Chặn xác nhận lặp, gọi parent đồng bộ MoMo và luôn giải phóng trạng thái busy. */
+  const handleConfirm = async () => {
+    if (busy) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await onConfirmSuccess();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  const timeFormatted = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-sm p-4 animate-fadeIn">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden font-sans space-y-4 animate-modalIn">
+        <div className="px-5 py-4 border-b border-[#e4e9ed] flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 bg-[#f5d0fe] text-[#a21caf] font-bold rounded-lg flex items-center justify-center text-xs">
+              MoMo
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-[#171c1f]">Thanh toán qua Ví MoMo QR</h3>
+              <p className="text-xs text-[#707882]">
+                Hóa đơn: <span className="font-mono font-bold text-[#006096]">{invoiceNumber}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded-md text-[#707882] transition-all duration-200 ease-out hover:bg-[#f0f4f8] hover:text-[#171c1f] active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="bg-gradient-to-r from-purple-800 via-fuchsia-700 to-pink-600 rounded-xl p-6 text-center text-white space-y-4 shadow-inner">
+            <div className="text-xs font-semibold text-white/90">Số tiền cần thanh toán</div>
+            <div className="text-3xl font-extrabold font-mono text-white tabular-nums">
+              {amount.toLocaleString('vi-VN')} đ
+            </div>
+
+            {/* QR thật từ payload Momo */}
+            <div className="w-44 h-44 bg-white rounded-xl mx-auto p-2 flex items-center justify-center shadow-lg">
+              {qrImageSrc && !qrImageFailed ? (
+                // eslint-disable-next-line @next/next/no-img-element -- URL QR bên ngoài, chưa cấu hình domain cho next/image.
+                <img
+                  src={qrImageSrc}
+                  alt="Mã QR thanh toán MoMo"
+                  width={200}
+                  height={200}
+                  className="w-full h-full object-contain"
+                  onError={() => setQrImageFailed(true)}
+                />
+              ) : (
+                <div className="text-[11px] text-[#3f4851] px-2 text-center space-y-1">
+                  <p className="font-semibold">Không tải được ảnh QR</p>
+                  <p>Dùng nút mở trang thanh toán bên dưới.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs text-white/90">
+              Bệnh nhân: <strong>{patientName}</strong>
+            </div>
+            <p className="text-[11px] text-white/80 leading-snug px-2">
+              Mở app MoMo Test → Quét mã QR trên màn hình. Hoặc mở trang thanh toán Momo trên
+              trình duyệt.
+            </p>
+            {payUrl ? (
+              <a
+                className="inline-block text-xs font-bold underline text-white"
+                href={payUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Mở trang thanh toán Momo
+              </a>
+            ) : null}
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-[#3f4851] bg-[#f0f4f8] p-3 rounded-lg border border-[#e4e9ed]">
+            <span className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full border-2 border-[#bfc7d2] border-t-[#006096] animate-spin" />
+              {statusText ?? 'Đang chờ thanh toán / IPN...'}
+            </span>
+            <span className="font-mono font-bold text-[#ba1a1a]">
+              Mã hết hạn trong: {timeFormatted}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 bg-[#f0f4f8] border-t border-[#e4e9ed] flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 py-2.5 border border-[#bfc7d2] rounded-xl text-xs font-semibold text-[#3f4851] transition-all duration-200 ease-out hover:bg-white active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+          >
+            Hủy giao dịch
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              void handleConfirm();
+            }}
+            className="flex-1 py-2.5 bg-gradient-to-r from-purple-700 to-fuchsia-600 text-white rounded-xl text-xs font-bold transition-all duration-200 ease-out hover:opacity-90 active:scale-[0.97] shadow-md disabled:opacity-60 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+          >
+            {busy ? 'Đang xử lý…' : 'Đồng bộ / xác nhận'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

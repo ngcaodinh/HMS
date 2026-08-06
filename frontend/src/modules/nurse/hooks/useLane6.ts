@@ -1,12 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { httpClient } from '../../../shared/api-client/http-client';
 
+/** Envelope thành công tối thiểu mà BFF/backend có thể trả về cho các hook lane nội trú. */
 type ApiEnvelope<T> = {
   data: T;
   meta?: unknown;
 };
 
-// Chuẩn hóa response từ BFF/backend envelope để UI luôn nhận đúng payload nghiệp vụ.
+/**
+ * Lấy payload nghiệp vụ từ response có hoặc không có envelope `data`.
+ * @param payload Response thô từ BFF/backend hoặc payload đã được tách sẵn.
+ * @returns Giá trị nghiệp vụ cùng kiểu `T` để query/mutation dùng thống nhất.
+ */
 export const extractApiData = <T>(payload: ApiEnvelope<T> | T): T => {
   if (payload && typeof payload === 'object' && 'data' in payload) {
     return (payload as ApiEnvelope<T>).data;
@@ -15,7 +20,11 @@ export const extractApiData = <T>(payload: ApiEnvelope<T> | T): T => {
   return payload as T;
 };
 
-// Chuẩn hóa payload danh sách để các màn nurse không vỡ khi API trả envelope hoặc phân trang.
+/**
+ * Chuẩn hóa response danh sách từ envelope, mảng trực tiếp hoặc payload phân trang `items`.
+ * @param payload Response thô cần chuyển thành danh sách.
+ * @returns Mảng item; trả mảng rỗng khi payload không có cấu trúc danh sách hợp lệ.
+ */
 export const extractApiListData = <T>(
   payload: ApiEnvelope<T[] | { items?: T[] }> | T[] | { items?: T[] },
 ): T[] => {
@@ -27,7 +36,11 @@ export const extractApiListData = <T>(
   return [];
 };
 
-// Types
+// Kiểu dữ liệu trao đổi của lane nội trú.
+/**
+ * DTO giường; `available` là trạng thái có thể nhận gán, còn `maintenance` không được gán.
+ * `recordVersion` là phiên bản hồ sơ dùng cho optimistic lock khi mutation.
+ */
 export interface BedDto {
   id: string;
   bed: string;
@@ -42,6 +55,12 @@ export interface BedDto {
   recordVersion: number | null;
 }
 
+/**
+ * Model y lệnh đã chuẩn hóa cho UI điều dưỡng.
+ * `status` gồm chờ thực hiện, đang thực hiện, hoàn tất, bị chặn, trì hoãn hoặc đã hủy theo server;
+ * `tone` chỉ là sắc thái trình bày tương ứng.
+ * `time` giữ chuỗi thời gian từ API để component hiển thị, không tự đổi múi giờ tại adapter.
+ */
 export interface OrderDto {
   id: string;
   treatmentOrderId?: string;
@@ -60,6 +79,7 @@ export interface OrderDto {
   executedByName: string | null;
 }
 
+/** Tập field tối thiểu có thể xuất hiện trong payload y lệnh từ backend. */
 type TreatmentOrderWireDto = {
   treatmentOrderId?: string;
   id?: string;
@@ -74,6 +94,7 @@ type TreatmentOrderWireDto = {
   executedByName?: string | null;
 };
 
+/** Các status y lệnh được phép đưa vào model UI; item có status khác sẽ bị loại khi map. */
 const ORDER_STATUSES = new Set<OrderDto['status']>([
   'pending',
   'done',
@@ -83,7 +104,7 @@ const ORDER_STATUSES = new Set<OrderDto['status']>([
   'cancelled',
 ]);
 
-/** Kiểm tra tối thiểu payload y lệnh trước khi đưa dữ liệu từ API vào UI nurse. */
+/** Kiểm tra payload không tin cậy có đủ id và status y lệnh hợp lệ trước khi vào UI. */
 function isTreatmentOrderWireDto(value: unknown): value is TreatmentOrderWireDto {
   if (!value || typeof value !== 'object') return false;
 
@@ -95,7 +116,13 @@ function isTreatmentOrderWireDto(value: unknown): value is TreatmentOrderWireDto
   return hasId && hasStatus;
 }
 
-/** Chuẩn hóa payload y lệnh backend thành model hiển thị dùng chung cho các component nurse. */
+/**
+ * Chuẩn hóa payload y lệnh backend thành model hiển thị dùng chung cho component điều dưỡng.
+ * @param value Payload chưa tin cậy từ API.
+ * @returns `OrderDto` với fallback hiển thị an toàn, hoặc `null` nếu thiếu id/status hợp lệ.
+ * @remarks Không suy diễn status mới ở client; status ngoài whitelist bị loại để backend vẫn là
+ * nguồn quyết định vòng đời y lệnh.
+ */
 export function mapTreatmentOrderDto(value: unknown): OrderDto | null {
   if (!isTreatmentOrderWireDto(value)) return null;
 
@@ -124,6 +151,7 @@ export function mapTreatmentOrderDto(value: unknown): OrderDto | null {
   };
 }
 
+/** Hồ sơ nội trú đang chờ giường; `version` dùng làm optimistic lock khi gán/chuyển giường. */
 export interface AdmissionBoardDto {
   recordId: string;
   recordCode: string;
@@ -135,6 +163,7 @@ export interface AdmissionBoardDto {
   version: number;
 }
 
+/** Item trong worklist đo sinh hiệu; `createdAt` là chuỗi thời gian API và `version` là lock. */
 export interface VitalsWorklistItemDto {
   recordId: string;
   recordCode: string;
@@ -147,12 +176,14 @@ export interface VitalsWorklistItemDto {
   createdAt: string;
 }
 
+/** Số thứ tự sinh hiệu; `calledAt` là chuỗi thời gian API hoặc `null` khi chưa gọi. */
 export interface QueueTicketDto {
   id: string;
   number: number;
   calledAt: string | null;
 }
 
+/** Chỉ số tổng hợp của hàng đợi sinh hiệu; thời gian trung bình tính bằng phút. */
 export interface VitalsQueueStatsDto {
   measuredTodayCount: number;
   measuredTodayDelta: number;
@@ -161,7 +192,20 @@ export interface VitalsQueueStatsDto {
   avgMinutesPerPatient: number;
 }
 
-// Queries
+// Truy vấn dữ liệu lane nội trú.
+/*
+ * Contract chung của các query nurse: sở hữu server state qua React Query, không sở hữu local
+ * state và không tự quyết định access control.
+ * @remarks Cache, retry và lifecycle request theo QueryClient; module không đăng ký cleanup hoặc
+ * cancellation riêng. UI nhận lỗi qua `error` và phải tự trình bày loading/empty/error phù hợp.
+ */
+/**
+ * Lấy sơ đồ giường nội trú.
+ * @returns Query result với mảng `BedDto`, response envelope được tách trước khi trả về.
+ * @remarks Gọi `GET /beds` với permission `inpatient.read`; lỗi đi qua `error` của React Query,
+ * cache dùng key `beds` và retry theo cấu hình QueryClient. Hook không tự cấp quyền hay optimistic
+ * update.
+ */
 export const useBeds = () => {
   return useQuery({
     queryKey: ['beds'],
@@ -173,6 +217,14 @@ export const useBeds = () => {
     },
   });
 };
+
+/**
+ * Lấy danh sách y lệnh theo hồ sơ, giường hoặc khoa.
+ * @param params Bộ lọc tùy chọn được encode thành query `recordId`, `bedId`, `departmentId`.
+ * @returns Query result với các y lệnh hợp lệ đã map thành `OrderDto`.
+ * @remarks Gọi `GET /treatment-orders` với `treatment_order.read`; tự refetch mỗi 15 giây để
+ * phản ánh thay đổi server, giữ cache theo bộ lọc và để React Query quản lý lỗi/retry mặc định.
+ */
 export const useOrders = (params?: {
   recordId?: string;
   bedId?: string;
@@ -197,6 +249,12 @@ export const useOrders = (params?: {
   });
 };
 
+/**
+ * Lấy hồ sơ nội trú đã chẩn đoán nhưng chưa có giường.
+ * @returns Query result chỉ lấy `waitingForBedRecords` từ response admission board.
+ * @remarks Gọi `GET /inpatient/admission-board` với `inpatient.read`; cache theo key cố định,
+ * lỗi nằm ở `error`, còn việc cho phép gán giường do backend quyết định.
+ */
 export const useAdmissionBoard = () => {
   return useQuery({
     queryKey: ['admission-board'],
@@ -215,7 +273,21 @@ export const useAdmissionBoard = () => {
   });
 };
 
-// Mutations
+// Mutation thay đổi dữ liệu lane nội trú.
+/*
+ * Contract chung của các mutation nurse: nhận payload qua `mutate`, trả mutation state và response
+ * Axios nguyên trạng từ `httpClient`.
+ * @remarks Module không optimistic update, không đăng ký cleanup/cancellation riêng; chỉ invalidate
+ * query liên quan sau thành công. Lỗi HTTP/permission/conflict đi qua `error` của React Query.
+ */
+/**
+ * Bật hoặc tắt trạng thái bảo trì của một giường.
+ * @returns Mutation result; gọi `mutate` với `{ bedId, status }`, trong đó status là
+ * `maintenance` hoặc `available`.
+ * @remarks Gọi `PUT /beds/:bedId/maintenance` với permission `bed.assign`; thành công sẽ
+ * invalidate cache `beds`, còn lỗi server được trả qua `error`. Không có optimistic update hay
+ * cleanup riêng tại hook.
+ */
 export const useToggleMaintenance = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -235,6 +307,14 @@ export const useToggleMaintenance = () => {
   });
 };
 
+/**
+ * Gán một hồ sơ nội trú vào giường đang sẵn sàng.
+ * @returns Mutation result; payload gồm `recordId`, `bedId`, `expectedRecordVersion` và `note`
+ * tùy chọn.
+ * @remarks Gọi `POST /medical-records/:recordId/bed-assignments` với permission `bed.assign`.
+ * `expectedRecordVersion` là optimistic lock; conflict hoặc giường không khả dụng đi qua `error`.
+ * Thành công invalidate cache `beds` và `admission-board`, không cập nhật lạc quan tại client.
+ */
 export const useAssignBed = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -263,6 +343,14 @@ export const useAssignBed = () => {
   });
 };
 
+/**
+ * Chuyển hồ sơ sang giường khác hoặc ghi nhận thao tác hiệu chỉnh xếp giường.
+ * @returns Mutation result; payload nhận `expectedRecordVersion`, `reason`, action và các field
+ * giường.
+ * @remarks Gọi `POST /medical-records/:recordId/bed-assignment-changes` với `bed.change`.
+ * Backend quyết định transition, kiểm tra lock và tình trạng giường; thành công chỉ invalidate
+ * cache `beds`, lỗi conflict/validation nằm ở `error`.
+ */
 export const useChangeBedAssignment = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -296,6 +384,14 @@ export const useChangeBedAssignment = () => {
   });
 };
 
+/**
+ * Gửi bản tóm tắt ra viện để ký.
+ * @returns Mutation result; payload nhận chẩn đoán, tổng kết và điều kiện ra viện, mặc định
+ * `dischargeCondition` là `improved`.
+ * @remarks Gọi `POST /medical-records/:recordId/discharge-summaries` với permission
+ * `discharge_summary.sign`; backend quyết định quyền ký và trạng thái hợp lệ. Thành công
+ * invalidate cache `beds`; lỗi API đi qua `error`.
+ */
 export const useSignDischargeSummary = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -324,6 +420,13 @@ export const useSignDischargeSummary = () => {
   });
 };
 
+/**
+ * Hoàn tất thủ tục xuất viện và giải phóng giường theo hồ sơ.
+ * @returns Mutation result; payload gồm `recordId` và `expectedRecordVersion`.
+ * @remarks Gọi `POST /medical-records/:recordId/discharges` với `discharge.execute` và gửi cờ
+ * xác nhận cố định của contract hiện tại. Backend kiểm tra lock, điều kiện thanh toán và status;
+ * thành công invalidate `beds` và `admission-board`, lỗi conflict/permission nằm ở `error`.
+ */
 export const useProcessDischarge = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -347,6 +450,13 @@ export const useProcessDischarge = () => {
   });
 };
 
+/**
+ * Cập nhật status thực hiện của y lệnh điều trị.
+ * @returns Mutation result; payload nhận status `done`, `cancelled`, `delayed` hoặc `active` và
+ * lý do hủy tùy chọn.
+ * @remarks Gọi `PUT /treatment-orders/:orderId/status` với `treatment_order.execute`.
+ * Backend là nguồn quyết định transition và người thực hiện; thành công invalidate cache `orders`.
+ */
 export const useUpdateOrderStatus = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -371,6 +481,13 @@ export const useUpdateOrderStatus = () => {
   });
 };
 
+/**
+ * Hủy y lệnh điều trị bằng endpoint nghiệp vụ riêng.
+ * @returns Mutation result; payload của `mutate` gồm `orderId` và `cancelReason` bắt buộc.
+ * @remarks Gọi `POST /treatment-orders/:orderId/cancel` với `treatment_order.cancel`; backend
+ * quyết định status cuối cùng và ghi audit, còn client chỉ invalidate cache `orders` sau thành
+ * công.
+ */
 export const useCancelOrder = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -384,6 +501,13 @@ export const useCancelOrder = () => {
   });
 };
 
+/**
+ * Lấy worklist, số thứ tự và thống kê đo sinh hiệu nội trú.
+ * @returns Query result gồm worklist, ticket đang gọi, số chờ và thống kê theo response API.
+ * @remarks Gọi `GET /inpatient/vitals-queue` với `inpatient.read`; response envelope được tách
+ * trước khi trả về, lỗi nằm ở `error` và cache/retry theo QueryClient. Hook không tự polling ngoài
+ * policy của provider.
+ */
 export const useVitalsQueue = () =>
   useQuery({
     queryKey: ['vitals-queue'],
@@ -418,6 +542,13 @@ export const useVitalsQueue = () =>
     },
   });
 
+/**
+ * Gọi số tiếp theo trong hàng đợi đo sinh hiệu.
+ * @returns Mutation result không cần payload đầu vào.
+ * @remarks Gọi `POST /inpatient/queue-tickets/call-next` với `queue_ticket.call`; backend giữ
+ * transition của ticket và xử lý race khi nhiều điều dưỡng cùng gọi. Thành công invalidate
+ * `vitals-queue`, lỗi nằm ở `error`.
+ */
 export const useCallNextTicket = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -426,6 +557,13 @@ export const useCallNextTicket = () => {
   });
 };
 
+/**
+ * Gọi lại một ticket đang ở trạng thái được phép gọi lại.
+ * @returns Mutation result; `mutate` nhận `ticketId`.
+ * @remarks Gọi `POST /inpatient/queue-tickets/:ticketId/recall` với `queue_ticket.call`.
+ * Backend quyết định status ticket; thành công invalidate `vitals-queue`, còn lỗi
+ * conflict/permission được trả qua `error`.
+ */
 export const useRecallTicket = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -435,6 +573,14 @@ export const useRecallTicket = () => {
   });
 };
 
+/**
+ * Ghi sinh hiệu cho hồ sơ sau khi ticket đã được gọi.
+ * @returns Mutation result; payload gồm số đo, `ticketId`, `recordId` và
+ * `expectedRecordVersion` để chống ghi đè dữ liệu mới hơn.
+ * @remarks Gọi `POST /medical-records/:recordId/vital-signs` với `vital_signs.record`; các số đo
+ * dùng bpm, °C, mmHg, lần/phút, %, cm và kg theo field. Backend kiểm tra ticket đang gọi,
+ * optimistic lock và việc hồ sơ chưa ghi sinh hiệu; thành công invalidate `vitals-queue`.
+ */
 export const useRecordVitalSigns = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -459,7 +605,11 @@ export const useRecordVitalSigns = () => {
   });
 };
 
-// Specimen Collection Types & Hooks
+// Kiểu dữ liệu và hook lấy mẫu, in mã vạch, bàn giao mẫu.
+/**
+ * DTO vòng đời mẫu bệnh phẩm; status lần lượt là chờ lấy, đã lấy và đã bàn giao.
+ * Các timestamp là chuỗi thời gian do API trả về, còn `barcodePrinted` là cờ server.
+ */
 export interface SpecimenDto {
   id: string;
   recordId: string;
@@ -481,6 +631,13 @@ export interface SpecimenDto {
   updatedAt: string;
 }
 
+/**
+ * Lấy danh sách mẫu bệnh phẩm theo status tùy chọn.
+ * @param status Bộ lọc query `status`; bỏ qua khi không truyền.
+ * @returns Query result với danh sách `SpecimenDto` đã tách envelope.
+ * @remarks Gọi `GET /specimens` với `specimen.read`; cache phân biệt theo status, lỗi/retry do
+ * React Query quản lý và không có cleanup/cancellation riêng trong hook.
+ */
 export const useSpecimens = (status?: string) => {
   return useQuery({
     queryKey: ['specimens', status],
@@ -497,6 +654,12 @@ export const useSpecimens = (status?: string) => {
   });
 };
 
+/**
+ * Tạo bản ghi mẫu bệnh phẩm từ chỉ định cần lấy.
+ * @returns Mutation result; `mutate` nhận thông tin hồ sơ, loại mẫu, mô tả y lệnh và cờ ưu tiên.
+ * @remarks Gọi `POST /specimens` với `specimen.create`; backend kiểm tra payload và quyền tạo.
+ * Thành công invalidate toàn bộ cache `specimens`, lỗi API nằm ở `error`.
+ */
 export const useCreateSpecimen = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -519,6 +682,12 @@ export const useCreateSpecimen = () => {
   });
 };
 
+/**
+ * Ghi nhận đã lấy mẫu bệnh phẩm.
+ * @returns Mutation result; `mutate` nhận `{ id }` của mẫu.
+ * @remarks Gọi `POST /specimens/:id/collect` với `specimen.collect`; backend quyết định transition
+ * từ `pending` sang `collected`. Thành công invalidate cache `specimens`, lỗi nằm ở `error`.
+ */
 export const useCollectSpecimen = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -532,6 +701,12 @@ export const useCollectSpecimen = () => {
   });
 };
 
+/**
+ * Ghi nhận thao tác in mã vạch cho mẫu bệnh phẩm.
+ * @returns Mutation result; `mutate` nhận `{ id }` của mẫu.
+ * @remarks Gọi `POST /specimens/:id/print-barcode` với `specimen.collect`; backend là nguồn quyết
+ * định việc in và cập nhật cờ, thành công invalidate cache `specimens`.
+ */
 export const usePrintSpecimenBarcode = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -545,6 +720,13 @@ export const usePrintSpecimenBarcode = () => {
   });
 };
 
+/**
+ * Bàn giao mẫu đã lấy cho phòng xét nghiệm.
+ * @returns Mutation result; `mutate` nhận id mẫu và tên người nhận tùy chọn.
+ * @remarks Gọi `POST /specimens/:id/handoff` với `specimen.handoff`; backend quyết định transition
+ * sang `handed_over` và ghi nhận người nhận. Thành công invalidate cache `specimens`, lỗi đi qua
+ * `error`.
+ */
 export const useHandoffSpecimen = () => {
   const queryClient = useQueryClient();
   return useMutation({
@@ -558,7 +740,11 @@ export const useHandoffSpecimen = () => {
   });
 };
 
-// Emergency Identity Standardization Types & Hooks
+// Kiểu dữ liệu và hook chuẩn hóa danh tính cấp cứu.
+/**
+ * DTO bệnh nhân cấp cứu còn ở trạng thái định danh tạm thời cần được chuẩn hóa.
+ * `admittedAt` là chuỗi thời gian API; `sttNumber` chỉ là số thứ tự của danh sách hiện tại.
+ */
 export interface UnidentifiedEmergencyPatientDto {
   patientId: string;
   sttNumber: number;
@@ -570,6 +756,12 @@ export interface UnidentifiedEmergencyPatientDto {
   emergencyReason: string | null;
 }
 
+/**
+ * Lấy danh sách bệnh nhân cấp cứu đang chờ chuẩn hóa danh tính.
+ * @returns Query result với danh sách DTO đã tách envelope.
+ * @remarks Gọi `GET /inpatient/emergency-unidentified-patients` với `inpatient.read`; dữ liệu
+ * giữ cache theo query key, lỗi/retry theo QueryClient và quyền thật do backend quyết định.
+ */
 export const useUnidentifiedEmergencyPatients = () => {
   return useQuery({
     queryKey: ['unidentified-emergency-patients'],
@@ -585,6 +777,14 @@ export const useUnidentifiedEmergencyPatients = () => {
   });
 };
 
+/**
+ * Gửi thông tin định danh chính thức cho bệnh nhân cấp cứu đang ở trạng thái bypass.
+ * @returns Mutation result; payload có `patientId` dùng ở path và `privacyConfirmed: true` trong
+ * body.
+ * @remarks Gọi `POST /patients/:patientId/emergency-identity` với `patient_identity.standardize`.
+ * Backend kiểm tra trạng thái bypass, validation và permission; thành công invalidate danh sách
+ * cấp cứu cùng cache `beds`, lỗi hiển thị qua `error`.
+ */
 export const useStandardizeEmergencyIdentity = () => {
   const queryClient = useQueryClient();
   return useMutation({

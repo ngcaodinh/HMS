@@ -9,6 +9,8 @@ import {
  * @route   PATCH /api/staff-users/:userId
  * @desc    Cập nhật tài khoản, chuyển tiếp If-Unmodified-Since để giữ optimistic lock.
  * @access  staff.update cùng origin
+ * @remarks Body, status và error envelope do backend quyết định; header lock được chuyển tiếp để
+ * backend phát hiện xung đột phiên bản.
  */
 export async function PATCH(request: Request, { params }: { params: { userId: string } }) {
   if (!assertSameOrigin()) return forbiddenOrigin();

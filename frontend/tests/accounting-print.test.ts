@@ -1,3 +1,4 @@
+/** Kiểm tra bản in bảng kê dùng dữ liệu giao dịch, đúng đơn vị VNĐ và mở cửa sổ in riêng. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 

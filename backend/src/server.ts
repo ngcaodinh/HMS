@@ -3,10 +3,10 @@ import { createServer } from 'node:http';
 import { Server } from 'socket.io';
 
 import { createApp } from './app';
-import { config } from './config/unifiedConfig';
-import { connectPrisma, disconnectPrisma } from './core/database/prismaClient';
+import { config } from './config/unified-config';
+import { connectPrisma, disconnectPrisma } from './core/database/prisma-client';
 import { logger } from './core/logger/logger';
-import { realtimePort } from './core/ports/realtimePort';
+import { realtimePort } from './core/ports/realtime-port';
 import { registerQueueSocketHandlers } from './sockets/queue.socket';
 
 const app = createApp();

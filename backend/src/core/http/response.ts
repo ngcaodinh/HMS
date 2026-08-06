@@ -1,7 +1,7 @@
 import type { Response } from 'express';
 import { randomUUID } from 'node:crypto';
 
-import { getVietnamNowIso } from '../time/vietnamClock';
+import { getVietnamNowIso } from '../time/vietnam-clock';
 
 type SuccessOptions = {
   meta?: Record<string, unknown>;

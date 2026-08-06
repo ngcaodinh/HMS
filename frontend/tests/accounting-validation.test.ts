@@ -1,3 +1,4 @@
+/** Bảo vệ invariant tài chính: tiền là số nguyên dương VNĐ, tổng hóa đơn do backend cung cấp. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';

@@ -1,3 +1,4 @@
+/** Bảo vệ middleware: trạng thái phiên đến từ backend, lỗi malformed không được coi là hợp lệ. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

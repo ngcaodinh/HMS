@@ -50,6 +50,7 @@ const FIELD_LABELS: Record<string, string> = {
 
 const SKIP_FIELDS = new Set(['id', 'labTestId', 'createdAt', 'updatedAt']);
 
+/** Một dòng kết quả đã chuẩn hóa; `isNormal` chỉ có khi backend cung cấp khoảng tham chiếu phù hợp. */
 export interface StructuredResultEntry {
   label: string;
   value: string;
@@ -62,6 +63,15 @@ function isNumeric(value: unknown): value is string | number {
   return (typeof value === 'string' || typeof value === 'number') && String(value).trim() !== '' && !Number.isNaN(Number(value));
 }
 
+/**
+ * Chuẩn hóa result có cấu trúc thành dòng hiển thị theo nhãn và khoảng tham chiếu.
+ *
+ * @param structuredResult Snapshot kết quả từ backend; metadata hệ thống bị bỏ qua.
+ * @param referenceRanges Khoảng tham chiếu theo field và giới tính, fallback về `all`.
+ * @param patientGender Giới tính dùng chọn khoảng tham chiếu, có thể thiếu.
+ * @returns Các dòng có giá trị, đơn vị, khoảng và cờ bình thường để màn hình/lịch sử render.
+ * @remarks Không sửa input và không tự kết luận lâm sàng khi thiếu khoảng tham chiếu.
+ */
 export function formatStructuredResultEntries(
   structuredResult: Record<string, unknown> | null,
   referenceRanges: ReferenceRange[] = [],

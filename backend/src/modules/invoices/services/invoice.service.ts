@@ -1,20 +1,20 @@
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 
-import { AppError } from '../../../core/errors/appError';
-import { auditPort } from '../../../core/ports/auditPort';
+import { AppError } from '../../../core/errors/app-error';
+import { auditPort } from '../../../core/ports/audit-port';
 import type {
   BillingSettlementPort,
   ConfirmSettlementInput,
   ConfirmSettlementResult,
-} from '../../../core/ports/billingSettlementPort';
-import { setBillingSettlementPort } from '../../../core/ports/billingSettlementPort';
+} from '../../../core/ports/billing-settlement-port';
+import { setBillingSettlementPort } from '../../../core/ports/billing-settlement-port';
 import type {
   BillingPaymentIntentPort,
   RegisterMomoIntentInput,
   RegisterMomoIntentResult,
-} from '../../../core/ports/billingPaymentIntentPort';
-import { setBillingPaymentIntentPort } from '../../../core/ports/billingPaymentIntentPort';
+} from '../../../core/ports/billing-payment-intent-port';
+import { setBillingPaymentIntentPort } from '../../../core/ports/billing-payment-intent-port';
 import {
   formatDateOnly,
   formatVietnamDbDateTime,
@@ -22,7 +22,7 @@ import {
   getVietnamNowIso,
   parseLegalDateString,
   toVietnamDbDateTime,
-} from '../../../core/time/vietnamClock';
+} from '../../../core/time/vietnam-clock';
 import { prisma } from '../../../core/prisma/prisma';
 import { HI_RULE_SOURCE_DRAFT } from '../constants/invoice.constants';
 import { invoiceRepository } from '../repositories/invoice.repository';

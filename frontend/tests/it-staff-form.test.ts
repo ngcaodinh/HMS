@@ -1,3 +1,4 @@
+/** Bảo vệ quản trị nhân sự: role, tuổi, định dạng hồ sơ và payload theo hợp đồng backend. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

@@ -26,11 +26,14 @@ import {
   updateReferenceRangeDetailSchema,
 } from '../schemas/lab-test.schemas';
 
-/** Mounted at /api/v1/lab-tests */
+/**
+ * @route   /api/v1/lab-tests/*
+ * @desc    Tra cứu hàng đợi xét nghiệm, tiếp nhận mẫu, ghi kết quả và quản lý khoảng tham chiếu.
+ * @access  Private (authorizeAndAudit với permission riêng theo từng endpoint)
+ */
 export const labTestRouter = Router();
 
-/** Static sub-paths (`/reference-ranges`, `/stats`) must be registered BEFORE the dynamic
- * `/:labTestId` routes below — Express would otherwise match them as a labTestId value. */
+// Đăng ký path tĩnh trước path động để Express không hiểu `reference-ranges` hoặc `stats` là labTestId.
 labTestRouter.get(
   '/reference-ranges',
   authorizeAndAudit('catalog.lab_type.read'),

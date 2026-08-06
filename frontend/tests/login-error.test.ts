@@ -1,3 +1,4 @@
+/** Bảo đảm lỗi đăng nhập không lộ chi tiết backend, nhưng vẫn phân biệt khóa và rate limit. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

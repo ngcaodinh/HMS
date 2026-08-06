@@ -1,7 +1,15 @@
+/** Hợp đồng dữ liệu hồ sơ khám mà màn hình bác sĩ đọc từ các API lâm sàng. */
+
+/** Trạng thái vòng đời của hồ sơ khám; server quyết định chuyển trạng thái. */
 export type RecordStatus = 'open' | 'waiting_results' | 'diagnosed' | 'closed';
+
+/** Phân loại điều trị được chọn khi bác sĩ chẩn đoán hồ sơ. */
 export type TreatmentType = 'outpatient' | 'inpatient';
+
+/** Mức độ ngứa được ghi nhận trong đánh giá lâm sàng. */
 export type ItchSeverity = 'none' | 'mild' | 'moderate' | 'severe';
 
+/** Một mục trong worklist của bác sĩ, kèm trạng thái hồ sơ và cờ báo kết quả đã sẵn sàng. */
 export interface WorklistItem {
   recordId: string;
   recordCode: string;
@@ -11,6 +19,7 @@ export interface WorklistItem {
   hasReadyResults: boolean;
 }
 
+/** Danh tính và thông tin liên hệ được phép hiển thị trong hồ sơ đang khám. */
 export interface RecordPatient {
   patientId: string;
   patientCode: string;
@@ -25,6 +34,7 @@ export interface RecordPatient {
   emergencyPhoneNumber: string | null;
 }
 
+/** Các dữ liệu đánh giá lâm sàng; chiều cao tính bằng cm, cân nặng bằng kg và BSA bằng %. */
 export interface ClinicalAssessment {
   heightCm: string | null;
   weightKg: string | null;
@@ -39,6 +49,7 @@ export interface ClinicalAssessment {
   itchSeverity: ItchSeverity | null;
 }
 
+/** Sinh hiệu mới nhất; nhiệt độ tính bằng °C, huyết áp bằng mmHg và SpO₂ bằng %. */
 export interface LatestVitalSigns {
   pulse: number;
   temperatureC: number | null;
@@ -49,6 +60,7 @@ export interface LatestVitalSigns {
   weightKg: number | null;
 }
 
+/** Tóm tắt một chỉ định xét nghiệm; status phản ánh ordered, in_progress hoặc resulted. */
 export interface RecordLabTestSummary {
   labTestId: string;
   status: 'ordered' | 'in_progress' | 'resulted';
@@ -58,9 +70,11 @@ export interface RecordLabTestSummary {
   specimenType: string | null;
 }
 
+/** Khóa bảng kết quả do backend quy ước để chọn đúng biểu mẫu xét nghiệm. */
 export type ResultTableKey =
   'xn_cong_thuc_mau' | 'xn_nuoc_tieu' | 'xn_vi_sinh' | 'xn_mo_benh_hoc' | 'xn_hoa_sinh_mau';
 
+/** Khoảng tham chiếu theo giới tính; bound và unit giữ nguyên định dạng wire của API. */
 export interface ReferenceRange {
   fieldKey: string;
   code: string;
@@ -71,6 +85,7 @@ export interface ReferenceRange {
   condition: 'all' | 'male' | 'female';
 }
 
+/** Metadata của tệp đính kèm kết quả; uploadedAt là thời điểm dạng ISO. */
 export interface LabTestAttachment {
   attachmentId: string;
   fileType: 'pdf' | 'png' | 'jpeg' | 'xml';
@@ -78,6 +93,7 @@ export interface LabTestAttachment {
   uploadedAt: string;
 }
 
+/** Chi tiết kết quả xét nghiệm, gồm trạng thái, chữ ký, dữ liệu cấu trúc và tệp đính kèm. */
 export interface LabTestResultDetail {
   labTestId: string;
   recordId: string;
@@ -109,6 +125,7 @@ export interface LabTestResultDetail {
   attachments: LabTestAttachment[];
 }
 
+/** Chẩn đoán đã ghi nhận; các mốc thời gian là chuỗi ngày/giờ do API trả về. */
 export interface RecordDiagnosis {
   icd10: string;
   icdCodingSystem: string;
@@ -118,6 +135,7 @@ export interface RecordDiagnosis {
   diagnosisSignedAt: string;
 }
 
+/** Aggregate hồ sơ khám dùng cho workspace; version phục vụ kiểm soát cập nhật đồng thời và createdAt là ISO datetime. */
 export interface MedicalRecordDetail {
   recordId: string;
   recordCode: string;
@@ -139,6 +157,7 @@ export interface MedicalRecordDetail {
   diagnosis: RecordDiagnosis | null;
 }
 
+/** Một mục tra cứu ICD-10 có hiệu lực từ ngày effectiveFrom dạng ISO date. */
 export interface Icd10Entry {
   code: string;
   name: string;
@@ -146,6 +165,7 @@ export interface Icd10Entry {
   effectiveFrom: string;
 }
 
+/** Lựa chọn loại xét nghiệm; price giữ dạng chuỗi theo hợp đồng tiền tệ của API. */
 export interface LabTestTypeOption {
   labTestTypeId: string;
   code: string;
@@ -154,6 +174,7 @@ export interface LabTestTypeOption {
   specimen: string | null;
 }
 
+/** Payload ghi sinh hiệu và đánh giá ban đầu; các trường số dùng cùng đơn vị với LatestVitalSigns. */
 export interface VitalSignsFormInput {
   pulse: number;
   temperatureC?: number;
@@ -164,6 +185,7 @@ export interface VitalSignsFormInput {
   weightKg?: number;
 }
 
+/** Payload chẩn đoán; expectedVersion bảo vệ hồ sơ khỏi ghi đè phiên bản mới hơn. */
 export interface DiagnoseInput {
   expectedVersion: number;
   icd10: string;

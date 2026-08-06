@@ -1,6 +1,10 @@
 /**
- * Chuyển thời điểm hết hạn JWT thành thời lượng cookie; giá trị không hợp lệ sẽ fail closed.
- * `nowMilliseconds` cho phép kiểm thử ranh giới thời gian mà không phụ thuộc đồng hồ hệ thống.
+ * Chuyển chuỗi thời điểm hết hạn thành thời lượng cookie tính bằng giây.
+ * Giá trị không hợp lệ hoặc đã hết hạn trả `0` để fail closed; `nowMilliseconds` dùng đơn vị
+ * milliseconds từ Unix epoch và cho phép kiểm thử ranh giới thời gian độc lập với đồng hồ hệ thống.
+ * @param expiresAt Chuỗi thời điểm mà `Date.parse` có thể đọc được.
+ * @param nowMilliseconds Thời điểm hiện tại tính bằng milliseconds, mặc định là đồng hồ hệ thống.
+ * @returns Số giây nguyên không âm còn lại của phiên.
  */
 export const getSessionMaxAge = (expiresAt: unknown, nowMilliseconds = Date.now()) => {
   if (typeof expiresAt !== 'string') return 0;

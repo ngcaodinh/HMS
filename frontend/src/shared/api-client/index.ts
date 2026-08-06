@@ -8,11 +8,13 @@ export type { FieldErrors } from './error';
 export { ApiError as HttpApiError } from './api-error';
 export { httpClient } from './http-client';
 
+/** Envelope thành công dùng bởi các helper Axios; các helper không trả nguyên response Axios. */
 interface SuccessEnvelope<T> {
   data: T;
   meta?: Record<string, unknown>;
 }
 
+/** Envelope danh sách có metadata phân trang do backend cung cấp. */
 interface PaginatedEnvelope<T> {
   data: T[];
   pagination: {
@@ -23,11 +25,13 @@ interface PaginatedEnvelope<T> {
   };
 }
 
+/** GET một resource qua BFF và unwrap phần `data`; query nằm trong `config.params`. */
 export async function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
   const response = await httpClient.get<SuccessEnvelope<T>>(url, config);
   return response.data.data;
 }
 
+/** GET qua BFF nhưng giữ toàn bộ success envelope để caller đọc metadata. */
 export async function apiGetEnvelope<T>(
   url: string,
   config?: AxiosRequestConfig,
@@ -36,6 +40,7 @@ export async function apiGetEnvelope<T>(
   return response.data;
 }
 
+/** GET danh sách qua BFF và giữ `data` cùng metadata phân trang. */
 export async function apiGetPaginated<T>(
   url: string,
   config?: AxiosRequestConfig,
@@ -44,6 +49,7 @@ export async function apiGetPaginated<T>(
   return response.data;
 }
 
+/** POST JSON qua BFF; body truyền vào Axios và kết quả thành công được unwrap về `data`. */
 export async function apiPost<T>(
   url: string,
   body?: unknown,
@@ -53,6 +59,7 @@ export async function apiPost<T>(
   return response.data.data;
 }
 
+/** PATCH JSON qua BFF; body truyền vào Axios và kết quả thành công được unwrap về `data`. */
 export async function apiPatch<T>(
   url: string,
   body?: unknown,
@@ -62,6 +69,7 @@ export async function apiPatch<T>(
   return response.data.data;
 }
 
+/** PUT JSON qua BFF; body truyền vào Axios và kết quả thành công được unwrap về `data`. */
 export async function apiPut<T>(
   url: string,
   body?: unknown,
@@ -71,11 +79,13 @@ export async function apiPut<T>(
   return response.data.data;
 }
 
+/** DELETE resource qua BFF và unwrap `data`; lỗi được chuyển qua interceptor của httpClient. */
 export async function apiDelete<T = unknown>(url: string, config?: AxiosRequestConfig): Promise<T> {
   const response = await httpClient.delete<SuccessEnvelope<T>>(url, config);
   return response.data.data;
 }
 
+/** POST multipart qua BFF; giữ FormData để Axios tự thiết lập boundary của request. */
 export async function apiPostMultipart<T>(
   url: string,
   body: FormData,

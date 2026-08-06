@@ -1,8 +1,4 @@
-/**
- * @file PharmacyTopHeader.tsx
- * @description Top Header cho Phân hệ Dược sĩ & Nhà thuốc
- * @author Senior Frontend Engineer
- */
+/** Thanh tiêu đề của phân hệ Dược sĩ và Nhà thuốc, chỉ trình bày callback từ workspace. */
 
 'use client';
 
@@ -10,19 +6,22 @@ import React from 'react';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
 interface PharmacyTopHeaderProps {
-  /** Callback khi nhấn Đồng bộ FEFO */
+  /** Callback yêu cầu parent mở luồng đồng bộ/đối soát FEFO. */
   onSyncFefo: () => void;
-  /** Callback khi nhấn Thông báo */
+  /** Callback yêu cầu parent mở danh sách thông báo. */
   onShowNotifications: () => void;
 }
 
 /**
  * Hiển thị thanh Top Header phía trên phân hệ Dược sĩ & Nhà thuốc.
- * Bao gồm tên phân hệ, thông tin ca trực, huy hiệu bệnh viện và các nút chức năng nhanh (Đồng bộ FEFO, Thông báo).
+ * Bao gồm tên phân hệ, thông tin ca trực, huy hiệu bệnh viện và nút chức năng nhanh.
  *
- * @param onSyncFefo Hàm xử lý đồng bộ dữ liệu tồn kho FEFO
- * @param onShowNotifications Hàm hiển thị danh sách thông báo hệ thống
- * @returns Component React Top Header
+ * @param onSyncFefo Callback yêu cầu parent mở luồng đồng bộ tồn kho FEFO.
+ * @param onShowNotifications Callback yêu cầu parent mở danh sách thông báo.
+ * @returns Thanh tiêu đề với các callback do parent điều phối.
+ * @remarks Đây là component trình bày, không tự fetch hoặc cập nhật tồn kho. Callback chỉ chuyển sự
+ * kiện cho parent; backend vẫn là authority cho FEFO, stock movement, quyền và các command nhạy cảm.
+ * Component không có loading/error/empty state riêng.
  */
 export const PharmacyTopHeader: React.FC<PharmacyTopHeaderProps> = ({
   onSyncFefo,

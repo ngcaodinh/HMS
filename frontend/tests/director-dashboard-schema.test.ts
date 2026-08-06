@@ -1,3 +1,4 @@
+/** Bảo vệ dashboard tổng hợp: dữ liệu phải được redaction và không lộ định danh người bệnh. */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';

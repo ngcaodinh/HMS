@@ -1,3 +1,7 @@
+/**
+ * Tập class Tailwind dùng chung cho shell và các control của nurse workspace.
+ * Các giá trị chỉ là presentation token; không chứa state, dữ liệu y tế hay quyền truy cập.
+ */
 export const nurseWorkspaceStyles = {
   shell:
     'min-h-screen bg-[#f6fafe] font-sans text-[13px] text-[#171c1f] lg:grid lg:grid-cols-[260px_minmax(0,1fr)] lg:overflow-hidden',

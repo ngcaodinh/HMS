@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { attachDevPrincipal, requirePermission } from '../../../middlewares/requirePermission';
+import { attachDevPrincipal, requirePermission } from '../../../middlewares/require-permission';
 import { invoiceController } from '../controllers/invoice.controller';
 
 /**

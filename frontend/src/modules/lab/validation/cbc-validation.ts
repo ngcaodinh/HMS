@@ -1,6 +1,7 @@
 import type { CbcResult } from '../types/lab-test.types';
 import { getDecimalFieldErrors, type DecimalRule } from './numeric-validation';
 
+/** Rule CBC ghi nhận giới hạn max riêng cho một số tỷ lệ và không nhận số âm. */
 export const CBC_RULES: Record<string, DecimalRule> = {
   wbc: { label: 'WBC', min: 0, precision: 6, scale: 2 },
   neu: { label: 'NEU', max: 100, min: 0, precision: 5, scale: 2 },

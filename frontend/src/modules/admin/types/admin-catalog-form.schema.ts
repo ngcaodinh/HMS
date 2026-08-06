@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { DepartmentCode, ServiceCatalogFormValues, ServiceCatalogItem } from './admin.types';
 
+/** Danh sách field hợp lệ để ánh xạ lỗi Zod về đúng input của modal danh mục. */
 export const catalogFormFields = [
   'code',
   'name',
@@ -13,6 +14,7 @@ export const catalogFormFields = [
 
 const catalogFormFieldSet = new Set<string>(catalogFormFields);
 
+/** Mã dịch vụ sau chuẩn hóa phải là chữ hoa, chữ số hoặc gạch ngang, dài 3–30 ký tự. */
 const serviceCodeRegex = /^[A-Z0-9-]{3,30}$/;
 
 const departmentCodeSchema = z.enum([
@@ -25,8 +27,10 @@ const departmentCodeSchema = z.enum([
   'it',
 ]);
 
+/** Chuyển chuỗi tiền nhập theo giao diện thành số nguyên VND trước khi kiểm tra dương. */
 const toPositiveNumber = (value: string) => Number(value.replace(/[.,\s]/g, ''));
 
+/** Quy tắc danh mục: mã/tên hợp lệ và mức trần BHYT không vượt giá dịch vụ. */
 export const catalogFormSchema = z
   .object({
     code: z
@@ -79,11 +83,17 @@ export const catalogFormSchema = z
   );
 
 export type CatalogFormField = (typeof catalogFormFields)[number];
+
+/** Kết quả sau parse; giá và mức trần đã thành số VND, mức trần bỏ trống thành `null`. */
 export type ParsedCatalogFormValues = z.output<typeof catalogFormSchema>;
+
+/** Map lỗi theo field, mỗi field có thể có nhiều message từ Zod. */
 export type CatalogFormFieldErrors = Partial<Record<CatalogFormField, string[]>>;
 
 /**
- * Chuyển Zod issues thành field errors để modal danh mục dịch vụ hiển thị lỗi cạnh input.
+ * Chuyển Zod issues thành lỗi theo field để modal danh mục hiển thị cạnh input.
+ * @param error - Lỗi từ `safeParse`, có thể chứa issue ở ngoài các field đang hiển thị.
+ * @returns Map chỉ giữ issue có path trùng với field của form.
  */
 export const getCatalogFormFieldErrors = (error: z.ZodError): CatalogFormFieldErrors =>
   error.issues.reduce<CatalogFormFieldErrors>((currentFields, issue) => {
@@ -100,7 +110,11 @@ export const getCatalogFormFieldErrors = (error: z.ZodError): CatalogFormFieldEr
   }, {});
 
 /**
- * Kiểm tra mã dịch vụ đã tồn tại trong danh mục hiện có (loại trừ chính bản ghi đang sửa).
+ * Kiểm tra mã dịch vụ trùng không phân biệt hoa thường trong danh mục cục bộ.
+ * @param catalogList - Danh sách danh mục hiện có trên state cục bộ.
+ * @param code - Mã cần kiểm tra sau hoặc trước khi chuẩn hóa.
+ * @param excludeId - ID bản ghi đang sửa, không tính bản ghi này khi so sánh.
+ * @returns `true` nếu mã đã tồn tại.
  */
 export const isCatalogCodeTaken = (
   catalogList: Array<{ id: string; code: string }>,
@@ -111,6 +125,7 @@ export const isCatalogCodeTaken = (
     (item) => item.id !== excludeId && item.code.toLowerCase() === code.toLowerCase(),
   );
 
+/** Giá trị mặc định khi mở form mới; BHYT tắt và mức trần để trống. */
 export const emptyCatalogFormValues: ServiceCatalogFormValues = {
   code: '',
   coveredByHealthInsurance: false,
@@ -120,6 +135,7 @@ export const emptyCatalogFormValues: ServiceCatalogFormValues = {
   price: '',
 };
 
+/** Đưa bản ghi danh mục về dữ liệu thô của form, đổi số tiền VND sang chuỗi nhập liệu. */
 export const toCatalogFormValues = (item: {
   code: string;
   coveredByHealthInsurance: boolean;

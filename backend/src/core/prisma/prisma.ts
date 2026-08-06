@@ -1,7 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 
-import { logger } from '../logger/logger';
-
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
@@ -19,11 +17,16 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-prisma
-  .$connect()
-  .then(() => {
-    logger.debug('Prisma connected');
-  })
-  .catch((error: unknown) => {
-    logger.error({ error }, 'Prisma connection failed');
-  });
+/**
+ * Mở kết nối cơ sở dữ liệu trước khi server bắt đầu nhận request.
+ * Kết nối được gọi tường minh ở bootstrap để import repository không tạo side effect.
+ */
+export const connectPrisma = (): Promise<void> => prisma.$connect();
+
+/** Đóng connection pool khi process nhận tín hiệu shutdown. */
+export const disconnectPrisma = (): Promise<void> => prisma.$disconnect();
+
+/** Kiểm tra nhanh khả năng đọc cơ sở dữ liệu cho endpoint readiness. */
+export const checkPrismaReadiness = async (): Promise<void> => {
+  await prisma.$queryRaw`SELECT 1`;
+};

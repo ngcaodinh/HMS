@@ -1,9 +1,14 @@
 import { Router } from 'express';
 import { SpecimenController } from './specimen.controller';
-import { asyncHandler } from '../../core/middlewares/asyncHandler';
+import { asyncHandler } from '../../core/middlewares/async-handler';
 import { authenticate } from '../../middlewares/authenticate';
 import { authorize } from '../../middlewares/authorize';
 
+/**
+ * @route   /api/v1/specimens
+ * @desc    Quản lý vòng đời mẫu bệnh phẩm từ tạo, lấy mẫu đến bàn giao.
+ * @access  Private, yêu cầu JWT và permission theo thao tác.
+ */
 const router = Router();
 
 router.use(authenticate);

@@ -15,7 +15,11 @@ import type { IssuedTicketDto, QueueRealtimePayload } from '../types/queue.types
 let sharedSocket: Socket | null = null;
 
 /**
- * Singleton socket client tới backend.
+ * Lấy socket dùng chung cho kiosk và màn hình LED.
+ *
+ * @returns Socket.IO client kết nối tới `env.socketUrl`.
+ * @remarks Socket phục vụ các event public của hàng đợi, không tự truyền JWT; access control của
+ * các thao tác nhân viên vẫn thuộc HTTP API/backend. Client đăng ký listener phải tự cleanup.
  */
 export function getQueueSocket(): Socket {
   if (!sharedSocket) {
@@ -28,7 +32,12 @@ export function getQueueSocket(): Socket {
 }
 
 /**
- * Lấy số kiosk qua WebSocket (kênh chính theo yêu cầu).
+ * Cấp số kiosk qua event WebSocket public với idempotency key.
+ *
+ * @param idempotencyKey Khóa duy nhất cho một lần cấp số, gửi trong payload event.
+ * @returns Promise chứa phiếu ở trạng thái `waiting` khi server trả kết quả.
+ * @remarks Reject khi server báo lỗi hoặc sau 15 giây timeout. Listener và timer được dọn sau
+ * mọi nhánh kết thúc; bên gọi cần hiển thị lỗi và quyết định có thử lại hay không.
  */
 export function issueTicketViaSocket(idempotencyKey: string): Promise<IssuedTicketDto> {
   const socket = getQueueSocket();
@@ -37,6 +46,7 @@ export function issueTicketViaSocket(idempotencyKey: string): Promise<IssuedTick
     let settled = false;
 
     const finish = (fn: () => void) => {
+      // Result, error và timeout có thể đến gần như đồng thời; chỉ nhánh đầu tiên được phép settle.
       if (settled) {
         return;
       }
@@ -61,6 +71,7 @@ export function issueTicketViaSocket(idempotencyKey: string): Promise<IssuedTick
       finish(() => reject(new Error('Hết thời gian chờ lấy số. Vui lòng thử lại.')));
     }, 15000);
 
+    // Hủy timer/listener sau khi settle để request cũ không tác động vào lần cấp số kế tiếp.
     const cleanup = () => {
       window.clearTimeout(timeout);
       socket.off(SOCKET_QUEUE_ISSUE_RESULT, onResult);
@@ -82,7 +93,10 @@ export function issueTicketViaSocket(idempotencyKey: string): Promise<IssuedTick
 }
 
 /**
- * Join room LED theo ngày VN.
+ * Cho socket tham gia room LED theo ngày pháp lý Việt Nam.
+ *
+ * @param date Ngày dạng `YYYY-MM-DD`; bỏ qua để backend dùng ngày hiện tại.
+ * @remarks Event public chỉ dùng để nhận cập nhật số, không đưa PII vào room payload.
  */
 export function joinQueueRoom(date?: string): void {
   const socket = getQueueSocket();
@@ -90,7 +104,12 @@ export function joinQueueRoom(date?: string): void {
 }
 
 /**
- * Subscribe realtime ticket events (no PII).
+ * Đăng ký các event realtime của hàng đợi mà không chứa PII.
+ *
+ * @param handlers Callback tùy chọn cho event gọi số hoặc cập nhật phiếu.
+ * @returns Hàm unsubscribe phải được gọi khi component unmount hoặc đổi subscription.
+ * @remarks Không có retry/cache trong adapter; socket tự quản lý kết nối, còn bên gọi chịu trách
+ * nhiệm gọi unsubscribe để tránh listener cũ và cập nhật state sau khi rời màn hình.
  */
 export function subscribeQueueEvents(handlers: {
   onCalled?: (payload: QueueRealtimePayload) => void;
@@ -115,6 +134,11 @@ export function subscribeQueueEvents(handlers: {
   };
 }
 
+/**
+ * Kiểm tra trạng thái kết nối hiện tại của socket dùng chung.
+ *
+ * @returns `true` khi socket đã connected; không phát sinh kết nối mới hoặc side effect.
+ */
 export function isQueueSocketConnected(): boolean {
   return Boolean(sharedSocket?.connected);
 }

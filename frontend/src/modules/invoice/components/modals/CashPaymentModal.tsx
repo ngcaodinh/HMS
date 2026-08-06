@@ -1,0 +1,125 @@
+'use client';
+
+import { useState } from 'react';
+
+interface CashPaymentModalProps {
+  isOpen: boolean;
+  /** Số tiền nguyên VNĐ chỉ để hiển thị đối chiếu, không phải nguồn tính tiền. */
+  amount: number;
+  invoiceNumber: string;
+  patientName: string;
+  onClose: () => void;
+  onConfirmSuccess: () => void | Promise<void>;
+  isSubmitting?: boolean;
+}
+
+/**
+ * Xác nhận đã nhận đủ tiền mặt cho invoice đang chờ thanh toán.
+ *
+ * @param props - Thông tin invoice, người bệnh và callback mutation từ workspace.
+ * @param props.amount - Số tiền nguyên VNĐ cần thu, chỉ dùng để hiển thị xác nhận.
+ * @param props.invoiceNumber - Mã invoice cần đối chiếu trước khi thu.
+ * @param props.patientName - Tên hiển thị của hồ sơ đang chọn.
+ * @param props.onClose - Hủy thao tác ở UI, không thay đổi dữ liệu server.
+ * @param props.onConfirmSuccess - Callback async để parent settle thanh toán và hiển thị success/error.
+ * @param props.isSubmitting - Trạng thái bận do parent; mặc định false.
+ * @remarks Modal có thêm guard busy cục bộ để chống click lặp. Lỗi từ callback được để parent xử lý;
+ * modal chỉ khôi phục busy trong finally. Quyền và số tiền cuối cùng do backend xác thực.
+ */
+export function CashPaymentModal({
+  isOpen,
+  amount,
+  invoiceNumber,
+  patientName,
+  onClose,
+  onConfirmSuccess,
+  isSubmitting = false,
+}: CashPaymentModalProps) {
+  const [busy, setBusy] = useState(false);
+
+  if (!isOpen) return null;
+
+  /** Chặn submit lặp, gọi mutation thu tiền mặt của parent và luôn mở lại nút sau khi hoàn tất. */
+  const handleConfirm = async () => {
+    if (busy || isSubmitting) {
+      return;
+    }
+    setBusy(true);
+    try {
+      await onConfirmSuccess();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#171c1f]/55 backdrop-blur-[2px] p-4 font-sans select-none animate-fadeIn">
+      <div className="w-full max-w-[480px] bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#bfc7d2] animate-modalIn">
+        <div className="p-5 border-b border-[#e4e9ed] flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-[#cee5ff] text-[#006096] flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth={2} />
+              <circle cx="12" cy="12" r="2" strokeWidth={2} />
+            </svg>
+          </div>
+          <div>
+            <h3 className="font-bold text-[16px] text-[#171c1f]">Xác nhận thu tiền mặt</h3>
+            <p className="text-[12px] text-[#707882] mt-0.5">
+              Hóa đơn <span className="font-mono font-bold text-[#006096]">{invoiceNumber}</span> ·
+              Bệnh nhân: <strong className="text-[#171c1f]">{patientName}</strong>
+            </p>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div className="bg-[#cee5ff] rounded-xl p-4 text-center">
+            <div className="text-[12px] text-[#707882] font-semibold mb-1">Số tiền cần thu</div>
+            <div className="text-[32px] font-extrabold font-mono text-[#006096] leading-tight">
+              {amount.toLocaleString('vi-VN')} đ
+            </div>
+          </div>
+
+          <div className="p-3 bg-[#e3f2fd] text-[#1565c0] border border-[#bfdbfe] rounded-lg text-[13px] flex items-start gap-2.5 leading-relaxed">
+            <svg
+              className="w-4 h-4 shrink-0 mt-0.5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>
+              Vui lòng kiểm tra kỹ số tiền mặt nhận từ bệnh nhân trước khi xác nhận. Hành động này
+              không thể hoàn tác.
+            </span>
+          </div>
+        </div>
+
+        <div className="p-4 bg-[#f8fafc] border-t border-[#e4e9ed] flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 border border-[#bfc7d2] bg-white rounded-md text-[13px] font-medium text-[#707882] hover:bg-[#f0f4f8] hover:text-[#171c1f] active:scale-[0.97] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+          >
+            Hủy bỏ
+          </button>
+          <button
+            type="button"
+            disabled={busy || isSubmitting}
+            onClick={() => {
+              void handleConfirm();
+            }}
+            className="px-4 py-2 bg-[#006096] text-white rounded-md text-[13px] font-bold hover:bg-[#004a75] active:scale-[0.97] transition-all duration-200 ease-out shadow-[0_2px_8px_rgba(0,96,150,0.24)] hover:shadow-[0_4px_14px_rgba(0,96,150,0.3)] disabled:opacity-50 disabled:active:scale-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea5e9] focus-visible:ring-offset-1"
+          >
+            Xác nhận đã thu tiền
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

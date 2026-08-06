@@ -1,12 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { ZodSchema } from 'zod';
+import type { ZodType } from 'zod';
 
 import { AppError } from '../errors/app-error';
 
 interface RequestSchemas {
-  body?: ZodSchema;
-  query?: ZodSchema;
-  params?: ZodSchema;
+  body?: ZodType<unknown>;
+  query?: ZodType<unknown>;
+  params?: ZodType<unknown>;
 }
 
 /**
@@ -14,7 +14,8 @@ interface RequestSchemas {
  * (CLAUDE.md §6.3) and rejects with 400 `VALIDATION_ERROR` before the controller runs.
  */
 export function validateRequest(schemas: RequestSchemas) {
-  return (req: Request, _res: Response, next: NextFunction) => {
+  return (req: Request, response: Response, next: NextFunction) => {
+    void response;
     try {
       if (schemas.body) req.body = schemas.body.parse(req.body);
       if (schemas.query) req.query = schemas.query.parse(req.query) as typeof req.query;

@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { sendError } from '../core/http/response-envelope';
 import { isActionAllowed } from '../modules/rbac/services/rbac.service';
 
@@ -18,7 +18,7 @@ export const authorize = (requiredPermission: string) => {
         res,
         403,
         'FORBIDDEN_ACCESS',
-        `Bạn không có quyền thực hiện thao tác này (yêu cầu quyền: ${requiredPermission})`
+        `Bạn không có quyền thực hiện thao tác này (yêu cầu quyền: ${requiredPermission})`,
       );
     }
 

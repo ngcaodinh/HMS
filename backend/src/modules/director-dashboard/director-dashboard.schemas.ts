@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { z, ZodError } from 'zod';
 
 import { AppError } from '../../core/errors/app-error';
-import { getVietnamLegalDateString } from '../../core/time/vietnamClock';
+import { getVietnamLegalDateString } from '../../core/time/vietnam-clock';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -19,43 +19,46 @@ function isRealDateOnly(value: string) {
   const date = new Date(Date.UTC(year, month - 1, day));
 
   return (
-    date.getUTCFullYear() === year
-    && date.getUTCMonth() === month - 1
-    && date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
   );
 }
 
-export const directorDashboardQuerySchema = z.object({
-  date: z
-    .string()
-    .trim()
-    .refine(isRealDateOnly, 'date phải có định dạng YYYY-MM-DD hợp lệ')
-    .optional(),
-  period: z.enum(['today', 'week', 'month']).default('today'),
-}).transform((query) => ({
-  date: query.date ?? getVietnamLegalDateString(),
-  period: query.period,
-}));
+export const directorDashboardQuerySchema = z
+  .object({
+    date: z
+      .string()
+      .trim()
+      .refine(isRealDateOnly, 'date phải có định dạng YYYY-MM-DD hợp lệ')
+      .optional(),
+    period: z.enum(['today', 'week', 'month']).default('today'),
+  })
+  .transform((query) => ({
+    date: query.date ?? getVietnamLegalDateString(),
+    period: query.period,
+  }));
 
 export type ParsedDirectorDashboardQuery = z.infer<typeof directorDashboardQuerySchema>;
 
 /**
  * Validate query riêng cho Director Dashboard để giữ đúng contract 422 VALIDATION_ERROR.
  */
-export function validateDirectorDashboardQuery(req: Request, _res: Response, next: NextFunction) {
+export function validateDirectorDashboardQuery(req: Request, response: Response, next: NextFunction) {
+  void response;
   try {
-    req.query = directorDashboardQuerySchema.parse(req.query) as unknown as typeof req.query;
+    req.query = directorDashboardQuerySchema.parse(req.query);
     next();
   } catch (error) {
     if (error instanceof ZodError) {
-      next(AppError.unprocessable(
-        'VALIDATION_ERROR',
-        'Dữ liệu đầu vào không hợp lệ.',
-        error.issues.map((issue) => ({
-          field: issue.path.join('.') || 'query',
-          rule: issue.message,
-        })),
-      ));
+      next(
+        AppError.unprocessable(
+          'VALIDATION_ERROR',
+          'Dữ liệu đầu vào không hợp lệ.',
+          error.issues.map((issue) => ({
+            field: issue.path.join('.') || 'query',
+            rule: issue.message,
+          })),
+        ),
+      );
       return;
     }
 

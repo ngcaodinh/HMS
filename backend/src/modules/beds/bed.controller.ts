@@ -1,22 +1,28 @@
 import type { Request, Response } from 'express';
-import { PrismaClient, BedStatus } from '@prisma/client';
-import { AppError } from '../../core/errors/appError';
-import { RealtimePublisher } from '../../ports/RealtimePublisher';
-import { AuditPort } from '../../ports/AuditPort';
+import { BedStatus } from '@prisma/client';
+
+import { AppError } from '../../core/errors/app-error';
+import { prisma } from '../../core/prisma/prisma';
+import { AuditPort } from '../../ports/audit-port';
+import { RealtimePublisher } from '../../ports/realtime-publisher';
 import { sendSuccess } from '../../core/http/response-envelope';
 
-const prisma = new PrismaClient();
+type BedRequestUser = {
+  id: string;
+  departmentId?: string;
+};
 
 export class BedController {
   // GET /api/v1/beds
   static async getBeds(req: Request, res: Response) {
-    const departmentId = req.user?.departmentId;
+    const requestUser = req.user as BedRequestUser | undefined;
+    const departmentId = requestUser?.departmentId;
     const beds = await prisma.bed.findMany({
       where: departmentId ? { room: { departmentId } } : undefined,
       include: {
         room: true,
         bedAssignments: {
-          where: { releasedAt: null }, // Current assignments
+          where: { releasedAt: null },
           include: {
             record: {
               include: {
@@ -32,7 +38,7 @@ export class BedController {
       orderBy: [{ room: { name: 'asc' } }, { number: 'asc' }],
     });
 
-    // Format response to match frontend UI expectations
+    // Chỉ trả các trường frontend cần; không đưa toàn bộ quan hệ Prisma ra ngoài API.
     const formattedBeds = beds.map((bed) => {
       const activeAssignment = bed.bedAssignments[0];
       let patient = null;
@@ -79,13 +85,14 @@ export class BedController {
   // PUT /api/v1/beds/:id/maintenance
   static async toggleMaintenance(req: Request, res: Response) {
     const { id } = req.params;
-    const { status } = req.body;
+    const requestBody = req.body as { status?: BedStatus } | undefined;
+    const status = requestBody?.status;
 
     if (status !== BedStatus.maintenance && status !== BedStatus.available) {
       throw new AppError(400, 'INVALID_STATUS', 'Status must be available or maintenance');
     }
 
-    // Use transaction to ensure no one is assigned to the bed when putting to maintenance
+    // Transaction bảo đảm không thể chuyển sang bảo trì khi vẫn còn bệnh nhân đang nằm.
     const updatedBed = await prisma.$transaction(async (tx) => {
       const bed = await tx.bed.findUnique({
         where: { id },
@@ -104,7 +111,8 @@ export class BedController {
       });
     });
 
-    AuditPort.logActivity('BED_MAINTENANCE_TOGGLED', req.user?.id || 'unknown', updatedBed.id, {
+    const requestUser = req.user as BedRequestUser | undefined;
+    AuditPort.logActivity('BED_MAINTENANCE_TOGGLED', requestUser?.id || 'unknown', updatedBed.id, {
       status,
     });
     RealtimePublisher.publishEvent('beds', 'status_changed', { bedId: updatedBed.id, status });

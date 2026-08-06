@@ -1,6 +1,6 @@
 import { request as httpsRequest } from 'node:https';
 
-import { config } from '../../../config/unifiedConfig';
+import { config } from '../../../config/unified-config';
 import { logger } from '../../../core/logger/logger';
 import {
   buildMomoCreateRawSignature,
@@ -8,6 +8,12 @@ import {
   generateMomoSignature,
   verifyMomoCreateStyleSignature,
 } from './momo.signature';
+
+/** Đọc giá trị dạng text từ response MoMo mà không làm mất an toàn kiểu dữ liệu. */
+function readMomoString(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return '';
+}
 
 /**
  * payWithMethod: hiện đủ phương thức (ví MoMo, ATM, Visa/Mastercard…).
@@ -72,9 +78,7 @@ export type MomoIpnParseResult = {
  */
 export class MomoSandboxGateway {
   private getHostname(): string {
-    return config.momo.environment === 'production'
-      ? 'payment.momo.vn'
-      : 'test-payment.momo.vn';
+    return config.momo.environment === 'production' ? 'payment.momo.vn' : 'test-payment.momo.vn';
   }
 
   private getRequestType(): string {
@@ -156,22 +160,16 @@ export class MomoSandboxGateway {
         'momo.create.rejected',
       );
       throw new Error(
-        `Momo API error: [${response.resultCode}] ${response.message || 'Unknown error'}`,
+        `Momo API error: [${readMomoString(response.resultCode)}] ${
+          readMomoString(response.message) || 'Unknown error'
+        }`,
       );
     }
 
-    const payUrl = response.payUrl !== undefined && response.payUrl !== null
-      ? String(response.payUrl)
-      : '';
+    const payUrl = readMomoString(response.payUrl);
     // MoMo docs: qrCodeUrl = data gen QR (không phải ảnh); optional theo môi trường/quyền.
-    const rawQr =
-      response.qrCodeUrl !== undefined && response.qrCodeUrl !== null
-        ? String(response.qrCodeUrl).trim()
-        : '';
-    const rawDeeplink =
-      response.deeplink !== undefined && response.deeplink !== null
-        ? String(response.deeplink).trim()
-        : '';
+    const rawQr = readMomoString(response.qrCodeUrl).trim();
+    const rawDeeplink = readMomoString(response.deeplink).trim();
 
     logger.info(
       {
@@ -193,7 +191,7 @@ export class MomoSandboxGateway {
       requestId: input.requestId,
       orderId: input.orderId,
       resultCode: Number(response.resultCode),
-      message: String(response.message ?? ''),
+      message: readMomoString(response.message),
     };
   }
 
@@ -226,7 +224,7 @@ export class MomoSandboxGateway {
     return {
       transId: response.transId as string | number | undefined,
       resultCode,
-      message: response.message as string | undefined,
+      message: readMomoString(response.message) || undefined,
       isSuccess: resultCode === 0,
     };
   }
@@ -236,7 +234,7 @@ export class MomoSandboxGateway {
    */
   handleIpn(requestBody: Record<string, unknown>): MomoIpnParseResult {
     try {
-      const signature = String(requestBody.signature ?? '');
+      const signature = readMomoString(requestBody.signature);
       const data = { ...requestBody };
       delete data.signature;
 
@@ -252,7 +250,7 @@ export class MomoSandboxGateway {
         }
       }
 
-      if (String(data.partnerCode ?? '') !== config.momo.partnerCode && !config.momo.useMock) {
+      if (readMomoString(data.partnerCode) !== config.momo.partnerCode && !config.momo.useMock) {
         return { valid: false, message: 'Invalid partner code' };
       }
 
@@ -264,14 +262,14 @@ export class MomoSandboxGateway {
         isSuccess,
         resultCode,
         message:
-          String(data.message ?? '') || (isSuccess ? 'Payment successful' : 'Payment failed'),
+          readMomoString(data.message) || (isSuccess ? 'Payment successful' : 'Payment failed'),
         data: {
-          orderId: String(data.orderId ?? ''),
+          orderId: readMomoString(data.orderId),
           amount: Number(data.amount),
-          requestId: data.requestId !== undefined ? String(data.requestId) : undefined,
+          requestId: data.requestId !== undefined ? readMomoString(data.requestId) : undefined,
           transId: data.transId as string | number | undefined,
           responseTime: data.responseTime,
-          extraData: data.extraData !== undefined ? String(data.extraData) : undefined,
+          extraData: data.extraData !== undefined ? readMomoString(data.extraData) : undefined,
         },
       };
     } catch (error) {
@@ -298,7 +296,7 @@ export class MomoSandboxGateway {
         (res) => {
           let data = '';
           res.on('data', (chunk: Buffer | string) => {
-            data += chunk;
+            data += typeof chunk === 'string' ? chunk : chunk.toString('utf8');
           });
           res.on('end', () => {
             try {

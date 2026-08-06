@@ -1,7 +1,6 @@
 /**
  * @file PrescriptionDispenseScreen.tsx
- * @description Màn hình 1: Cấp phát thuốc theo đơn & Khung xử lý trừ kho FEFO
- * @author Senior Frontend Engineer
+ * @description Màn hình 1: Cấp phát thuốc theo đơn và hiển thị phân bổ trừ kho FEFO.
  */
 
 'use client';
@@ -11,6 +10,11 @@ import type { Prescription } from '../types/pharmacy.types';
 import type { PharmacyWarehouse } from '../types/pharmacy-inventory.schema';
 import { pharmacyWorkspaceStyles as styles } from '../pages/workspace/pharmacy-workspace.styles';
 
+/**
+ * Hợp đồng dữ liệu và callback của màn hình hàng chờ cấp phát.
+ * Danh sách đơn, kho và trạng thái mutation do workspace cha cung cấp; màn hình chỉ lọc/hiển thị
+ * và phát tín hiệu cho cha mở modal, refetch, in nhãn hoặc kết xuất/tải XML.
+ */
 interface PrescriptionDispenseScreenProps {
   /** Danh sách các đơn thuốc điện tử */
   prescriptions: Prescription[];
@@ -26,18 +30,29 @@ interface PrescriptionDispenseScreenProps {
   onOpenRejectModal: (rx: Prescription) => void;
   /** Callback in nhãn hướng dẫn sử dụng thuốc */
   onPrintLabel: (rx: Prescription) => void;
+  /** Callback tải XML đã kết xuất; side effect tải tệp do workspace cha thực hiện. */
   onDownloadXml: (rx: Prescription) => void;
+  /** Callback kết xuất XML; mutation và xử lý lỗi/refresh do workspace cha thực hiện. */
   onExportXml: (rx: Prescription) => void;
+  /** Trạng thái đang tải XML, mặc định `false`; dùng để khóa nút tải. */
   isDownloadingXml?: boolean;
+  /** Trạng thái mutation kết xuất XML, mặc định `false`; dùng để khóa nút kết xuất. */
   isExportingXml?: boolean;
+  /** Trạng thái query hàng chờ, mặc định `false`; dùng cho loading state của bảng. */
   isLoading?: boolean;
+  /** Từ khóa tìm kiếm được kiểm soát bởi cha; nếu thiếu thì dùng state cục bộ. */
   searchQuery?: string;
+  /** Cập nhật từ khóa controlled; bỏ qua callback để dùng state cục bộ khi không truyền. */
   onSearchQueryChange?: (value: string) => void;
+  /** ID kho xuất hiện tại; `'all'` nghĩa là không giới hạn kho. */
   selectedWarehouseId: string;
+  /** Danh sách kho lấy từ query hoặc fallback do workspace cha chuẩn bị. */
   warehouses: PharmacyWarehouse[];
+  /** Cập nhật bộ lọc kho, không tự thực hiện mutation tồn kho. */
   onSelectWarehouse: (warehouseId: string) => void;
 }
 
+/** Bộ lọc hiển thị; không thay thế các gate signed/paid/stock do backend quyết định. */
 export type PrescriptionChipFilter = 'pending' | 'dispensed' | 'outpatient' | 'inpatient' | 'allergy' | 'all';
 
 interface FilterPrescriptionOptions {
@@ -53,10 +68,10 @@ interface PendingPrescriptionActionHandlers {
 }
 
 /**
- * Loc danh sach don thuoc theo kho, trang thai va tu khoa tim kiem cua man cap phat.
+ * Lọc danh sách đơn thuốc theo kho, trạng thái và từ khóa tìm kiếm của màn cấp phát.
  *
- * @param options Tap tham so loc tu UI hien tai
- * @returns Danh sach don thuoc phu hop voi bo loc
+ * @param options Tập tham số lọc từ UI hiện tại; kho `'all'` bỏ qua điều kiện kho.
+ * @returns Danh sách đơn thuốc phù hợp với bộ lọc, không làm thay đổi input.
  */
 export function filterPrescriptionsByDispenseView({
   activeChip,
@@ -88,11 +103,11 @@ export function filterPrescriptionsByDispenseView({
 }
 
 /**
- * Chon don thuoc hien tai; neu ID khong con trong hang cho thi fallback ve don dau tien.
+ * Chọn đơn thuốc hiện tại; nếu ID không còn trong hàng chờ thì fallback về đơn đầu tiên.
  *
- * @param prescriptions Danh sach don thuoc dang co tren UI
- * @param selectedPrescriptionId ID don thuoc dang duoc chon
- * @returns Don thuoc dung de hien thi chi tiet hoac undefined khi danh sach rong
+ * @param prescriptions Danh sách đơn thuốc đang có trên UI.
+ * @param selectedPrescriptionId ID đơn thuốc đang được chọn.
+ * @returns Đơn thuốc dùng để hiển thị chi tiết hoặc `undefined` khi danh sách rỗng.
  */
 export function resolveSelectedPrescription(
   prescriptions: Prescription[],
@@ -102,10 +117,10 @@ export function resolveSelectedPrescription(
 }
 
 /**
- * Xu ly nut "Xu ly phat thuoc": chon dong hien tai va mo modal xac nhan phat thuoc.
+ * Xử lý nút "Xử lý phát thuốc": chọn dòng hiện tại và mở modal xác nhận phát thuốc.
  *
- * @param rx Don thuoc nguoi dung vua bam xu ly
- * @param handlers Callback dieu phoi state/modal cua man pharmacy
+ * @param rx Đơn thuốc người dùng vừa bấm xử lý.
+ * @param handlers Callback điều phối state chọn đơn và modal của workspace Dược.
  */
 export function openPendingPrescriptionDispense(
   rx: Prescription,
@@ -127,7 +142,17 @@ export function openPendingPrescriptionDispense(
  * @param onOpenDispenseModal Callback mở modal xác nhận phát thuốc
  * @param onOpenRejectModal Callback mở modal từ chối đơn
  * @param onPrintLabel Callback in nhãn hướng dẫn sử dụng thuốc
+ * @param onDownloadXml Callback tải XML đã kết xuất
+ * @param onExportXml Callback kết xuất XML
+ * @param isLoading Trạng thái loading của query hàng chờ, mặc định `false`
+ * @param searchQuery Từ khóa controlled tùy chọn; state cục bộ được dùng khi không truyền
+ * @param selectedWarehouseId ID kho xuất hoặc `'all'`
+ * @param warehouses Danh sách kho để chọn
+ * @param onSelectWarehouse Callback đổi bộ lọc kho
  * @returns Component React màn hình Cấp phát thuốc theo đơn
+ * @remarks Loading, empty và trạng thái đã/đang chờ được render tại màn hình; lỗi mutation,
+ * refetch và authorization được workspace cha/backend xử lý. Màn hình chỉ hiển thị cảnh báo dị
+ * ứng, phân bổ FEFO và các guard UI trước khi mở modal xác nhận, không tự trừ kho.
  */
 export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProps> = ({
   prescriptions,
@@ -152,7 +177,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
   const [activeChip, setActiveChip] = useState<PrescriptionChipFilter>('pending');
   const searchQuery = controlledSearchQuery ?? localSearchQuery;
 
-  // Lọc danh sách đơn thuốc theo từ khóa, kho và chip
+  // Memo hóa bộ lọc dẫn xuất để đổi input không làm thay đổi danh sách nguồn từ server.
   const filteredPrescriptions = useMemo(() => {
     return filterPrescriptionsByDispenseView({
       activeChip,
@@ -162,14 +187,14 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
     });
   }, [prescriptions, selectedWarehouseId, activeChip, searchQuery, localSearchQuery]);
 
-  // Đơn thuốc đang được chọn chi tiết
+  // Giữ fallback về đơn đầu tiên để khu vực chi tiết không mất dữ liệu khi hàng chờ refetch.
   const selectedRx = useMemo(() => {
     return resolveSelectedPrescription(prescriptions, selectedPrescriptionId);
   }, [prescriptions, selectedPrescriptionId]);
 
   return (
     <div className="space-y-6">
-      {/* Screen Header */}
+      {/* Tiêu đề và các thao tác chung của hàng chờ. */}
       <div className={styles.screenHeader}>
         <div>
           <h2 className={styles.screenTitle}>Cấp phát thuốc theo đơn</h2>
@@ -207,7 +232,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
         </div>
       </div>
 
-      {/* Queue Table Card */}
+      {/* Bảng hàng chờ với loading và empty state rõ ràng. */}
       <div className={styles.card}>
         <div className="p-4 px-6 border-b border-[#e4e9ed]">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -412,7 +437,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
         </div>
       </div>
 
-      {/* Dispensing Workarea Card for Selected Rx */}
+      {/* Khu vực xử lý chi tiết của đơn đang chọn. */}
       {selectedRx && (
         <div className={styles.card}>
           <div className={styles.cardHeader}>
@@ -443,7 +468,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
           </div>
 
           <div className={styles.cardBody}>
-            {/* Patient Summary Grid */}
+            {/* Tóm tắt bệnh nhân, chẩn đoán, người kê và trạng thái hóa đơn. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pb-4 mb-6 border-b border-[#e4e9ed]">
               <div>
                 <label className="block text-[11px] font-semibold uppercase tracking-[0.5px] text-[#3f4851] mb-1">
@@ -496,7 +521,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
               </div>
             </div>
 
-            {/* Allergy Override Alert */}
+            {/* Cảnh báo dị ứng và bằng chứng ghi đè chuyên môn từ snapshot đơn thuốc. */}
             {selectedRx.hasAllergyWarning && (
               <div className={`${styles.alert} ${styles.alertError} mb-6`}>
                 <svg className="w-4 h-4 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -517,7 +542,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
               </div>
             )}
 
-            {/* Prescription Items & FEFO Allocation Table */}
+            {/* Chi tiết thuốc và phân bổ lô FEFO do backend cung cấp. */}
             <h4 className="text-[13px] font-bold uppercase tracking-[0.5px] text-[#3f4851] mb-3">
               Danh mục thuốc kê &amp; Đề xuất trừ lô FEFO
             </h4>
@@ -577,7 +602,7 @@ export const PrescriptionDispenseScreen: React.FC<PrescriptionDispenseScreenProp
               </table>
             </div>
 
-            {/* Bottom Actions & 5-Right Banner */}
+            {/* Các thao tác cuối màn hình và nhắc lại quy tắc an toàn cấp phát. */}
             <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[#e4e9ed]">
               <div className="flex items-center gap-1.5 text-[12px] text-[#004e8c]">
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

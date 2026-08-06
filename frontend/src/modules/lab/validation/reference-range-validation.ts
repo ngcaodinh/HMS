@@ -84,6 +84,7 @@ export const REFERENCE_RANGE_FIELDS: Record<ResultTableKey, string[]> = {
   xn_mo_benh_hoc: [],
 };
 
+/** Giá trị form khoảng tham chiếu; bound là chuỗi số để giữ input trước khi validate. */
 export interface ReferenceRangeFormValue {
   code: string;
   fieldKey: string;

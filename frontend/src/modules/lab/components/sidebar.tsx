@@ -1,10 +1,10 @@
-import { RoleIcon } from '@/shared/components/role-icon';
-import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/sidebar';
+import { RoleIcon } from '@/shared/components/RoleIcon';
+import { Sidebar as SharedSidebar } from '@/shared/components/sidebar/Sidebar';
 import { sidebarStyles } from '@/shared/components/sidebar/sidebar.styles';
 import type { SidebarNavSectionConfig } from '@/shared/components/sidebar/sidebar.types';
 
 import { labWorkspaceStyles as styles } from '../pages/workspace/lab-workspace.styles';
-import { AssetIcon, cn } from './shared';
+import { AssetIcon, cn } from './SharedComponents';
 
 export type LabScreen = 'queue' | 'result-entry' | 'history' | 'config';
 

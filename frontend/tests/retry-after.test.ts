@@ -1,3 +1,4 @@
+/** Bảo đảm chỉ Retry-After hợp lệ của 429 được thêm vào envelope, không mutate payload gốc. */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 

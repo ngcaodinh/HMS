@@ -1,3 +1,4 @@
+/** Kiểm tra fetch boundary chuẩn hóa envelope, lỗi trường, Retry-After và bảo toàn lỗi abort. */
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 

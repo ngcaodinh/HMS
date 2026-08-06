@@ -1,8 +1,13 @@
 import type { MedicalRecordDetail } from '../types/medical-record.types';
-import { calculateAge, formatDateTimeVN } from './shared';
+import { calculateAge, formatDateTimeVN } from './SharedComponents';
 
+/** Giá trị bind vào mẫu: chuỗi cho nội dung văn bản, boolean cho ô đánh dấu CSS. */
 type TemplateFieldValue = boolean | string;
 
+/**
+ * Tách ngày sinh thành 8 ký tự theo thứ tự `DDMMYYYY` cho các ô ngày trong mẫu.
+ * Giá trị rỗng không được tự sinh; input được kỳ vọng là chuỗi ngày hợp lệ từ API.
+ */
 function formatDateParts(value: string): string[] {
   const date = new Date(value);
   const day = String(date.getDate()).padStart(2, '0');
@@ -11,17 +16,28 @@ function formatDateParts(value: string): string[] {
   return [...day, ...month, ...year];
 }
 
+/** Giữ nguyên số đo dạng chuỗi, không làm tròn/đổi đơn vị; null hoặc undefined được bind thành
+ * rỗng. */
 function formatOptionalNumber(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : String(value);
 }
 
-/** Định dạng ngày ký theo đúng câu chữ của vùng chữ ký trong mẫu bệnh án. */
+/**
+ * Định dạng timestamp ký thành `DD tháng MM năm YYYY`; giá trị null/không có được để trống.
+ * Việc định dạng chỉ phục vụ bản mẫu, không tạo hoặc xác nhận chữ ký.
+ */
 function formatSignatureDate(value: string | null): string {
   if (!value) return '';
   const date = new Date(value);
   return `${String(date.getDate()).padStart(2, '0')} tháng ${String(date.getMonth() + 1).padStart(2, '0')} năm ${date.getFullYear()}`;
 }
 
+/**
+ * Escape dữ liệu văn bản trước khi chèn vào HTML mẫu để không diễn giải nội dung hồ sơ như markup.
+ *
+ * @param value Chuỗi lấy từ mẫu dữ liệu bệnh án.
+ * @returns Chuỗi an toàn hơn để đặt giữa các thẻ HTML.
+ */
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -31,11 +47,12 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-/** Bổ sung hook cho ngày sinh và vùng ký khi mẫu cũ chưa có `data-ba`. */
+/** Bổ sung các điểm `data-ba` còn thiếu cho ngày sinh, loại điều trị và ngày ký trong mẫu cũ. */
 function addTemplateDataHooks(template: string): string {
   const withBirthDateHooks = template.replace(
     /(<label>&nbsp;2\. Sinh ngày:<\/label>)([\s\S]*?)(<span class="digit-boxes" title="Tuổi">)/,
-    (_match, label: string, dateFields: string, ageFields: string) => {
+    (match, label: string, dateFields: string, ageFields: string) => {
+      void match;
       let digitIndex = 0;
       const nextDateFields = dateFields.replace(
         /<span class="digit-box"><\/span>/g,
@@ -63,7 +80,16 @@ function addTemplateDataHooks(template: string): string {
     );
 }
 
-/** Chuẩn hóa dữ liệu hồ sơ và thông tin người ký thành các trường của mẫu HTML. */
+/**
+ * Chuẩn hóa dữ liệu hồ sơ và thông tin người ký thành các trường của mẫu HTML.
+ *
+ * @param record Hồ sơ bệnh án hiện tại, bao gồm thông tin định danh, dị ứng, chẩn đoán, sinh hiệu
+ *   và các chỉ định xét nghiệm.
+ * @returns Bản đồ giá trị văn bản/ô đánh dấu; dữ liệu thiếu dùng fallback rỗng hoặc `false`.
+ * @remarks `diagnosisSignedAt` là nguồn để hiển thị trạng thái ký chẩn đoán trong mẫu; hàm này chỉ
+ *   dựng dữ liệu in/xem trước, không ký, không cập nhật hồ sơ và không thay thế quyền truy cập.
+ *   Các giá trị là dữ liệu y tế/định danh nhạy cảm nên không được ghi log hoặc đưa vào ví dụ.
+ */
 function buildTemplateValues(
   record: MedicalRecordDetail,
 ): Record<string, TemplateFieldValue> {
@@ -160,6 +186,8 @@ function buildTemplateValues(
  * @param template HTML mẫu `doc/mẫu/benhan.html`.
  * @param record Hồ sơ bệnh án đang được bác sĩ xem.
  * @returns HTML đã điền dữ liệu, giữ nguyên bố cục và CSS của mẫu gốc.
+ * @remarks Dùng cho xem trước/in bệnh án; chỉ escape giá trị văn bản và đổi class cho ô boolean,
+ *   không tạo chữ ký, không lưu dữ liệu và không thay đổi workflow hồ sơ.
  */
 export function renderMedicalRecordTemplate(
   template: string,
@@ -170,7 +198,8 @@ export function renderMedicalRecordTemplate(
 
   return templateWithDataHooks.replace(
     /(<([a-z][\w:-]*)(?=[^>]*\sdata-ba="([^"]+)")[^>]*>)([\s\S]*?)(<\/\2>)/gi,
-    (match, openingTag: string, _tagName: string, fieldName: string, innerHtml: string, closingTag: string) => {
+    (match, openingTag: string, tagName: string, fieldName: string, innerHtml: string, closingTag: string) => {
+      void tagName;
       const value = values[fieldName];
       if (value === undefined) return match;
 

@@ -1,3 +1,3 @@
-// Compatibility path: giữ import cũ nhưng không tạo thêm class AppError thứ hai.
-export { AppError } from '../errors/appError';
-export type { ErrorDetail } from '../errors/appError';
+// Compatibility path cho consumer cũ; implementation canonical nằm tại `app-error`.
+export { AppError } from './app-error';
+export type { ErrorDetail } from './app-error';

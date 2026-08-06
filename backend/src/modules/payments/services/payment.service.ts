@@ -1,25 +1,33 @@
 import { randomUUID } from 'node:crypto';
 
-import { AppError } from '../../../core/errors/appError';
-import { auditPort } from '../../../core/ports/auditPort';
-import { billingPaymentIntentPort } from '../../../core/ports/billingPaymentIntentPort';
-import { billingSettlementPort } from '../../../core/ports/billingSettlementPort';
+import type { Prisma } from '@prisma/client';
+
+import { AppError } from '../../../core/errors/app-error';
+import { auditPort } from '../../../core/ports/audit-port';
+import { billingPaymentIntentPort } from '../../../core/ports/billing-payment-intent-port';
+import { billingSettlementPort } from '../../../core/ports/billing-settlement-port';
 import { prisma } from '../../../core/prisma/prisma';
 import {
   formatVietnamDbDateTime,
   getVietnamLegalDateString,
   getVietnamNowIso,
   toVietnamDbDateTime,
-} from '../../../core/time/vietnamClock';
-import { config } from '../../../config/unifiedConfig';
+} from '../../../core/time/vietnam-clock';
+import { config } from '../../../config/unified-config';
 import { invoiceService } from '../../invoices/services/invoice.service';
-import { toMoneyString, moneyStringToVndInteger } from '../../invoices/utils/money';
+import { moneyStringToVndInteger } from '../../invoices/utils/money';
 import { momoSandboxGateway } from '../gateways/momo.sandbox.gateway';
 import type {
   CashPaymentResultDto,
   MomoPaymentRequestDto,
   PaymentStatusDto,
 } from '../types/payment.types';
+
+/** Đọc mã định danh từ payload thanh toán mà không ép object thành chuỗi mơ hồ. */
+function readPaymentString(value: unknown): string | null {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return null;
+}
 
 /**
  * Payment orchestration — cash + Momo (không Prisma-write invoice trực tiếp).
@@ -64,7 +72,7 @@ export class PaymentService {
         key: input.idempotencyKey,
         route: 'POST /invoices/:id/cash-payments',
         statusCode: 201,
-        responseJson: dto as object,
+        responseJson: dto,
       },
     });
 
@@ -106,7 +114,8 @@ export class PaymentService {
     const momoOrderId = `HMS-${dateStr}-${shortId}-${Date.now()}`;
     const requestId = `${config.momo.partnerCode || 'MOMO'}-${momoOrderId}`;
     const expiresAtDate = new Date(Date.now() + 15 * 60 * 1000);
-    const expiresAt = formatVietnamDbDateTime(toVietnamDbDateTime(expiresAtDate)) ?? getVietnamNowIso();
+    const expiresAt =
+      formatVietnamDbDateTime(toVietnamDbDateTime(expiresAtDate)) ?? getVietnamNowIso();
 
     // returnUrl mang invoiceId để FE resume sau sandbox
     const baseReturn = input.returnUrl ?? config.momo.returnUrl;
@@ -137,9 +146,8 @@ export class PaymentService {
         throw new Error('Momo không trả payUrl');
       }
       // Ưu tiên qrCodeUrl từ Momo (payload gen QR). Fallback payUrl để FE vẫn vẽ QR được.
-      qrPayload = momoResult.qrCodeUrl && momoResult.qrCodeUrl.length > 0
-        ? momoResult.qrCodeUrl
-        : payUrl;
+      qrPayload =
+        momoResult.qrCodeUrl && momoResult.qrCodeUrl.length > 0 ? momoResult.qrCodeUrl : payUrl;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Momo unavailable';
       throw new AppError(502, 'MOMO_SANDBOX_UNAVAILABLE', message);
@@ -167,8 +175,7 @@ export class PaymentService {
       status: 'pending',
     };
 
-    // Mock mode: auto-settle sau khi tạo (dev UX) — optional? Plan says poll/IPN.
-    // Không auto-settle; FE poll hoặc gọi simulate IPN.
+    // Mock mode không tự chốt sau khi tạo; FE phải poll hoặc gọi simulate IPN như luồng thật.
 
     await prisma.idempotencyRequest.create({
       data: {
@@ -176,7 +183,7 @@ export class PaymentService {
         key: input.idempotencyKey,
         route: 'POST /invoices/:id/momo-payment-requests',
         statusCode: 201,
-        responseJson: dto as object,
+        responseJson: dto,
       },
     });
 
@@ -204,12 +211,10 @@ export class PaymentService {
     paidAt?: string | null;
   }> {
     const logId = randomUUID();
-    const orderId = body.orderId !== undefined ? String(body.orderId) : null;
-    const transId = body.transId !== undefined ? String(body.transId) : null;
+    const orderId = readPaymentString(body.orderId);
+    const transId = readPaymentString(body.transId);
     const resultCode =
-      body.resultCode !== undefined && body.resultCode !== null
-        ? Number(body.resultCode)
-        : null;
+      body.resultCode !== undefined && body.resultCode !== null ? Number(body.resultCode) : null;
 
     const parsed = momoSandboxGateway.handleIpn(body);
 
@@ -225,7 +230,7 @@ export class PaymentService {
             ? 'accepted_success'
             : 'accepted_failed'
           : 'invalid_signature',
-        rawPayload: body as object,
+        rawPayload: body as Prisma.InputJsonValue,
       },
     });
 
@@ -244,7 +249,7 @@ export class PaymentService {
       return {
         received: true,
         momoOrderId: parsed.data.orderId,
-        transId: parsed.data.transId !== undefined ? String(parsed.data.transId) : null,
+        transId: readPaymentString(parsed.data.transId),
         signatureValid: true,
         processing: 'failed_keep_pending',
         invoiceStatus: 'pending',
@@ -266,7 +271,7 @@ export class PaymentService {
       };
     }
 
-    // Dedupe by transId
+    // Khử trùng lặp theo transId để IPN gửi lại không ghi nhận giao dịch hai lần.
     if (transId) {
       const prior = await prisma.paymentIntent.findFirst({
         where: { transId, status: 'paid' },
@@ -291,9 +296,10 @@ export class PaymentService {
       paidAtIso = new Date(responseTime).toISOString();
     } else if (typeof responseTime === 'string' && responseTime.length > 0) {
       const asNum = Number(responseTime);
-      paidAtIso = Number.isFinite(asNum) && asNum > 1e11
-        ? new Date(asNum).toISOString()
-        : new Date(responseTime).toISOString();
+      paidAtIso =
+        Number.isFinite(asNum) && asNum > 1e11
+          ? new Date(asNum).toISOString()
+          : new Date(responseTime).toISOString();
     }
 
     const settled = await billingSettlementPort.confirm({
@@ -304,9 +310,7 @@ export class PaymentService {
       paidAt: paidAtIso,
     });
 
-    const paidAtVn = toVietnamDbDateTime(
-      paidAtIso ? new Date(paidAtIso) : new Date(),
-    );
+    const paidAtVn = toVietnamDbDateTime(paidAtIso ? new Date(paidAtIso) : new Date());
     await prisma.paymentIntent.update({
       where: { id: intent.id },
       data: {
@@ -365,10 +369,7 @@ export class PaymentService {
       return this.getPaymentStatus(invoiceId);
     }
 
-    const query = await momoSandboxGateway.queryTransaction(
-      intent.momoOrderId,
-      intent.requestId,
-    );
+    const query = await momoSandboxGateway.queryTransaction(intent.momoOrderId, intent.requestId);
 
     // 0 = success, 9000 = authorized (1-step treat as paid on sandbox)
     const queryOk = query.isSuccess || query.resultCode === 9000;
@@ -378,8 +379,7 @@ export class PaymentService {
         invoiceId,
         method: 'momo',
         momoOrderId: intent.momoOrderId,
-        transId:
-          query.transId !== undefined ? String(query.transId) : `SYNC-${Date.now()}`,
+        transId: query.transId !== undefined ? String(query.transId) : `SYNC-${Date.now()}`,
         paidAt: new Date().toISOString(),
       });
       await prisma.paymentIntent.update({

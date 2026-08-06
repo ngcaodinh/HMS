@@ -9,8 +9,8 @@
     "test": "..\\backend\\node_modules\\.bin\\tsx.cmd --test tests/*.test.ts",
     "lint": "next lint --no-cache",
     "typecheck": "tsc --noEmit --incremental false",
-    "format": "prettier --check .",
-    "format:write": "prettier --write ."
+    "format": "prettier --ignore-path ../.prettierignore --check .",
+    "format:write": "prettier --ignore-path ../.prettierignore --write ."
   },
   "dependencies": {
     "@tanstack/react-query": "^5.59.16",

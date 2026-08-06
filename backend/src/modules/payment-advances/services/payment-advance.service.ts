@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 
-import { AppError } from '../../../core/errors/appError';
-import { auditPort } from '../../../core/ports/auditPort';
+import { AppError } from '../../../core/errors/app-error';
+import { auditPort } from '../../../core/ports/audit-port';
 import { toMoneyString } from '../../invoices/utils/money';
 import { paymentAdvanceRepository } from '../repositories/payment-advance.repository';
 import type { PaymentAdvanceDto, PaymentAdvanceSummaryDto } from '../types/payment-advance.types';

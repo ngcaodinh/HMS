@@ -1,7 +1,9 @@
 import type { Invoice, PatientRecord } from '../types/invoice.types';
 
+/** Giá trị động của tài liệu in; null/undefined được thay bằng chuỗi rỗng trước khi escape. */
 type PrintValue = string | number | null | undefined;
 
+/** Nhãn tiếng Việt cho nhóm dịch vụ; số lượng và tiền vẫn lấy từ snapshot hóa đơn. */
 const serviceCategoryLabels: Record<Invoice['items'][number]['category'], string> = {
   khambenh: 'Khám bệnh',
   xetnghiem: 'Xét nghiệm',
@@ -11,7 +13,13 @@ const serviceCategoryLabels: Record<Invoice['items'][number]['category'], string
   khac: 'Dịch vụ khác',
 };
 
-/** Escape dữ liệu động trước khi chèn vào tài liệu in, tránh làm hỏng HTML hoặc XSS. */
+/**
+ * Escape dữ liệu động trước khi chèn vào HTML của bảng kê.
+ *
+ * @param value - Giá trị hiển thị từ dữ liệu hồ sơ/hóa đơn.
+ * @returns Chuỗi an toàn cho ngữ cảnh text; null và undefined trở thành chuỗi rỗng.
+ * @remarks Đây chỉ là bảo vệ khi dựng HTML, không thay thế kiểm tra quyền truy cập hồ sơ ở caller.
+ */
 export function escapePaymentStatementPrintHtml(value: PrintValue): string {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -21,19 +29,26 @@ export function escapePaymentStatementPrintHtml(value: PrintValue): string {
     .replaceAll("'", '&#39;');
 }
 
+/** Định dạng số tiền VNĐ theo locale Việt Nam cho bản in; không tự làm tròn hay quyết định số tiền. */
 function formatVnd(value: number): string {
   return `${value.toLocaleString('vi-VN')} đ`;
 }
 
+/** Định dạng chuỗi ngày/giờ theo locale Việt Nam, giữ nguyên chuỗi gốc nếu không parse được. */
 function formatDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('vi-VN');
 }
 
+/**
+ * Định dạng tỷ lệ BHYT dạng tỉ số 0..1 thành phần trăm hiển thị.
+ * Tỷ lệ phải là snapshot do server cung cấp; hàm không nhận input điều chỉnh từ người dùng.
+ */
 function formatPercent(value: number): string {
   return `${(value * 100).toLocaleString('vi-VN')}%`;
 }
 
+/** Ánh xạ phương thức hóa đơn sang nhãn in; phương thức thiếu được fallback thành chưa thanh toán. */
 function getPaymentLabel(paymentMethod?: Invoice['paymentMethod']): string {
   if (paymentMethod === 'cash') return 'Tiền mặt';
   if (paymentMethod === 'momo') return 'MoMo';
@@ -41,10 +56,15 @@ function getPaymentLabel(paymentMethod?: Invoice['paymentMethod']): string {
   return 'Chưa thanh toán';
 }
 
+/** Chuẩn hóa một giá trị động qua lớp escape dùng chung của tài liệu in. */
 function printValue(value: PrintValue): string {
   return escapePaymentStatementPrintHtml(value);
 }
 
+/**
+ * Tạo các dòng chi phí HTML từ snapshot hóa đơn; danh sách rỗng hiển thị một dòng trạng thái trống.
+ * Mọi giá trị động đều được escape và không được tính lại ở client.
+ */
 function renderItemRows(invoice: Invoice): string {
   if (invoice.items.length === 0) {
     return '<tr><td class="empty" colspan="7">Chưa có dòng chi phí từ hệ thống.</td></tr>';
@@ -66,11 +86,25 @@ function renderItemRows(invoice: Invoice): string {
     .join('');
 }
 
+/**
+ * Cộng phần người bệnh trả theo từng dòng để hiển thị trong bảng kê.
+ * Đây là tổng phụ của snapshot dòng dịch vụ, không thay thế `finalAmount` và không bao gồm khấu
+ * trừ tạm ứng hoặc client tự quyết định giảm BHYT.
+ */
 function getPatientCopay(invoice: Invoice): number {
   return invoice.items.reduce((total, item) => total + item.patientPays, 0);
 }
 
-/** Tạo tài liệu bảng kê A4 độc lập, không kéo theo layout và nút thao tác của màn hình. */
+/**
+ * Tạo tài liệu bảng kê A4 độc lập từ snapshot hồ sơ và hóa đơn.
+ *
+ * @param patient - Snapshot hồ sơ do caller tải và kiểm soát quyền truy cập.
+ * @param invoice - Snapshot dòng chi phí, trạng thái, BHYT, tạm ứng và phương thức thanh toán.
+ * @returns Chuỗi HTML hoàn chỉnh, đã escape dữ liệu động và có fallback dòng chi phí rỗng.
+ * @remarks Hàm chỉ tạo snapshot HTML tại thời điểm gọi: không fetch, không mutation, không tự tính
+ * lại tiền/tỷ lệ BHYT và không xác nhận thanh toán. Caller phải bảo đảm access boundary trước khi
+ * đưa dữ liệu hồ sơ vào bản in.
+ */
 export function createPaymentStatementPrintHtml(
   patient: PatientRecord,
   invoice: Invoice,
@@ -232,7 +266,13 @@ export function createPaymentStatementPrintHtml(
 </html>`;
 }
 
-/** Mở cửa sổ in riêng để chỉ in bảng kê A4, không in sidebar và các nút thao tác. */
+/**
+ * Mở cửa sổ trình duyệt riêng và gửi tài liệu bảng kê A4 tới lệnh in.
+ *
+ * @param html - HTML snapshot đã được tạo bởi `createPaymentStatementPrintHtml` sau khi escape.
+ * @remarks Đây là side effect của trình duyệt: mở cửa sổ, ghi document và gọi print. Nếu popup bị
+ * chặn, hàm trả về yên lặng; hàm không fetch dữ liệu, không cấp quyền và không thay đổi invoice.
+ */
 export function printPaymentStatementDocument(html: string): void {
   const printWindow = window.open('', '_blank', 'width=900,height=700');
   if (!printWindow) return;

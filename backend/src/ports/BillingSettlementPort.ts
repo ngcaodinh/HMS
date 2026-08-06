@@ -1,8 +1,2 @@
-export class BillingSettlementPort {
-  static async canFinalizeRecord(recordId: string): Promise<boolean> {
-    // Fake logic for Sprint 1
-    // Always returns true (meaning all charges are settled)
-    console.log(`[BillingSettlementPort] Evaluating charges for record ${recordId}... Done (Mocked).`);
-    return Promise.resolve(true);
-  }
-}
+// Compatibility path: dùng tên file kebab-case theo chuẩn nhưng giữ import legacy.
+export { BillingSettlementPort } from './billing-settlement-port';

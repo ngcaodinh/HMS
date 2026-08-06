@@ -107,9 +107,9 @@ interface RecordLabResultParams {
   conclusion?: string;
 }
 
-/** Transaction: upsert the one matching child result table + flip `lab_tests` to `resulted`, guarded
- * by `where: { status: 'ordered' }` (no `version` field on lab_tests to use for optimistic locking).
- * A concurrent duplicate submit rolls back the child-table write too — returns null on race loss. */
+/** Transaction: upsert đúng bảng kết quả con rồi chuyển `lab_tests` sang `resulted`.
+ * Điều kiện trạng thái thay cho optimistic locking vì `lab_tests` không có field `version`;
+ * request đua bị rollback cả bản ghi bảng con và trả về `null`. */
 export async function recordLabResultTx(params: RecordLabResultParams) {
   try {
     return await prisma.$transaction(async (tx) => {
@@ -119,36 +119,36 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
         case 'xn_cong_thuc_mau':
           await tx.xnCongThucMau.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.XnCongThucMauUncheckedCreateInput,
-            update: params.structuredResult as Prisma.XnCongThucMauUncheckedUpdateInput,
+            create: upsertData,
+            update: params.structuredResult,
           });
           break;
         case 'xn_nuoc_tieu':
           await tx.xnNuocTieu.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.XnNuocTieuUncheckedCreateInput,
-            update: params.structuredResult as Prisma.XnNuocTieuUncheckedUpdateInput,
+            create: upsertData,
+            update: params.structuredResult,
           });
           break;
         case 'xn_vi_sinh':
           await tx.xnViSinh.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.XnViSinhUncheckedCreateInput,
-            update: params.structuredResult as Prisma.XnViSinhUncheckedUpdateInput,
+            create: upsertData,
+            update: params.structuredResult,
           });
           break;
         case 'xn_mo_benh_hoc':
           await tx.xnMoBenhHoc.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.XnMoBenhHocUncheckedCreateInput,
-            update: params.structuredResult as Prisma.XnMoBenhHocUncheckedUpdateInput,
+            create: upsertData,
+            update: params.structuredResult,
           });
           break;
         case 'xn_hoa_sinh_mau':
           await tx.xnHoaSinhMau.upsert({
             where: { labTestId: params.labTestId },
-            create: upsertData as Prisma.XnHoaSinhMauUncheckedCreateInput,
-            update: params.structuredResult as Prisma.XnHoaSinhMauUncheckedUpdateInput,
+            create: upsertData,
+            update: params.structuredResult,
           });
           break;
       }
@@ -181,7 +181,7 @@ export async function recordLabResultTx(params: RecordLabResultParams) {
   }
 }
 
-/** Only ever touches `xn_mo_benh_hoc` — never writes `lab_tests.status`/`resultedAt` (Gate G4). */
+/** Chỉ ghi vào `xn_mo_benh_hoc`, tuyệt đối không cập nhật `lab_tests.status`/`resultedAt` (Gate G4). */
 export function savePathologyWorkupDraftTx(
   labTestId: string,
   structuredResult: Record<string, unknown>,
@@ -192,8 +192,8 @@ export function savePathologyWorkupDraftTx(
       id: randomUUID(),
       labTestId,
       ...structuredResult,
-    } as Prisma.XnMoBenhHocUncheckedCreateInput,
-    update: structuredResult as Prisma.XnMoBenhHocUncheckedUpdateInput,
+    },
+    update: structuredResult,
   });
 }
 
@@ -203,8 +203,8 @@ export async function updateLabTestTypeReferenceRange(id: string, referenceRange
   return prisma.labTestType.findUniqueOrThrow({ where: { id } });
 }
 
-/** "Tiếp nhận mẫu" — ordered -> in_progress, ghi nhận specimenReceivedAt. Guarded so it only ever
- * fires once from `ordered`; already-in_progress/resulted calls are no-ops (return null). */
+/** "Tiếp nhận mẫu" — ordered -> in_progress và ghi `specimenReceivedAt`.
+ * Chỉ chuyển trạng thái một lần từ `ordered`; request lặp lại trả `null`. */
 export async function receiveSpecimenTx(labTestId: string) {
   const result = await prisma.labTest.updateMany({
     where: { id: labTestId, status: 'ordered' },

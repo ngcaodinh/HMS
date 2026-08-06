@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { MedicalRecord, ServiceOrder } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { prisma } from '../../../core/prisma/prisma';
-import { toVietnamDbDateTime } from '../../../core/time/vietnamClock';
+import { toVietnamDbDateTime } from '../../../core/time/vietnam-clock';
 
 export class ReceptionRepository {
   async nextRecordCode(): Promise<string> {
@@ -169,9 +169,7 @@ export class ReceptionRepository {
     });
   }
 
-  async nextPatientCodeInTx(
-    tx: Prisma.TransactionClient,
-  ): Promise<string> {
+  async nextPatientCodeInTx(tx: Prisma.TransactionClient): Promise<string> {
     const key = 'patient_code';
     const existing = await tx.codeSequence.findUnique({ where: { key } });
     let next = 1;

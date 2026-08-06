@@ -1,12 +1,11 @@
 import type { Request, Response } from 'express';
-import { PrismaClient, SpecimenStatus, type Prisma } from '@prisma/client';
-import { AppError } from '../../core/errors/appError';
-import { RealtimePublisher } from '../../ports/RealtimePublisher';
-import { AuditPort } from '../../ports/AuditPort';
+import { SpecimenStatus, type Prisma } from '@prisma/client';
+import { AppError } from '../../core/errors/app-error';
+import { prisma } from '../../core/prisma/prisma';
+import { AuditPort } from '../../ports/audit-port';
+import { RealtimePublisher } from '../../ports/realtime-publisher';
 import { sendSuccess } from '../../core/http/response-envelope';
 import { createSpecimenSchema, handoffSpecimenSchema } from './schemas/specimen.schema';
-
-const prisma = new PrismaClient();
 
 export class SpecimenController {
   // GET /api/v1/specimens

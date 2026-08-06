@@ -1,7 +1,2 @@
-import { Request, Response, NextFunction } from 'express';
-
-export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any>) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-};
+// Compatibility path cho route cũ; implementation canonical nằm tại `async-handler`.
+export { asyncHandler } from './async-handler';

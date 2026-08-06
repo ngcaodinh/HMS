@@ -4,7 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 import { AppError } from '../../../core/errors/app-error';
-import { config } from '../../../config/unifiedConfig';
+import { config } from '../../../config/unified-config';
 import {
   createAttachment,
   findAttachmentById,

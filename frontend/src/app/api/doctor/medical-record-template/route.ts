@@ -6,7 +6,8 @@ import { NextResponse } from 'next/server';
 /**
  * @route   GET /api/doctor/medical-record-template
  * @desc    Cung cấp mẫu bệnh án chuẩn để màn hình bác sĩ bind dữ liệu trước khi in.
- * @access  doctor
+ * @access  Public; handler chỉ trả template tĩnh và không đọc JWT.
+ * @remarks Thử hai vị trí file để hỗ trợ cách khởi chạy khác nhau; lỗi đọc file mới trả HTTP 500.
  */
 export async function GET() {
   const templatePaths = [

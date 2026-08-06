@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { AppError } from '../../../core/errors/appError';
+import { AppError } from '../../../core/errors/app-error';
 import { sendSuccess } from '../../../core/http/response';
 import {
   cashPaymentBodySchema,
@@ -86,7 +86,7 @@ export class PaymentController {
   /**
    * IPN Momo — public, always HTTP 200 vendor body after receive.
    */
-  async momoWebhook(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async momoWebhook(req: Request, res: Response): Promise<void> {
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       await paymentService.handleMomoIpn(body);

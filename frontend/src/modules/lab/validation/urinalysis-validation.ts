@@ -19,6 +19,7 @@ const URINALYSIS_PRECISION: Record<string, [number, number]> = {
   dcdProtein: [6, 2],
 };
 
+/** Rule nước tiểu và dịch: pH 0–14, tỷ trọng 1–1,06, trường số khác không âm. */
 export const URINALYSIS_RULES: Record<string, DecimalRule> = {
   ph: { label: 'pH', max: 14, min: 0, precision: 3, scale: 1 },
   tyTrong: { label: 'Tỷ trọng', max: 1.06, min: 1, precision: 5, scale: 3 },
